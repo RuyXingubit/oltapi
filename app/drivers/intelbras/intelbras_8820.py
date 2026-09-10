@@ -6,6 +6,7 @@ import paramiko
 
 from app.core.security import sanitize_description, sanitize_port, sanitize_safe_string, sanitize_serial, sanitize_vlan
 from app.drivers.base import BaseOLTDriver
+from app.models.bootstrap import BootstrapMode, BootstrapRequest, DefaultONUMode
 from app.models.olt import OLTInDB
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ProvisionRequest, ProvisionResponse
@@ -281,3 +282,80 @@ class Intelbras8820Driver(BaseOLTDriver):
             serial=safe_serial,
             message="ONU provisionada e salva com sucesso na memória da OLT Intelbras 8820.",
         )
+
+    def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:
+        """
+        Gera a sequência de comandos CLI de inicialização para a Intelbras 8820i / 8820
+        baseado na ferramenta oficial da Intelbras (autoconfig-gpon-itbs).
+        """
+        safe_uplink = sanitize_safe_string(req.uplink_port, "porta de uplink")
+
+        commands: List[str] = [
+            "enable",
+            "config",
+        ]
+
+        is_router = (req.default_onu_mode == DefaultONUMode.ROUTER)
+        mode_110 = "default-router" if is_router else "default"
+        mode_default = "default-router" if is_router else "default"
+        mode_r1 = "default-router" if is_router else "default"
+
+        if req.mode == BootstrapMode.SINGLE_VLAN:
+            safe_vlan = sanitize_vlan(req.vlan or 100)
+            commands.append(f"bridge add {safe_uplink} downlink vlan {safe_vlan} tagged")
+            commands.append(f"bridge-profile add default downlink vlan {safe_vlan} tagged eth 1")
+            commands.append(f"bridge-profile add default-router downlink vlan {safe_vlan} tagged router")
+
+            commands.append(f"bridge-profile bind add {mode_110} device intelbras-110")
+            commands.append("bridge-profile bind add default device intelbras-110b")
+            commands.append("bridge-profile bind add default device intelbras-110g")
+            commands.append(f"bridge-profile bind add {mode_default} device intelbras-default")
+            commands.append(f"bridge-profile bind add {mode_r1} device intelbras-r1")
+            commands.append("bridge-profile bind add default-router device intelbras-121w")
+            commands.append("bridge-profile bind add default-router device intelbras-142ng")
+            commands.append("bridge-profile bind add default-router device intelbras-142nw")
+            commands.append("bridge-profile bind add default-router device intelbras-1420g")
+            commands.append("bridge-profile bind add default-router device intelbras-120ac")
+            commands.append("bridge-profile bind add default-router device intelbras-121ac")
+            commands.append("bridge-profile bind add default-router device intelbras-1200r")
+            commands.append("bridge-profile bind add default-router device intelbras-ax1800")
+            commands.append("bridge-profile bind add default-router device intelbras-ax1800v")
+
+        elif req.mode == BootstrapMode.VLAN_PER_PON:
+            vlan_map = req.vlan_per_pon or {}
+            for pon in range(1, 9):
+                raw_vlan = vlan_map.get(str(pon), 100 + pon)
+                safe_vlan = sanitize_vlan(raw_vlan)
+                commands.append(f"bridge add {safe_uplink} downlink vlan {safe_vlan} tagged")
+                commands.append(f"bridge-profile add gpon{pon}-default downlink vlan {safe_vlan} tagged eth 1")
+                commands.append(f"bridge-profile add gpon{pon}-default-router downlink vlan {safe_vlan} tagged router")
+
+                commands.append(f"bridge-profile bind add gpon{pon}-{mode_110} device intelbras-110 gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default device intelbras-110b gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default device intelbras-110g gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-{mode_default} device intelbras-default gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-{mode_r1} device intelbras-r1 gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-121w gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-142ng gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-142nw gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-1420g gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-120ac gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-121ac gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-1200r gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-ax1800 gpon {pon}")
+                commands.append(f"bridge-profile bind add gpon{pon}-default-router device intelbras-ax1800v gpon {pon}")
+
+        commands.extend([
+            "onu set auto",
+            "auto-service enable",
+            "yes",
+            "onu show refresh",
+            "write",
+        ])
+
+        return commands
+
+    def apply_bootstrap(self, olt: OLTInDB, req: BootstrapRequest) -> int:
+        commands = self.generate_bootstrap_commands(req)
+        self._execute_cli_commands(olt, commands)
+        return len(commands)

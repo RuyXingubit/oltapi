@@ -3,8 +3,8 @@
 ## 1. Sumário Executivo
 - **Projeto:** API Unificada de Provisionamento Multi-OLT (oltapi)
 - **Status da Suite:** **APROVADO (100% dos testes passando)**
-- **Testes Executados:** 28 testes automatizados
-- **Tempo de Execução:** 0.06 segundos
+- **Testes Executados:** 34 testes automatizados
+- **Tempo de Execução:** 0.09 segundos
 - **Falhas:** 0
 - **Regressões:** 0
 
@@ -19,6 +19,7 @@
 | **3. Visualizar ONU ou Porta** | `tests/unit/test_api_endpoints.py`<br>`tests/unit/test_intelbras_8820_parser.py` | `test_list_port_onus`<br>`test_get_onu_details`<br>`test_parse_port_onus`<br>`test_parse_optical_info` | **APROVADO** |
 | **4. Listar ONUs Descobertas (Autofind)** | `tests/unit/test_api_endpoints.py`<br>`tests/unit/test_intelbras_8820_parser.py` | `test_list_unauthorized_onus`<br>`test_parse_unauthorized_onus_format_standard`<br>`test_parse_unauthorized_onus_format_table` | **APROVADO** |
 | **5. Provisionar ONUs** | `tests/unit/test_api_endpoints.py` | `test_provision_onu_success`<br>`test_provision_onu_rejects_injection` | **APROVADO** |
+| **6. Bootstrap Inicial (Zero-Touch)** | `tests/unit/test_bootstrap.py` | `test_driver_bootstrap_single_vlan`<br>`test_driver_bootstrap_vlan_per_pon`<br>`test_driver_bootstrap_sanitization_rejection`<br>`test_api_bootstrap_preview`<br>`test_api_bootstrap_apply_success`<br>`test_api_bootstrap_olt_not_found` | **APROVADO** |
 
 ---
 

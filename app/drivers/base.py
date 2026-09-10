@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
+from app.models.bootstrap import BootstrapRequest
 from app.models.olt import OLTInDB
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ProvisionRequest, ProvisionResponse
@@ -36,4 +37,14 @@ class BaseOLTDriver(ABC):
     @abstractmethod
     def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
         """Provisiona a ONU na OLT atribuindo porta, serial, vlan e perfil."""
+        pass
+
+    @abstractmethod
+    def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:
+        """Gera a sequência de comandos CLI para configuração inicial da OLT virgem."""
+        pass
+
+    @abstractmethod
+    def apply_bootstrap(self, olt: OLTInDB, req: BootstrapRequest) -> int:
+        """Executa a configuração inicial na OLT física e retorna a quantidade de comandos aplicados."""
         pass

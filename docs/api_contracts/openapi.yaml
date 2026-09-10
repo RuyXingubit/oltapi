@@ -286,6 +286,90 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/olts/{olt_id}/bootstrap/preview:
+    post:
+      summary: Gerar preview do script de configuração inicial da OLT (Dry-Run)
+      description: Retorna os comandos CLI que serão aplicados para configurar a OLT virgem (Uplink, VLANs, bridges, binds de ONUs e auto-service).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapRequest'
+      responses:
+        '200':
+          description: Script de comandos gerado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapPreviewResponse'
+        '400':
+          description: Parâmetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/bootstrap/apply:
+    post:
+      summary: Aplicar configuração inicial na OLT física (Zero-Touch Provisioning)
+      description: Conecta na OLT, executa a sequência completa de configuração, ativa o auto-service, grava na memória e gera um backup de segurança inicial.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapRequest'
+      responses:
+        '200':
+          description: Configuração inicial aplicada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapApplyResponse'
+        '400':
+          description: Erro nos parâmetros
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Erro de conexão com a OLT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -506,3 +590,66 @@ components:
         code:
           type: string
           example: "CLI_COMMAND_FAILED"
+
+    BootstrapRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [single_vlan, vlan_per_pon]
+          default: single_vlan
+        uplink_port:
+          type: string
+          default: "1"
+          example: "1"
+        vlan:
+          type: integer
+          minimum: 1
+          maximum: 4094
+          default: 100
+          example: 100
+        vlan_per_pon:
+          type: object
+          additionalProperties:
+            type: integer
+          example: {"1": 101, "2": 102}
+        default_onu_mode:
+          type: string
+          enum: [router, bridge]
+          default: router
+        force:
+          type: boolean
+          default: false
+
+    BootstrapPreviewResponse:
+      type: object
+      properties:
+        olt_id:
+          type: string
+          format: uuid
+        mode:
+          type: string
+        commands:
+          type: array
+          items:
+            type: string
+        script_text:
+          type: string
+        total_commands:
+          type: integer
+
+    BootstrapApplyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        olt_id:
+          type: string
+          format: uuid
+        backup_id:
+          type: string
+          format: uuid
+        total_commands_executed:
+          type: integer
+        message:
+          type: string
