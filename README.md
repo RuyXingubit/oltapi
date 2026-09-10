@@ -1,7 +1,7 @@
 # 🌐 OLTAPI - Unified Multi-Vendor OLT Provisioning & Diagnostics REST API
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
@@ -183,4 +183,4 @@ Leia nosso **[Guia de Contribuição (CONTRIBUTING.md)](CONTRIBUTING.md)** para 
 
 ## 📄 Licença
 
-Este projeto está licenciado sob os termos da licença [MIT](LICENSE).
+Este projeto está licenciado sob os termos da licença [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
