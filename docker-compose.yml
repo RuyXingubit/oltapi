@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  oltapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oltapi_service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PROJECT_NAME=OLT Provisioning & Diagnostics API
+      - API_KEY=oltapi_secret_default_key_change_me
+      - DEFAULT_SSH_TIMEOUT=15
+    volumes:
+      - ./backups:/app/backups
+      - ./data:/app/data

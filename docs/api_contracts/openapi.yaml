@@ -1,0 +1,508 @@
+openapi: 3.1.0
+info:
+  title: OLT Provisioning & Diagnostics Unified API
+  description: API REST padronizada para provisionamento multi-fabricante de OLTs, coleta de configurações, gestão de backups e diagnóstico óptico.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Servidor Local de Desenvolvimento
+paths:
+  /api/v1/olts:
+    get:
+      summary: Listar OLTs cadastradas
+      description: Retorna a lista de todas as OLTs disponíveis para provisionamento e gerência.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Lista de OLTs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OLTResponse'
+    post:
+      summary: Cadastrar nova OLT
+      description: Adiciona uma nova OLT ao inventário da API.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OLTCreateRequest'
+      responses:
+        '201':
+          description: OLT cadastrada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTResponse'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/config:
+    get:
+      summary: Visualizar configurações da OLT (running-config)
+      description: Executa a leitura direta do running-config da OLT e entrega o texto consolidado.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID da OLT (UUIDv7)
+      responses:
+        '200':
+          description: Configuração coletada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTConfigResponse'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Falha na comunicação com a OLT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/backups:
+    get:
+      summary: Listar histórico de backups da OLT
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Histórico de backups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BackupMetadata'
+    post:
+      summary: Disparar e salvar novo backup da OLT
+      description: Conecta na OLT, gera a cópia de segurança, armazena no disco local protegido com identificador UUIDv7 e calcula hash SHA-256.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Backup gerado e salvo com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupMetadata'
+        '502':
+          description: Erro ao coletar backup da OLT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/backups/{backup_id}/download:
+    get:
+      summary: Download do arquivo de backup
+      description: Entrega o arquivo binário/texto bruto do backup para o ERP ou técnico.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: backup_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Arquivo de backup para download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Arquivo de backup não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/ports/{port}/onus:
+    get:
+      summary: Listar ONUs de uma porta PON
+      description: Retorna as ONUs ativas na porta informada.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: port
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "1/1"
+      responses:
+        '200':
+          description: Lista de ONUs na porta
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ONUSummary'
+
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}:
+    get:
+      summary: Consultar detalhes e sinal óptico de uma ONU
+      description: Obtém status de conexão, potência óptica (Rx/Tx em dBm) e informações de cadastro.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: serial_or_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "INCL12345678"
+      responses:
+        '200':
+          description: Detalhes e diagnóstico da ONU
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUDetails'
+        '404':
+          description: ONU não encontrada na OLT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/unauthorized:
+    get:
+      summary: Listar ONUs não autorizadas (descobertas)
+      description: Retorna a lista de ONUs conectadas fisicamente que aguardam autorização (autofind/unassigned).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de ONUs descobertas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UnauthorizedONU'
+
+  /api/v1/olts/{olt_id}/onus:
+    post:
+      summary: Provisionar nova ONU
+      description: Autoriza a ONU na porta PON associando VLAN, perfil e descrição.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionRequest'
+      responses:
+        '201':
+          description: ONU provisionada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisionResponse'
+        '400':
+          description: Parâmetros inválidos ou violação de validação de segurança
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: ONU já cadastrada ou porta cheia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Chave de API secreta para autenticação de clientes externos.
+
+  schemas:
+    OLTCreateRequest:
+      type: object
+      required:
+        - name
+        - vendor
+        - model
+        - host
+        - username
+        - password
+      properties:
+        name:
+          type: string
+          example: "OLT-POP-CENTRO"
+        vendor:
+          type: string
+          enum: [intelbras, huawei, fiberhome, parks]
+          example: "intelbras"
+        model:
+          type: string
+          example: "8820"
+        host:
+          type: string
+          example: "192.168.10.2"
+        port:
+          type: integer
+          default: 22
+          example: 22
+        protocol:
+          type: string
+          enum: [ssh, telnet]
+          default: ssh
+        username:
+          type: string
+          example: "admin"
+        password:
+          type: string
+          example: "admin123"
+
+    OLTResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "0191e4f2-51a8-7d84-a12b-3456789abcde"
+        name:
+          type: string
+        vendor:
+          type: string
+        model:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        protocol:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    OLTConfigResponse:
+      type: object
+      properties:
+        olt_id:
+          type: string
+          format: uuid
+        collected_at:
+          type: string
+          format: date-time
+        config_text:
+          type: string
+          description: Conteúdo textual completo do running-config.
+
+    BackupMetadata:
+      type: object
+      properties:
+        backup_id:
+          type: string
+          format: uuid
+          description: Identificador único no padrão UUIDv7.
+        olt_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        size_bytes:
+          type: integer
+        sha256_hash:
+          type: string
+        filename:
+          type: string
+
+    ONUSummary:
+      type: object
+      properties:
+        port:
+          type: string
+          example: "1/1"
+        onu_id:
+          type: integer
+          example: 1
+        serial:
+          type: string
+          example: "INCL12345678"
+        status:
+          type: string
+          example: "online"
+        name:
+          type: string
+          example: "Cliente_Joao"
+
+    ONUDetails:
+      type: object
+      properties:
+        port:
+          type: string
+        onu_id:
+          type: integer
+        serial:
+          type: string
+        status:
+          type: string
+          example: "online"
+        name:
+          type: string
+        rx_power_dbm:
+          type: number
+          format: float
+          example: -19.45
+        tx_power_dbm:
+          type: number
+          format: float
+          example: 2.10
+        vlan:
+          type: integer
+          example: 100
+
+    UnauthorizedONU:
+      type: object
+      properties:
+        port:
+          type: string
+          example: "1/1"
+        serial:
+          type: string
+          example: "INCL12345678"
+        model:
+          type: string
+          example: "110B"
+        detected_at:
+          type: string
+          format: date-time
+
+    ProvisionRequest:
+      type: object
+      required:
+        - port
+        - serial
+        - vlan
+      properties:
+        port:
+          type: string
+          example: "1/1"
+        serial:
+          type: string
+          example: "INCL12345678"
+        vlan:
+          type: integer
+          minimum: 1
+          maximum: 4094
+          example: 100
+        profile:
+          type: string
+          example: "PLAN_100M"
+        description:
+          type: string
+          example: "Cliente_Joao_Silva"
+        onu_model:
+          type: string
+          example: "auto"
+
+    ProvisionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        port:
+          type: string
+          example: "1/1"
+        onu_id:
+          type: integer
+          example: 3
+        serial:
+          type: string
+          example: "INCL12345678"
+        message:
+          type: string
+          example: "ONU provisionada e salva com sucesso na memória da OLT."
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          example: "Descrição detalhada do erro."
+        code:
+          type: string
+          example: "CLI_COMMAND_FAILED"
