@@ -1,6 +1,7 @@
 from typing import Dict
 from app.drivers.base import BaseOLTDriver
 from app.drivers.intelbras.intelbras_8820 import Intelbras8820Driver
+from app.drivers.intelbras.intelbras_gseries import IntelbrasGSeriesDriver
 from app.models.olt import OLTInDB, OLTVendor
 
 
@@ -23,9 +24,14 @@ class DriverFactory:
                 driver = Intelbras8820Driver()
                 cls._drivers_cache[key] = driver
                 return driver
+            elif "g08" in model or "g8" in model:
+                driver = IntelbrasGSeriesDriver(total_pons=8, model_name="G08")
+                cls._drivers_cache[key] = driver
+                return driver
             elif "g16" in model:
-                # Placeholder para driver G16 (próxima fase do roadmap)
-                raise NotImplementedError("Driver Intelbras G16 planejado para o próximo ciclo de entrega.")
+                driver = IntelbrasGSeriesDriver(total_pons=16, model_name="G16")
+                cls._drivers_cache[key] = driver
+                return driver
             elif "4840" in model:
                 # Placeholder para driver 4840
                 raise NotImplementedError("Driver Intelbras 4840 planejado para o próximo ciclo de entrega.")

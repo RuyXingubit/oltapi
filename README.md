@@ -13,8 +13,12 @@ Projetada para integração direta com qualquer **ERP de Provedor** (IXC, MK-Aut
 3. **Consulta de Portas e Diagnóstico de ONUs:** Listagem de ONUs em uma porta PON e leitura de níveis de potência óptica (Rx/Tx em dBm) e status operacional (online/offline).
 4. **Descoberta de ONUs Não Autorizadas:** Varredura em tempo real de ONUs pendentes de ativação (*autofind*).
 5. **Provisionamento Padronizado:** Autorização de ONU com VLAN, perfil e descrição através de payload JSON agnóstico de fabricante.
+6. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação de script de autoconfiguração de OLTs virgens baseado na ferramenta oficial da Intelbras.
 
-**Piloto Inicial Implementado:** OLT **Intelbras 8820** (GPON).
+**Modelos Homologados:**
+- **Intelbras 8820 / 8820i** (GPON - 8 portas)
+- **Intelbras OLT G08** (GPON - 8 portas)
+- **Intelbras OLT G16** (GPON - 16 portas)
 
 ---
 
@@ -27,10 +31,11 @@ Projetada para integração direta com qualquer **ERP de Provedor** (IXC, MK-Aut
 [ OLT API Core (FastAPI) ]
        │
 [ Driver Factory / Router ]
-       ├──> [ Intelbras8820Driver ] ──> SSH / Telnet (CLI)
-       ├──> [ HuaweiMA5800Driver ]  ──> (Planejado / Roadmap)
-       ├──> [ FiberhomeTL1Driver ]  ──> (Planejado / Roadmap)
-       └──> [ ParksDriver ]         ──> (Planejado / Roadmap)
+       ├──> [ Intelbras8820Driver ]   ──> SSH / Telnet (Broadcom CLI)
+       ├──> [ IntelbrasGSeriesDriver ] ──> SSH / Telnet (G08 / G16 CLI)
+       ├──> [ HuaweiMA5800Driver ]    ──> (Planejado / Roadmap)
+       ├──> [ FiberhomeTL1Driver ]    ──> (Planejado / Roadmap)
+       └──> [ ParksDriver ]           ──> (Planejado / Roadmap)
 ```
 
 ---
