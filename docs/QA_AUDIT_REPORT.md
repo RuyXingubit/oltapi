@@ -3,8 +3,8 @@
 ## 1. Sumário Executivo
 - **Projeto:** API Unificada de Provisionamento Multi-OLT (oltapi)
 - **Status da Suite:** **APROVADO (100% dos testes passando)**
-- **Testes Executados:** 75 testes automatizados
-- **Tempo de Execução:** 0.10 segundos
+- **Testes Executados:** 82 testes automatizados
+- **Tempo de Execução:** 0.13 segundos
 - **Falhas:** 0
 - **Regressões:** 0
 
@@ -25,6 +25,7 @@
 | **9. Suporte Fiberhome AN5516 e AN6000 (TL1)** | `tests/unit/test_fiberhome_driver.py` | `test_driver_factory_resolves_fiberhome_models`<br>`test_fiberhome_port_normalization`<br>`test_fiberhome_unregistered_onus_parser`<br>`test_fiberhome_port_onus_parser`<br>`test_fiberhome_optical_info_parser`<br>`test_fiberhome_bootstrap_generation`<br>`test_fiberhome_bootstrap_vlan_per_pon`<br>`test_fiberhome_provision_commands`<br>`test_api_fiberhome_bootstrap_preview` | **APROVADO** |
 | **10. Suporte V-SOL V1600GT e V1600G (CLI)** | `tests/unit/test_vsol_driver.py` | `test_driver_factory_resolves_vsol_models`<br>`test_vsol_port_normalization`<br>`test_vsol_autofind_parser`<br>`test_vsol_port_onus_parser`<br>`test_vsol_optical_info_parser`<br>`test_vsol_bootstrap_generation`<br>`test_vsol_bootstrap_vlan_per_pon`<br>`test_vsol_provision_commands`<br>`test_api_vsol_bootstrap_preview` | **APROVADO** |
 | **11. Suporte ZTE C300, C320 e C600 (ZXROS)** | `tests/unit/test_zte_driver.py` | `test_driver_factory_resolves_zte_models`<br>`test_zte_port_normalization`<br>`test_zte_autofind_parser`<br>`test_zte_port_onus_parser`<br>`test_zte_optical_info_parser`<br>`test_zte_bootstrap_generation`<br>`test_zte_bootstrap_vlan_per_pon`<br>`test_zte_provision_commands`<br>`test_api_zte_bootstrap_preview` | **APROVADO** |
+| **12. Backup Automatizado & Disaster Recovery** | `tests/unit/test_backup_disaster_recovery.py` | `test_backup_storage_compare_identical`<br>`test_backup_storage_compare_drift_unified_diff`<br>`test_backup_storage_audit_olt`<br>`test_backup_storage_purge_by_max_count`<br>`test_backup_storage_purge_preserves_newest_even_if_old`<br>`test_backup_service_run_all_and_audit_all`<br>`test_api_backups_dr_endpoints` | **APROVADO** |
 
 ---
 

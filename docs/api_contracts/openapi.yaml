@@ -162,6 +162,105 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/olts/{olt_id}/backups/audit:
+    get:
+      summary: Relatório de integridade e auditoria de backups da OLT
+      description: Retorna contadores, espaço em disco e se houve alteração (drift) entre os últimos backups.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Relatório de auditoria de backups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupAuditReport'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/backups/compare:
+    get:
+      summary: Comparar dois backups da OLT (Integridade SHA-256 e Unified Diff)
+      description: Compara os hashes SHA-256 e gera unified diff entre dois backups específicos ou os dois mais recentes.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: base_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: target_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Resultado da comparação e diff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupDiffResult'
+        '404':
+          description: Backups insuficientes ou não encontrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/backups/purge:
+    post:
+      summary: Expurgo e retenção de backups da OLT
+      description: Executa a política de retenção liberando espaço físico em disco.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurgePolicy'
+      responses:
+        '200':
+          description: Resultado do expurgo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurgeResult'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/olts/{olt_id}/ports/{port}/onus:
     get:
       summary: Listar ONUs de uma porta PON
@@ -370,6 +469,69 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/backups/run-all:
+    post:
+      summary: Disparar rotina de backup em lote para todas as OLTs
+      description: Executa coleta paralela/sequencial de backup em todo o parque de OLTs com expurgo automático.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: purge_after
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurgePolicy'
+      responses:
+        '200':
+          description: Resultado da execução do lote de backups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchBackupResult'
+
+  /api/v1/backups/audit-all:
+    get:
+      summary: Auditoria consolidada de integridade de todo o parque de OLTs
+      description: Retorna o status de integridade, contagem e drifts de cada OLT.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Lista de relatórios de auditoria
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BackupAuditReport'
+
+  /api/v1/backups/purge-all:
+    post:
+      summary: Expurgo global de backups em todas as OLTs
+      description: Aplica a política de retenção liberando espaço em disco para todas as OLTs.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurgePolicy'
+      responses:
+        '200':
+          description: Resultado do expurgo global
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurgeResult'
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -472,6 +634,98 @@ components:
           type: string
         filename:
           type: string
+
+    BackupDiffResult:
+      type: object
+      properties:
+        olt_id:
+          type: string
+          format: uuid
+        base_backup_id:
+          type: string
+          format: uuid
+        target_backup_id:
+          type: string
+          format: uuid
+        identical:
+          type: boolean
+          description: Indica se os backups possuem hash SHA-256 idêntico.
+        base_sha256:
+          type: string
+        target_sha256:
+          type: string
+        diff_lines:
+          type: array
+          items:
+            type: string
+        additions_count:
+          type: integer
+        deletions_count:
+          type: integer
+
+    BackupAuditReport:
+      type: object
+      properties:
+        olt_id:
+          type: string
+          format: uuid
+        olt_name:
+          type: string
+        total_backups:
+          type: integer
+        total_bytes:
+          type: integer
+        latest_backup:
+          $ref: '#/components/schemas/BackupMetadata'
+        previous_backup:
+          $ref: '#/components/schemas/BackupMetadata'
+        has_changed:
+          type: boolean
+        last_backup_at:
+          type: string
+          format: date-time
+
+    PurgePolicy:
+      type: object
+      properties:
+        max_backups_per_olt:
+          type: integer
+          default: 30
+          minimum: 1
+        max_age_days:
+          type: integer
+          minimum: 1
+
+    PurgeResult:
+      type: object
+      properties:
+        olt_id:
+          type: string
+          nullable: true
+        deleted_count:
+          type: integer
+        freed_bytes:
+          type: integer
+        remaining_count:
+          type: integer
+
+    BatchBackupResult:
+      type: object
+      properties:
+        total_olts:
+          type: integer
+        successful:
+          type: integer
+        failed:
+          type: integer
+        backups:
+          type: array
+          items:
+            $ref: '#/components/schemas/BackupMetadata'
+        errors:
+          type: array
+          items:
+            type: object
 
     ONUSummary:
       type: object

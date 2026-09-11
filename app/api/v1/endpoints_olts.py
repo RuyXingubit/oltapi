@@ -1,10 +1,16 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import get_backup_storage, get_olt_repo, require_api_key
 from app.drivers.factory import DriverFactory
-from app.models.backup import BackupMetadata
+from app.models.backup import (
+    BackupAuditReport,
+    BackupDiffResult,
+    BackupMetadata,
+    PurgePolicy,
+    PurgeResult,
+)
 from app.models.olt import OLTConfigResponse, OLTCreateRequest, OLTResponse
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
@@ -120,3 +126,59 @@ def download_backup(
         filename=file_path.name,
         media_type="application/octet-stream",
     )
+
+
+@router.get("/{olt_id}/backups/audit", response_model=BackupAuditReport)
+def audit_olt_backups(
+    olt_id: str,
+    repo: OLTRepository = Depends(get_olt_repo),
+    storage: BackupStorage = Depends(get_backup_storage),
+):
+    """Retorna relatório de integridade, contagem e detecção de alteração de configuração da OLT."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+    return storage.audit_olt(olt_id=olt.id, olt_name=olt.name)
+
+
+@router.get("/{olt_id}/backups/compare", response_model=BackupDiffResult)
+def compare_olt_backups(
+    olt_id: str,
+    base_id: Optional[str] = None,
+    target_id: Optional[str] = None,
+    repo: OLTRepository = Depends(get_olt_repo),
+    storage: BackupStorage = Depends(get_backup_storage),
+):
+    """Compara dois backups da OLT calculando status de integridade SHA-256 e unified diff."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    diff_res = storage.compare_backups(olt_id=olt_id, base_backup_id=base_id, target_backup_id=target_id)
+    if not diff_res:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não foi possível comparar os backups. Verifique se existem backups suficientes ou se os IDs informados são válidos.",
+        )
+    return diff_res
+
+
+@router.post("/{olt_id}/backups/purge", response_model=PurgeResult)
+def purge_olt_backups(
+    olt_id: str,
+    policy: Optional[PurgePolicy] = None,
+    repo: OLTRepository = Depends(get_olt_repo),
+    storage: BackupStorage = Depends(get_backup_storage),
+):
+    """Aplica política de expurgo e retenção de backups para a OLT especificada."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    p = policy or PurgePolicy()
+    return storage.purge_backups(
+        olt_id=olt.id,
+        max_backups_per_olt=p.max_backups_per_olt,
+        max_age_days=p.max_age_days,
+    )
+
