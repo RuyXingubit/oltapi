@@ -1,0 +1,379 @@
+import logging
+import re
+import socket
+import time
+from typing import List, Optional, Tuple
+import paramiko
+
+from app.core.security import (
+    sanitize_description,
+    sanitize_port,
+    sanitize_safe_string,
+    sanitize_serial,
+    sanitize_vlan,
+)
+from app.drivers.base import BaseOLTDriver
+from app.models.bootstrap import BootstrapMode, BootstrapRequest
+from app.models.olt import OLTInDB
+from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
+from app.models.provision import ProvisionRequest, ProvisionResponse
+
+logger = logging.getLogger(__name__)
+
+
+class FiberhomeTL1Driver(BaseOLTDriver):
+    """
+    Driver especializado para OLTs Fiberhome utilizando o protocolo oficial TL1 (Bellcore).
+    Compatível com:
+    - Família AN5516 (AN5516-01, AN5516-04, AN5516-06)
+    - Família AN6000 (AN6000-7, AN6000-15, AN6000-17)
+    """
+
+    def __init__(self, timeout: int = 15):
+        self.timeout = timeout
+
+    # ----------------------------------------------------------------------
+    # Normalização de Portas Fiberhome (Slot / PON)
+    # ----------------------------------------------------------------------
+
+    @staticmethod
+    def parse_port_components(port_str: str) -> Tuple[int, int]:
+        """
+        Normaliza strings de porta para a tupla (slot, pon).
+        Exemplos:
+        - '1/2'   -> (1, 2)
+        - '0/1/2' -> (1, 2)
+        - '3'     -> (1, 3)
+        """
+        parts = [int(p) for p in port_str.strip().split("/") if p.isdigit()]
+        if len(parts) == 3:
+            # Formato frame/slot/pon (frame tipicamente 0 ou 1)
+            return parts[1], parts[2]
+        elif len(parts) == 2:
+            return parts[0], parts[1]
+        elif len(parts) == 1:
+            return 1, parts[0]
+        raise ValueError(f"Porta Fiberhome inválida: '{port_str}'. Esperado formato 'slot/pon' (ex: '1/2').")
+
+    # ----------------------------------------------------------------------
+    # Comunicação TL1 com o Concentrador Fiberhome
+    # ----------------------------------------------------------------------
+
+    def _execute_tl1_commands(self, olt: OLTInDB, commands: List[str]) -> str:
+        """
+        Executa sequência de comandos TL1 conectando via TCP Socket direto (porta padrão 3337)
+        ou via SSH (caso configurado na porta 22).
+        """
+        if olt.port == 22:
+            return self._execute_ssh_tl1(olt, commands)
+        return self._execute_raw_socket_tl1(olt, commands)
+
+    def _execute_raw_socket_tl1(self, olt: OLTInDB, commands: List[str]) -> str:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(self.timeout)
+        try:
+            s.connect((olt.host, olt.port))
+
+            # Envia login TL1 Bellcore
+            login_cmd = f"LOGIN:::1::UN={olt.username},PWD={olt.password};\r\n"
+            s.sendall(login_cmd.encode("utf-8"))
+            time.sleep(0.3)
+
+            output = ""
+            for cmd in commands:
+                formatted_cmd = cmd.strip()
+                if not formatted_cmd.endswith(";"):
+                    formatted_cmd += ";"
+                s.sendall(f"{formatted_cmd}\r\n".encode("utf-8"))
+                time.sleep(0.3)
+
+            # Envia logout TL1
+            s.sendall(b"LOGOUT:::1::;\r\n")
+            time.sleep(0.2)
+
+            while True:
+                try:
+                    data = s.recv(65535)
+                    if not data:
+                        break
+                    output += data.decode("utf-8", errors="ignore")
+                    if ";" in output:
+                        # Resposta final TL1 recebida
+                        break
+                except socket.timeout:
+                    break
+
+            return output
+
+        except Exception as e:
+            logger.error(f"Erro de comunicação TL1 Socket com OLT Fiberhome {olt.name} ({olt.host}): {e}")
+            raise ConnectionError(f"Falha ao conectar na OLT Fiberhome {olt.name}: {str(e)}")
+        finally:
+            s.close()
+
+    def _execute_ssh_tl1(self, olt: OLTInDB, commands: List[str]) -> str:
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        try:
+            client.connect(
+                hostname=olt.host,
+                port=olt.port,
+                username=olt.username,
+                password=olt.password,
+                timeout=self.timeout,
+                look_for_keys=False,
+                allow_agent=False,
+            )
+
+            channel = client.invoke_shell()
+            time.sleep(0.5)
+
+            output = ""
+            for cmd in commands:
+                formatted_cmd = cmd.strip()
+                if not formatted_cmd.endswith(";"):
+                    formatted_cmd += ";"
+                channel.send(f"{formatted_cmd}\n")
+                time.sleep(0.4)
+
+            start_time = time.time()
+            while not channel.recv_ready() and (time.time() - start_time) < self.timeout:
+                time.sleep(0.2)
+
+            while channel.recv_ready():
+                output += channel.recv(65535).decode("utf-8", errors="ignore")
+                time.sleep(0.2)
+
+            return output
+
+        except Exception as e:
+            logger.error(f"Erro de comunicação SSH TL1 com OLT Fiberhome {olt.name} ({olt.host}): {e}")
+            raise ConnectionError(f"Falha ao conectar via SSH na OLT Fiberhome {olt.name}: {str(e)}")
+        finally:
+            client.close()
+
+    # ----------------------------------------------------------------------
+    # Parsers Puros (Testáveis Unitariamente sem Hardware)
+    # ----------------------------------------------------------------------
+
+    @staticmethod
+    def parse_unregistered_onus(response: str) -> List[UnauthorizedONU]:
+        """
+        Interpreta resposta TL1 de 'LST-UNREGONU'.
+        Exemplo:
+        IP 0
+        M  1 COMPLD
+        SLOTNO=1  PORTNO=1  ONUID=1  MAC=FHTT12345678  AUTHTYPE=MAC  DEVTYPE=AN5506-01-A
+        SLOTNO=1  PORTNO=3  ONUID=1  MAC=FHTT87654321  AUTHTYPE=MAC  DEVTYPE=AN5506-02-B
+        SLOTNO=2  PORTNO=1  ONUID=1  MAC=INCL99887766  AUTHTYPE=MAC  DEVTYPE=110B
+        ;
+        """
+        results: List[UnauthorizedONU] = []
+        lines = response.splitlines()
+
+        for line in lines:
+            line_str = line.strip()
+            if not line_str or "COMPLD" in line_str or line_str.startswith(";") or line_str.startswith("IP"):
+                continue
+
+            # Captura SLOTNO, PORTNO, MAC/SN e opcionalmente DEVTYPE
+            slot_match = re.search(r"SLOTNO[=:](\d+)", line_str, re.IGNORECASE)
+            port_match = re.search(r"PORTNO[=:](\d+)", line_str, re.IGNORECASE)
+            mac_match = re.search(r"(?:MAC|SN)[=:]([A-Za-z0-9\-]+)", line_str, re.IGNORECASE)
+            dev_match = re.search(r"DEVTYPE[=:]([A-Za-z0-9_\-]+)", line_str, re.IGNORECASE)
+
+            if slot_match and port_match and mac_match:
+                slot = slot_match.group(1)
+                pon = port_match.group(1)
+                serial = mac_match.group(1)
+                model = dev_match.group(1) if dev_match else "auto"
+
+                results.append(
+                    UnauthorizedONU(
+                        port=f"{slot}/{pon}",
+                        serial=serial,
+                        model=model,
+                    )
+                )
+
+        return results
+
+    @staticmethod
+    def parse_port_onus(response: str, port: str) -> List[ONUSummary]:
+        """
+        Interpreta resposta TL1 de 'LST-ONU'.
+        Exemplo:
+        IP 0
+        M  1 COMPLD
+        SLOTNO=1  PORTNO=1  ONUID=1  NAME=Cliente_01  MAC=FHTT12345678  STATUS=up  RX=-19.50
+        SLOTNO=1  PORTNO=1  ONUID=2  NAME=Cliente_02  MAC=FHTT87654321  STATUS=down  RX=--
+        ;
+        """
+        results: List[ONUSummary] = []
+        lines = response.splitlines()
+
+        for line in lines:
+            line_str = line.strip()
+            if not line_str or "COMPLD" in line_str or line_str.startswith(";") or line_str.startswith("IP"):
+                continue
+
+            onuid_match = re.search(r"ONUID[=:](\d+)", line_str, re.IGNORECASE)
+            mac_match = re.search(r"(?:MAC|SN)[=:]([A-Za-z0-9\-]+)", line_str, re.IGNORECASE)
+            status_match = re.search(r"STATUS[=:]([a-zA-Z_\-]+)", line_str, re.IGNORECASE)
+
+            if onuid_match:
+                onu_id = int(onuid_match.group(1))
+                serial = mac_match.group(1) if mac_match else f"ONU-{onu_id}"
+                raw_status = status_match.group(1).lower() if status_match else "unknown"
+
+                status = "online" if raw_status in ["up", "online", "active"] else "offline"
+
+                results.append(
+                    ONUSummary(
+                        port=port,
+                        onu_id=onu_id,
+                        serial=serial,
+                        status=status,
+                    )
+                )
+
+        return results
+
+    @staticmethod
+    def parse_optical_info(response: str) -> Tuple[Optional[float], Optional[float]]:
+        """
+        Interpreta resposta TL1 de 'MEAS-OPTICAL'.
+        Exemplo:
+        IP 0
+        M  1 COMPLD
+        RX=-19.45  TX=2.15  VOLTAGE=3.30  BIAS=15.00
+        ;
+        """
+        rx_power: Optional[float] = None
+        tx_power: Optional[float] = None
+
+        rx_match = re.search(r"RX[=:]([-\d.]+)", response, re.IGNORECASE)
+        if rx_match:
+            try:
+                rx_power = float(rx_match.group(1))
+            except ValueError:
+                pass
+
+        tx_match = re.search(r"TX[=:]([-\d.]+)", response, re.IGNORECASE)
+        if tx_match:
+            try:
+                tx_power = float(tx_match.group(1))
+            except ValueError:
+                pass
+
+        return rx_power, tx_power
+
+    # ----------------------------------------------------------------------
+    # Métodos da Interface BaseOLTDriver
+    # ----------------------------------------------------------------------
+
+    def get_running_config(self, olt: OLTInDB) -> str:
+        commands = [
+            "LST-CFGFILE:::1::TYPE=RUNNING;",
+        ]
+        return self._execute_tl1_commands(olt, commands)
+
+    def backup_config(self, olt: OLTInDB) -> str:
+        return self.get_running_config(olt)
+
+    def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
+        commands = [
+            "LST-UNREGONU::DEV=ALL:1::;",
+        ]
+        output = self._execute_tl1_commands(olt, commands)
+        return self.parse_unregistered_onus(output)
+
+    def get_port_onus(self, olt: OLTInDB, port: str) -> List[ONUSummary]:
+        safe_port = sanitize_port(port)
+        slot, pon = self.parse_port_components(safe_port)
+        commands = [
+            f"LST-ONU::OLTID={slot},PONID={pon}:1::;",
+        ]
+        output = self._execute_tl1_commands(olt, commands)
+        return self.parse_port_onus(output, f"{slot}/{pon}")
+
+    def get_onu_details(self, olt: OLTInDB, serial_or_id: str) -> ONUDetails:
+        safe_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        # Medição de potência via TL1
+        commands = [
+            f"MEAS-OPTICAL::ONUID={safe_id}:1::;",
+        ]
+        output = self._execute_tl1_commands(olt, commands)
+        rx, tx = self.parse_optical_info(output)
+
+        status = "online" if rx is not None else "offline"
+
+        return ONUDetails(
+            port="1/1",
+            onu_id=1,
+            serial=serial_or_id,
+            status=status,
+            rx_power_dbm=rx,
+            tx_power_dbm=tx,
+        )
+
+    def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
+        safe_port = sanitize_port(req.port)
+        safe_serial = sanitize_serial(req.serial)
+        safe_vlan = sanitize_vlan(req.vlan)
+        safe_desc = sanitize_description(req.description or "Cliente")
+        line_profile = sanitize_safe_string(req.profile or "LINE-DEFAULT", "line profile")
+
+        slot, pon = self.parse_port_components(safe_port)
+
+        commands = [
+            f'ADD-ONU::OLTID={slot},PONID={pon}:1::NAME="{safe_desc}",AUTHTYPE=MAC,MAC={safe_serial},LINEPROF="{line_profile}";',
+            f"CFG-LANPORTVLAN::OLTID={slot},PONID={pon},ONUID=1:1::PORT=1,MODE=TAG,VLAN={safe_vlan};",
+        ]
+        self._execute_tl1_commands(olt, commands)
+
+        return ProvisionResponse(
+            success=True,
+            port=f"{slot}/{pon}",
+            onu_id=1,
+            serial=safe_serial,
+            message=f"ONU provisionada com sucesso na OLT Fiberhome TL1 (Slot {slot}, PON {pon}, VLAN {safe_vlan}).",
+        )
+
+    def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:
+        """
+        Gera sequência oficial de comandos TL1 para inicialização zero-touch da OLT Fiberhome:
+        1. Criação de DBA Profile Type 4
+        2. Criação de Line Profile
+        3. Configuração de VLAN de serviço e uplink
+        """
+        safe_uplink = sanitize_port(req.uplink_port or "1")
+
+        commands: List[str] = [
+            'ADD-DBAPROF:::1::NAME="DBA-DEFAULT",TYPE=4,MAXBW=1024000;',
+            'ADD-LINEPROF:::1::NAME="LINE-DEFAULT",DBANAME="DBA-DEFAULT";',
+        ]
+
+        if req.mode == BootstrapMode.SINGLE_VLAN:
+            safe_vlan = sanitize_vlan(req.vlan or 100)
+            commands.extend([
+                f"ADD-VLAN:::1::VLANID={safe_vlan},TYPE=SMART;",
+                f"ADD-UPLINKPORTVLAN:::1::PORT={safe_uplink},VLANID={safe_vlan};",
+            ])
+        elif req.mode == BootstrapMode.VLAN_PER_PON:
+            vlan_map = req.vlan_per_pon or {}
+            for pon in range(1, 9):
+                safe_vlan = sanitize_vlan(vlan_map.get(str(pon), 100 + pon))
+                commands.extend([
+                    f'ADD-LINEPROF:::1::NAME="LINE-PON{pon}",DBANAME="DBA-DEFAULT";',
+                    f"ADD-VLAN:::1::VLANID={safe_vlan},TYPE=SMART;",
+                    f"ADD-UPLINKPORTVLAN:::1::PORT={safe_uplink},VLANID={safe_vlan};",
+                ])
+
+        return commands
+
+    def apply_bootstrap(self, olt: OLTInDB, req: BootstrapRequest) -> int:
+        commands = self.generate_bootstrap_commands(req)
+        self._execute_tl1_commands(olt, commands)
+        return len(commands)

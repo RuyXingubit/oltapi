@@ -1,5 +1,6 @@
 from typing import Dict
 from app.drivers.base import BaseOLTDriver
+from app.drivers.fiberhome.fiberhome_tl1 import FiberhomeTL1Driver
 from app.drivers.huawei.huawei_vrp import HuaweiVRPDriver
 from app.drivers.intelbras.intelbras_8820 import Intelbras8820Driver
 from app.drivers.intelbras.intelbras_gseries import IntelbrasGSeriesDriver
@@ -48,7 +49,9 @@ class DriverFactory:
             return driver
 
         elif vendor == OLTVendor.FIBERHOME.value:
-            raise NotImplementedError("Driver Fiberhome TL1 planejado para o próximo ciclo de entrega.")
+            driver = FiberhomeTL1Driver()
+            cls._drivers_cache[key] = driver
+            return driver
 
         elif vendor == OLTVendor.PARKS.value:
             raise NotImplementedError("Driver Parks Fiberlink planejado para o próximo ciclo de entrega.")
