@@ -9,6 +9,7 @@ class OLTVendor(str, Enum):
     INTELBRAS = "intelbras"
     HUAWEI = "huawei"
     FIBERHOME = "fiberhome"
+    VSOL = "vsol"
     PARKS = "parks"
 
 

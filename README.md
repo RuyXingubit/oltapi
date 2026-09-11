@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-57%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-66%20passed%20(100%25)-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/UUIDv7-RFC%209562-orange.svg" alt="UUIDv7">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
 </p>
@@ -29,7 +29,7 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 3. **Consulta de Portas e Diagnóstico de ONUs:** Leitura de status operacional e potências ópticas (sinal Rx/Tx em dBm) direto da fibra.
 4. **Descoberta de ONUs Não Autorizadas (*Autofind*):** Varredura em tempo real de equipamentos conectados na rede óptica aguardando autorização.
 5. **Provisionamento Padronizado de ONUs:** Ativação imediata de ONU com VLAN, profile e descrição através de um único payload JSON agnóstico de marca.
-6. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras, Huawei e Fiberhome).
+6. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras, Huawei, Fiberhome e V-SOL).
 
 ---
 
@@ -43,6 +43,7 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 | **Huawei** | SmartAX MA5800 (X2/X7/X15/X17) | 8 a 16 GPON/XGS | SSH | 🟢 Homologado | Completo (VRP CLI) |
 | **Huawei** | MA5600T (MA5608T / MA5680T) | 8 a 16 GPON | SSH | 🟢 Homologado | Completo (VRP CLI) |
 | **Fiberhome** | AN5516 (01/04/06) & AN6000 | 4 a 16 GPON | TL1 (TCP 3337) / SSH | 🟢 Homologado | Completo (TL1 Bellcore) |
+| **V-SOL** | V1600GT / V1600G Series | 4 a 16 GPON | SSH / Telnet | 🟢 Homologado | Completo (CLI V-SOL) |
 | **ZTE** | C300 / C320 | 8 a 16 GPON | SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
 | **Parks / Datacom / Nokia** | Vários | GPON | SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
 
@@ -57,13 +58,13 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
                         ▼
              [ OLTAPI Core (FastAPI) ]
                         │
-        ┌────────────────┬────────────────┬────────────────┬────────────────┐
-        ▼                ▼                ▼                ▼                ▼
- [ Intelbras 8820 ] [ Intelbras G-Series ] [ Huawei VRP ]  [ Fiberhome TL1 ] [ Em Roadmap... ]
-  (Broadcom CLI)       (G08 / G16)      (MA5800 / MA5600T)  (AN5516 / AN6000)   (ZTE / Parks)
-        │                │                │                │                │
-        ▼                ▼                ▼                ▼                ▼
- [ OLT Física ]     [ OLT Física ]     [ OLT Física ]     [ OLT Física ]     [ OLT Física ]
+ ┌────────────────┬────────────────┬────────────────┬────────────────┬────────────────┐
+ ▼                ▼                ▼                ▼                ▼                ▼
+[ Intelbras 8820 ] [ Intelbras G-Series ] [ Huawei VRP ]  [ Fiberhome TL1 ] [ V-SOL V1600GT ] [ Em Roadmap... ]
+ (Broadcom CLI)       (G08 / G16)      (MA5800 / MA5600T)  (AN5516 / AN6000)  (V1600G / GT)     (ZTE / Parks)
+ │                │                │                │                │                │
+ ▼                ▼                ▼                ▼                ▼                ▼
+[ OLT Física ]     [ OLT Física ]     [ OLT Física ]     [ OLT Física ]     [ OLT Física ]     [ OLT Física ]
 ```
 
 - **Isolamento de Sintaxe:** Quem consome a API nunca precisa saber se o comando é `show gpon onu unauth`, `ont-find` ou `display ont autofind`.
