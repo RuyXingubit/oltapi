@@ -1,5 +1,6 @@
 from typing import Dict
 from app.drivers.base import BaseOLTDriver
+from app.drivers.huawei.huawei_vrp import HuaweiVRPDriver
 from app.drivers.intelbras.intelbras_8820 import Intelbras8820Driver
 from app.drivers.intelbras.intelbras_gseries import IntelbrasGSeriesDriver
 from app.models.olt import OLTInDB, OLTVendor
@@ -37,7 +38,14 @@ class DriverFactory:
                 raise NotImplementedError("Driver Intelbras 4840 planejado para o próximo ciclo de entrega.")
 
         elif vendor == OLTVendor.HUAWEI.value:
-            raise NotImplementedError("Driver Huawei MA5800 planejado para o próximo ciclo de entrega.")
+            if any(m in model for m in ["5800", "5608", "5680", "5683", "vrp", "smartax"]):
+                driver = HuaweiVRPDriver()
+                cls._drivers_cache[key] = driver
+                return driver
+            # Padrão para OLTs Huawei genéricas VRP
+            driver = HuaweiVRPDriver()
+            cls._drivers_cache[key] = driver
+            return driver
 
         elif vendor == OLTVendor.FIBERHOME.value:
             raise NotImplementedError("Driver Fiberhome TL1 planejado para o próximo ciclo de entrega.")

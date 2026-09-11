@@ -12,8 +12,10 @@ from app.core.security import (
 
 
 def test_sanitize_port_valid():
+    assert sanitize_port("1") == "1"
     assert sanitize_port("1/1") == "1/1"
     assert sanitize_port("0/1/1") == "0/1/1"
+    assert sanitize_port("0/19/0") == "0/19/0"
     assert sanitize_port(" 1/16 ") == "1/16"
 
 

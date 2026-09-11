@@ -3,8 +3,8 @@
 ## 1. Sumário Executivo
 - **Projeto:** API Unificada de Provisionamento Multi-OLT (oltapi)
 - **Status da Suite:** **APROVADO (100% dos testes passando)**
-- **Testes Executados:** 39 testes automatizados
-- **Tempo de Execução:** 0.10 segundos
+- **Testes Executados:** 48 testes automatizados
+- **Tempo de Execução:** 0.08 segundos
 - **Falhas:** 0
 - **Regressões:** 0
 
@@ -21,6 +21,7 @@
 | **5. Provisionar ONUs** | `tests/unit/test_api_endpoints.py` | `test_provision_onu_success`<br>`test_provision_onu_rejects_injection` | **APROVADO** |
 | **6. Bootstrap Inicial (Zero-Touch 8820i)** | `tests/unit/test_bootstrap.py` | `test_driver_bootstrap_single_vlan`<br>`test_driver_bootstrap_vlan_per_pon`<br>`test_driver_bootstrap_sanitization_rejection`<br>`test_api_bootstrap_preview`<br>`test_api_bootstrap_apply_success`<br>`test_api_bootstrap_olt_not_found` | **APROVADO** |
 | **7. Suporte aos Concentradores G08 e G16** | `tests/unit/test_intelbras_gseries.py` | `test_driver_factory_resolves_g08_and_g16`<br>`test_g08_bootstrap_single_vlan` (8 portas)<br>`test_g16_bootstrap_single_vlan` (16 portas)<br>`test_gseries_parsers`<br>`test_api_g16_bootstrap_flow` | **APROVADO** |
+| **8. Suporte Huawei MA5800 e MA5600T (VRP)** | `tests/unit/test_huawei_driver.py` | `test_driver_factory_resolves_huawei_models`<br>`test_huawei_port_normalization`<br>`test_huawei_autofind_parser`<br>`test_huawei_port_onus_parser`<br>`test_huawei_optical_info_parser`<br>`test_huawei_bootstrap_generation`<br>`test_huawei_bootstrap_vlan_per_pon`<br>`test_huawei_provision_commands`<br>`test_api_huawei_bootstrap_preview` | **APROVADO** |
 
 ---
 

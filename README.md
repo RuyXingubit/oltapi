@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-39%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-48%20passed%20(100%25)-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/UUIDv7-RFC%209562-orange.svg" alt="UUIDv7">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
 </p>
@@ -29,7 +29,7 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 3. **Consulta de Portas e Diagnóstico de ONUs:** Leitura de status operacional e potências ópticas (sinal Rx/Tx em dBm) direto da fibra.
 4. **Descoberta de ONUs Não Autorizadas (*Autofind*):** Varredura em tempo real de equipamentos conectados na rede óptica aguardando autorização.
 5. **Provisionamento Padronizado de ONUs:** Ativação imediata de ONU com VLAN, profile e descrição através de um único payload JSON agnóstico de marca.
-6. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras).
+6. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras e Huawei).
 
 ---
 
@@ -40,9 +40,10 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 | **Intelbras** | 8820 / 8820i | 8 GPON | SSH / Telnet | 🟢 Homologado | Completo (CLI Broadcom) |
 | **Intelbras** | OLT G08 | 8 GPON | SSH / Telnet | 🟢 Homologado | Completo (G-Series CLI) |
 | **Intelbras** | OLT G16 | 16 GPON | SSH / Telnet | 🟢 Homologado | Completo (G-Series CLI) |
-| **Huawei** | SmartAX MA5800 | 8 / 16 GPON/XGS | SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
-| **Fiberhome** | AN5516-04 / 06 | 8 / 16 GPON | TL1 / SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
-| **ZTE** | C300 / C320 | 8 / 16 GPON | SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
+| **Huawei** | SmartAX MA5800 (X2/X7/X15/X17) | 8 a 16 GPON/XGS | SSH | 🟢 Homologado | Completo (VRP CLI) |
+| **Huawei** | MA5600T (MA5608T / MA5680T) | 8 a 16 GPON | SSH | 🟢 Homologado | Completo (VRP CLI) |
+| **Fiberhome** | AN5516-04 / 06 / AN6000 | 8 a 16 GPON | TL1 / SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
+| **ZTE** | C300 / C320 | 8 a 16 GPON | SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
 | **Parks / Datacom / Nokia** | Vários | GPON | SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
 
 ---
@@ -56,13 +57,13 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
                         ▼
              [ OLTAPI Core (FastAPI) ]
                         │
-       ┌────────────────┼────────────────┐
-       ▼                ▼                ▼
-[ Intelbras 8820 ] [ Intelbras G08/G16 ] [ Futuros Drivers... ]
- (Broadcom CLI)     (G-Series CLI)      (Huawei / Fiberhome)
-       │                │                │
-       ▼                ▼                ▼
-[ OLT Física ]     [ OLT Física ]     [ OLT Física ]
+        ┌────────────────┬────────────────┬────────────────┐
+        ▼                ▼                ▼                ▼
+ [ Intelbras 8820 ] [ Intelbras G-Series ] [ Huawei VRP ]  [ Em Roadmap... ]
+  (Broadcom CLI)       (G08 / G16)      (MA5800 / MA5600T) (Fiberhome / ZTE)
+        │                │                │                │
+        ▼                ▼                ▼                ▼
+ [ OLT Física ]     [ OLT Física ]     [ OLT Física ]     [ OLT Física ]
 ```
 
 - **Isolamento de Sintaxe:** Quem consome a API nunca precisa saber se o comando é `show gpon onu unauth`, `ont-find` ou `display ont autofind`.

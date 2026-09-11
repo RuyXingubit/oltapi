@@ -1,5 +1,6 @@
 import pytest
 from app.drivers.factory import DriverFactory
+from app.drivers.huawei.huawei_vrp import HuaweiVRPDriver
 from app.drivers.intelbras.intelbras_8820 import Intelbras8820Driver
 from app.models.olt import OLTInDB, OLTVendor, OLTProtocol
 
@@ -99,5 +100,18 @@ def test_driver_factory_resolution():
         username="u",
         password="p",
     )
+    driver_hw = DriverFactory.get_driver(olt_huawei)
+    assert isinstance(driver_hw, HuaweiVRPDriver)
+
+    olt_fiberhome = OLTInDB(
+        name="OLT-FIBERHOME",
+        vendor=OLTVendor.FIBERHOME,
+        model="AN5516-01",
+        host="10.0.0.3",
+        port=22,
+        protocol=OLTProtocol.SSH,
+        username="u",
+        password="p",
+    )
     with pytest.raises(NotImplementedError):
-        DriverFactory.get_driver(olt_huawei)
+        DriverFactory.get_driver(olt_fiberhome)
