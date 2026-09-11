@@ -5,6 +5,7 @@ from app.drivers.huawei.huawei_vrp import HuaweiVRPDriver
 from app.drivers.intelbras.intelbras_8820 import Intelbras8820Driver
 from app.drivers.intelbras.intelbras_gseries import IntelbrasGSeriesDriver
 from app.drivers.vsol.vsol_v1600 import VSOLV1600Driver
+from app.drivers.zte.zte_zxros import ZTEZXROSDriver
 from app.models.olt import OLTInDB, OLTVendor
 
 
@@ -56,6 +57,11 @@ class DriverFactory:
 
         elif vendor == OLTVendor.VSOL.value:
             driver = VSOLV1600Driver(model_name=olt.model)
+            cls._drivers_cache[key] = driver
+            return driver
+
+        elif vendor == OLTVendor.ZTE.value:
+            driver = ZTEZXROSDriver(model_name=olt.model)
             cls._drivers_cache[key] = driver
             return driver
 

@@ -3,7 +3,7 @@
 ## 1. Sumário Executivo
 - **Projeto:** API Unificada de Provisionamento Multi-OLT (oltapi)
 - **Status da Suite:** **APROVADO (100% dos testes passando)**
-- **Testes Executados:** 66 testes automatizados
+- **Testes Executados:** 75 testes automatizados
 - **Tempo de Execução:** 0.10 segundos
 - **Falhas:** 0
 - **Regressões:** 0
@@ -24,6 +24,7 @@
 | **8. Suporte Huawei MA5800 e MA5600T (VRP)** | `tests/unit/test_huawei_driver.py` | `test_driver_factory_resolves_huawei_models`<br>`test_huawei_port_normalization`<br>`test_huawei_autofind_parser`<br>`test_huawei_port_onus_parser`<br>`test_huawei_optical_info_parser`<br>`test_huawei_bootstrap_generation`<br>`test_huawei_bootstrap_vlan_per_pon`<br>`test_huawei_provision_commands`<br>`test_api_huawei_bootstrap_preview` | **APROVADO** |
 | **9. Suporte Fiberhome AN5516 e AN6000 (TL1)** | `tests/unit/test_fiberhome_driver.py` | `test_driver_factory_resolves_fiberhome_models`<br>`test_fiberhome_port_normalization`<br>`test_fiberhome_unregistered_onus_parser`<br>`test_fiberhome_port_onus_parser`<br>`test_fiberhome_optical_info_parser`<br>`test_fiberhome_bootstrap_generation`<br>`test_fiberhome_bootstrap_vlan_per_pon`<br>`test_fiberhome_provision_commands`<br>`test_api_fiberhome_bootstrap_preview` | **APROVADO** |
 | **10. Suporte V-SOL V1600GT e V1600G (CLI)** | `tests/unit/test_vsol_driver.py` | `test_driver_factory_resolves_vsol_models`<br>`test_vsol_port_normalization`<br>`test_vsol_autofind_parser`<br>`test_vsol_port_onus_parser`<br>`test_vsol_optical_info_parser`<br>`test_vsol_bootstrap_generation`<br>`test_vsol_bootstrap_vlan_per_pon`<br>`test_vsol_provision_commands`<br>`test_api_vsol_bootstrap_preview` | **APROVADO** |
+| **11. Suporte ZTE C300, C320 e C600 (ZXROS)** | `tests/unit/test_zte_driver.py` | `test_driver_factory_resolves_zte_models`<br>`test_zte_port_normalization`<br>`test_zte_autofind_parser`<br>`test_zte_port_onus_parser`<br>`test_zte_optical_info_parser`<br>`test_zte_bootstrap_generation`<br>`test_zte_bootstrap_vlan_per_pon`<br>`test_zte_provision_commands`<br>`test_api_zte_bootstrap_preview` | **APROVADO** |
 
 ---
 
