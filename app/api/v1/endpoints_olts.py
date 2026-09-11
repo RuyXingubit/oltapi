@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import get_backup_storage, get_olt_repo, require_api_key
@@ -11,7 +11,14 @@ from app.models.backup import (
     PurgePolicy,
     PurgeResult,
 )
-from app.models.olt import OLTConfigResponse, OLTCreateRequest, OLTResponse
+from app.models.hateoas import Link
+from app.models.olt import (
+    ConnectionTestResult,
+    OLTConfigResponse,
+    OLTCreateRequest,
+    OLTResponse,
+)
+from app.services.connection_service import test_olt_connectivity
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
 
@@ -20,7 +27,7 @@ router = APIRouter(prefix="/olts", tags=["OLTs & Backups"], dependencies=[Depend
 
 @router.get("", response_model=List[OLTResponse])
 def list_olts(repo: OLTRepository = Depends(get_olt_repo)):
-    """Lista todas as OLTs cadastradas."""
+    """Lista todas as OLTs cadastradas com links de navegação rápida."""
     olts = repo.list_all()
     return [
         OLTResponse(
@@ -32,15 +39,35 @@ def list_olts(repo: OLTRepository = Depends(get_olt_repo)):
             port=o.port,
             protocol=o.protocol,
             created_at=o.created_at,
+            status="registered",
+            links={
+                "self": Link(href=f"/api/v1/olts/{o.id}", method="GET", description="Detalhes da OLT"),
+                "config": Link(href=f"/api/v1/olts/{o.id}/config", method="GET", description="Running-config e interfaces"),
+                "unauthorized_onus": Link(href=f"/api/v1/olts/{o.id}/unauthorized", method="GET", description="ONUs pendentes"),
+                "backups": Link(href=f"/api/v1/olts/{o.id}/backups", method="GET", description="Histórico de backups"),
+            },
         )
         for o in olts
     ]
 
 
 @router.post("", response_model=OLTResponse, status_code=status.HTTP_201_CREATED)
-def create_olt(req: OLTCreateRequest, repo: OLTRepository = Depends(get_olt_repo)):
-    """Cadastra uma nova OLT no inventário."""
+async def create_olt(
+    req: OLTCreateRequest,
+    response: Response,
+    repo: OLTRepository = Depends(get_olt_repo),
+):
+    """
+    Cadastra uma nova OLT no inventário, executa teste de conectividade rápido
+    e retorna o cabeçalho Location e links de fluxo guiados pelo status de conexão.
+    """
     olt = repo.create(req)
+    response.headers["Location"] = f"/api/v1/olts/{olt.id}"
+
+    # Validação rápida de conectividade para guiar os próximos passos
+    conn_result = await test_olt_connectivity(olt_id=olt.id, host=olt.host, port=olt.port)
+    olt_status = "online" if conn_result.reachable else "unreachable"
+
     return OLTResponse(
         id=olt.id,
         name=olt.name,
@@ -49,8 +76,48 @@ def create_olt(req: OLTCreateRequest, repo: OLTRepository = Depends(get_olt_repo
         host=olt.host,
         port=olt.port,
         protocol=olt.protocol,
+        status=olt_status,
+        connection_message=conn_result.message,
         created_at=olt.created_at,
+        links=conn_result.links,
     )
+
+
+@router.get("/{olt_id}", response_model=OLTResponse)
+def get_olt(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+    """Consulta os detalhes cadastrais de uma OLT específica com seus links de ação."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    return OLTResponse(
+        id=olt.id,
+        name=olt.name,
+        vendor=olt.vendor,
+        model=olt.model,
+        host=olt.host,
+        port=olt.port,
+        protocol=olt.protocol,
+        status="registered",
+        created_at=olt.created_at,
+        links={
+            "self": Link(href=f"/api/v1/olts/{olt.id}", method="GET", description="Detalhes desta OLT"),
+            "config": Link(href=f"/api/v1/olts/{olt.id}/config", method="GET", description="Running-config e interfaces"),
+            "unauthorized_onus": Link(href=f"/api/v1/olts/{olt.id}/unauthorized", method="GET", description="ONUs pendentes"),
+            "backups": Link(href=f"/api/v1/olts/{olt.id}/backups", method="GET", description="Histórico de backups"),
+            "test_connection": Link(href=f"/api/v1/olts/{olt.id}/test-connection", method="POST", description="Retestar conexão TCP"),
+        },
+    )
+
+
+@router.post("/{olt_id}/test-connection", response_model=ConnectionTestResult)
+async def test_connection(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+    """Executa teste de conectividade sob demanda e retorna diagnóstico e links de fluxo."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    return await test_olt_connectivity(olt_id=olt.id, host=olt.host, port=olt.port)
 
 
 @router.get("/{olt_id}/config", response_model=OLTConfigResponse)
@@ -63,7 +130,16 @@ def get_olt_config(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
     try:
         driver = DriverFactory.get_driver(olt)
         config_text = driver.get_running_config(olt)
-        return OLTConfigResponse(olt_id=olt.id, config_text=config_text)
+        return OLTConfigResponse(
+            olt_id=olt.id,
+            config_text=config_text,
+            links={
+                "self": Link(href=f"/api/v1/olts/{olt.id}/config", method="GET", description="Running-config da OLT"),
+                "olt": Link(href=f"/api/v1/olts/{olt.id}", method="GET", description="Detalhes cadastrais da OLT"),
+                "trigger_backup": Link(href=f"/api/v1/olts/{olt.id}/backups", method="POST", description="Salvar configuração atual em backup"),
+                "backups": Link(href=f"/api/v1/olts/{olt.id}/backups", method="GET", description="Listar histórico de backups"),
+            },
+        )
     except ConnectionError as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
     except Exception as e:
@@ -76,20 +152,27 @@ def list_backups(
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
 ):
-    """Lista o histórico de backups realizados para a OLT."""
+    """Lista o histórico de backups realizados para a OLT com links de download e comparação."""
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
-    return storage.list_by_olt(olt_id)
+    backups = storage.list_by_olt(olt_id)
+    for b in backups:
+        b.links = {
+            "download": Link(href=f"/api/v1/olts/{olt_id}/backups/{b.backup_id}/download", method="GET", description="Download do arquivo .cfg"),
+            "compare": Link(href=f"/api/v1/olts/{olt_id}/backups/compare?target_id={b.backup_id}", method="GET", description="Comparar com backup anterior"),
+        }
+    return backups
 
 
 @router.post("/{olt_id}/backups", response_model=BackupMetadata, status_code=status.HTTP_201_CREATED)
 def trigger_backup(
     olt_id: str,
+    response: Response,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
 ):
-    """Dispara a rotina de backup na OLT, salva em disco e retorna os metadados com UUIDv7 e hash SHA-256."""
+    """Dispara a rotina de backup na OLT, salva em disco e retorna Location header e links de download e diff."""
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -98,11 +181,20 @@ def trigger_backup(
         driver = DriverFactory.get_driver(olt)
         content = driver.backup_config(olt)
         metadata = storage.save_backup(olt_id=olt.id, content=content)
+        
+        # Cabeçalho Location e links HATEOAS
+        response.headers["Location"] = f"/api/v1/olts/{olt.id}/backups/{metadata.backup_id}/download"
+        metadata.links = {
+            "download": Link(href=f"/api/v1/olts/{olt.id}/backups/{metadata.backup_id}/download", method="GET", description="Download direto do arquivo de backup"),
+            "compare": Link(href=f"/api/v1/olts/{olt.id}/backups/compare?target_id={metadata.backup_id}", method="GET", description="Comparar alterações em relação ao backup anterior"),
+            "audit": Link(href=f"/api/v1/olts/{olt.id}/backups/audit", method="GET", description="Auditar integridade de backups desta OLT"),
+        }
         return metadata
     except ConnectionError as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao realizar backup: {str(e)}")
+
 
 
 @router.get("/{olt_id}/backups/{backup_id}/download")

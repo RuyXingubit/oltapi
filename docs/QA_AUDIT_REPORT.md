@@ -3,8 +3,8 @@
 ## 1. Sumário Executivo
 - **Projeto:** API Unificada de Provisionamento Multi-OLT (oltapi)
 - **Status da Suite:** **APROVADO (100% dos testes passando)**
-- **Testes Executados:** 82 testes automatizados
-- **Tempo de Execução:** 0.13 segundos
+- **Testes Executados:** 89 testes automatizados
+- **Tempo de Execução:** 0.15 segundos
 - **Falhas:** 0
 - **Regressões:** 0
 
@@ -26,6 +26,7 @@
 | **10. Suporte V-SOL V1600GT e V1600G (CLI)** | `tests/unit/test_vsol_driver.py` | `test_driver_factory_resolves_vsol_models`<br>`test_vsol_port_normalization`<br>`test_vsol_autofind_parser`<br>`test_vsol_port_onus_parser`<br>`test_vsol_optical_info_parser`<br>`test_vsol_bootstrap_generation`<br>`test_vsol_bootstrap_vlan_per_pon`<br>`test_vsol_provision_commands`<br>`test_api_vsol_bootstrap_preview` | **APROVADO** |
 | **11. Suporte ZTE C300, C320 e C600 (ZXROS)** | `tests/unit/test_zte_driver.py` | `test_driver_factory_resolves_zte_models`<br>`test_zte_port_normalization`<br>`test_zte_autofind_parser`<br>`test_zte_port_onus_parser`<br>`test_zte_optical_info_parser`<br>`test_zte_bootstrap_generation`<br>`test_zte_bootstrap_vlan_per_pon`<br>`test_zte_provision_commands`<br>`test_api_zte_bootstrap_preview` | **APROVADO** |
 | **12. Backup Automatizado & Disaster Recovery** | `tests/unit/test_backup_disaster_recovery.py` | `test_backup_storage_compare_identical`<br>`test_backup_storage_compare_drift_unified_diff`<br>`test_backup_storage_audit_olt`<br>`test_backup_storage_purge_by_max_count`<br>`test_backup_storage_purge_preserves_newest_even_if_old`<br>`test_backup_service_run_all_and_audit_all`<br>`test_api_backups_dr_endpoints` | **APROVADO** |
+| **13. HATEOAS, RFC 9110 Location & Conectividade** | `tests/unit/test_hateoas_workflow.py` | `test_hateoas_create_olt_online_flow`<br>`test_hateoas_create_olt_unreachable_flow`<br>`test_hateoas_get_olt_by_id`<br>`test_hateoas_test_connection_endpoint`<br>`test_hateoas_unauthorized_onus_has_provision_link`<br>`test_hateoas_provision_onu_response_and_location`<br>`test_hateoas_backup_trigger_response_and_location` | **APROVADO** |
 
 ---
 

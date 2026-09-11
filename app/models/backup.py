@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from app.core.uuid import generate_uuid7
+from app.models.hateoas import Link
 
 
 class BackupMetadata(BaseModel):
@@ -11,6 +12,10 @@ class BackupMetadata(BaseModel):
     size_bytes: int
     sha256_hash: str
     filename: str
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+
 
 
 class BackupDiffResult(BaseModel):

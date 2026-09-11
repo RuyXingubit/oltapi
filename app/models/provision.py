@@ -1,5 +1,6 @@
-from typing import Optional
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
+from app.models.hateoas import Link
 
 
 class ProvisionRequest(BaseModel):
@@ -17,3 +18,7 @@ class ProvisionResponse(BaseModel):
     onu_id: int
     serial: str
     message: str
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+

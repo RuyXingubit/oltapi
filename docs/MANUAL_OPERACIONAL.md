@@ -58,6 +58,8 @@ Para cadastrar um novo equipamento gerenciado:
 > - **ZTE:** `vendor: "zte"` / `model: "c300"`, `"c320"`, `"c600"`
 
 ### Resposta de Sucesso (`201 Created`):
+**Cabeçalho HTTP:** `Location: /api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde`
+
 ```json
 {
   "id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
@@ -67,10 +69,38 @@ Para cadastrar um novo equipamento gerenciado:
   "host": "10.0.100.2",
   "port": 22,
   "protocol": "ssh",
-  "created_at": "2026-09-11T19:30:00Z"
+  "status": "online",
+  "connection_message": "Porta 22 acessível em 10.0.100.2. Latência de handshake: 8.5ms.",
+  "created_at": "2026-09-11T19:30:00Z",
+  "_links": {
+    "self": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde", "method": "GET" },
+    "config": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/config", "method": "GET" },
+    "unauthorized_onus": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/unauthorized", "method": "GET" },
+    "backups": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/backups", "method": "GET" },
+    "trigger_backup": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/backups", "method": "POST" }
+  }
 }
 ```
-*Observe que o campo `password` NUNCA é retornado na resposta por motivos de segurança.*
+*Se a OLT não responder na porta TCP no momento do cadastro, ela é gravada com `status: "unreachable"`, trazendo mensagem diagnóstica e `_links` contextuais para edição e reteste.*
+
+### 2.1 Teste de Conectividade sob Demanda
+`POST /api/v1/olts/{olt_id}/test-connection`
+
+Executa um handshake rápido (sem travar requisições) para validar se a porta SSH/Telnet da OLT está acessível na rede:
+```json
+{
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "host": "10.0.100.2",
+  "port": 22,
+  "reachable": true,
+  "latency_ms": 7.42,
+  "message": "Porta 22 acessível em 10.0.100.2. Latência de handshake: 7.42ms.",
+  "_links": {
+    "self": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde", "method": "GET" },
+    "config": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/config", "method": "GET" }
+  }
+}
+```
 
 ---
 
@@ -79,12 +109,13 @@ Para cadastrar um novo equipamento gerenciado:
 ### 3.1 Visualizar Configuração Ativa
 `GET /api/v1/olts/{olt_id}/config`
 
-Retorna a íntegra da configuração que está rodando na memória da OLT.
+Retorna a íntegra da configuração que está rodando na memória da OLT acompanhada de links para persistir em backup.
 
 ### 3.2 Gerar Backup com Hash Criptográfico
 `POST /api/v1/olts/{olt_id}/backups`
 
-Gera um arquivo de backup em disco com nome seguro baseado em UUIDv7 e calcula o hash SHA-256 da configuração:
+Gera um arquivo de backup em disco com nome seguro baseado em UUIDv7, calcula o hash SHA-256 e devolve o header `Location`:
+**Cabeçalho HTTP:** `Location: /api/v1/olts/{olt_id}/backups/{backup_id}/download`
 
 ```json
 {
@@ -93,7 +124,12 @@ Gera um arquivo de backup em disco com nome seguro baseado em UUIDv7 e calcula o
   "created_at": "2026-09-11T19:30:00Z",
   "size_bytes": 24512,
   "sha256_hash": "3a7b9c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b",
-  "filename": "backup_0191e512-3456-789a-bcde-f0123456789a.cfg"
+  "filename": "backup_0191e512-3456-789a-bcde-f0123456789a.cfg",
+  "_links": {
+    "download": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/backups/0191e512-3456-789a-bcde-f0123456789a/download", "method": "GET" },
+    "compare": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/backups/compare?target_id=0191e512-3456-789a-bcde-f0123456789a", "method": "GET" },
+    "audit": { "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/backups/audit", "method": "GET" }
+  }
 }
 ```
 
@@ -202,39 +238,60 @@ Payload opcional: `{"max_backups_per_olt": 30, "max_age_days": 60}`.
 ## 5. Descoberta (Autofind) e Provisionamento de ONUs
 
 ### 5.1 Listar ONUs Não Autorizadas no Bairro
-`GET /api/v1/olts/{olt_id}/onus/unauthorized`
+`GET /api/v1/olts/{olt_id}/unauthorized`
+
+Cada ONU descoberta vem acompanhada de um hiperlink HATEOAS que aponta diretamente para a ação de provisionamento:
 
 ```json
 [
   {
-    "port": "1",
+    "port": "1/1",
     "serial": "ITBS99887766",
-    "model": "110",
-    "discovered_at": "2026-09-10T19:32:00Z"
+    "model": "110B",
+    "detected_at": "2026-09-11T19:32:00Z",
+    "_links": {
+      "provision": {
+        "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus",
+        "method": "POST"
+      }
+    }
   }
 ]
 ```
 
 ### 5.2 Provisionar a ONU (Ativação Imediata)
-`POST /api/v1/olts/{olt_id}/onus/provision`
+`POST /api/v1/olts/{olt_id}/onus`
 
 ```json
 {
   "serial": "ITBS99887766",
-  "port": "1",
+  "port": "1/1",
   "vlan": 100,
   "profile": "100M_FIBRA",
   "description": "Cliente_Contrato_49102"
 }
 ```
 
-**Resposta:**
+**Resposta (`201 Created`):**
+**Cabeçalho HTTP:** `Location: /api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766`
+
 ```json
 {
   "success": true,
-  "message": "ONU ITBS99887766 provisionada com sucesso na porta 1 com VLAN 100",
+  "port": "1/1",
   "onu_id": 3,
-  "serial": "ITBS99887766"
+  "serial": "ITBS99887766",
+  "message": "ONU provisionada e salva com sucesso na memória da OLT.",
+  "_links": {
+    "details": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766",
+      "method": "GET"
+    },
+    "port_onus": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/ports/1/1/onus",
+      "method": "GET"
+    }
+  }
 }
 ```
 

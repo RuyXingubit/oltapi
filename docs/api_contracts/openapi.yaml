@@ -35,13 +35,75 @@ paths:
               $ref: '#/components/schemas/OLTCreateRequest'
       responses:
         '201':
-          description: OLT cadastrada com sucesso
+          description: OLT cadastrada com sucesso com teste de conectividade e links guiados
+          headers:
+            Location:
+              description: URI canônica da OLT recém-cadastrada
+              schema:
+                type: string
+                example: "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OLTResponse'
         '400':
           description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}:
+    get:
+      summary: Consultar detalhes da OLT com links HATEOAS
+      description: Retorna os dados cadastrais da OLT e links de navegação para config, ONUs e backups.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID da OLT (UUIDv7)
+      responses:
+        '200':
+          description: Detalhes da OLT com links contextuais
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTResponse'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/test-connection:
+    post:
+      summary: Testar conectividade TCP com a OLT
+      description: Executa checagem rápida de conectividade na porta da OLT, medindo latência e retornando links de ação.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID da OLT (UUIDv7)
+      responses:
+        '200':
+          description: Resultado do teste de conectividade
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
+        '404':
+          description: OLT não encontrada
           content:
             application/json:
               schema:
@@ -117,6 +179,12 @@ paths:
       responses:
         '201':
           description: Backup gerado e salvo com sucesso
+          headers:
+            Location:
+              description: URI para download direto do arquivo de backup gerado
+              schema:
+                type: string
+                example: "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/backups/0191e512-3456-789a-bcde-f0123456789a/download"
           content:
             application/json:
               schema:
@@ -368,6 +436,12 @@ paths:
       responses:
         '201':
           description: ONU provisionada com sucesso
+          headers:
+            Location:
+              description: URI canônica para consulta dos detalhes e potência óptica da ONU provisionada
+              schema:
+                type: string
+                example: "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/INCL12345678"
           content:
             application/json:
               schema:
@@ -579,6 +653,45 @@ components:
           type: string
           example: "admin123"
 
+    Link:
+      type: object
+      required:
+        - href
+        - method
+      properties:
+        href:
+          type: string
+          example: "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde"
+        method:
+          type: string
+          example: "GET"
+        description:
+          type: string
+          example: "Ver detalhes da OLT"
+
+    ConnectionTestResult:
+      type: object
+      properties:
+        olt_id:
+          type: string
+          format: uuid
+        host:
+          type: string
+        port:
+          type: integer
+        reachable:
+          type: boolean
+        latency_ms:
+          type: number
+          format: float
+          nullable: true
+        message:
+          type: string
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+
     OLTResponse:
       type: object
       properties:
@@ -598,9 +711,19 @@ components:
           type: integer
         protocol:
           type: string
+        status:
+          type: string
+          example: "online"
+        connection_message:
+          type: string
+          nullable: true
         created_at:
           type: string
           format: date-time
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
 
     OLTConfigResponse:
       type: object
@@ -614,6 +737,10 @@ components:
         config_text:
           type: string
           description: Conteúdo textual completo do running-config.
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
 
     BackupMetadata:
       type: object
@@ -634,6 +761,10 @@ components:
           type: string
         filename:
           type: string
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
 
     BackupDiffResult:
       type: object
@@ -787,6 +918,10 @@ components:
         detected_at:
           type: string
           format: date-time
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
 
     ProvisionRequest:
       type: object
@@ -834,6 +969,10 @@ components:
         message:
           type: string
           example: "ONU provisionada e salva com sucesso na memória da OLT."
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
 
     ErrorResponse:
       type: object

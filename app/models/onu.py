@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
+from app.models.hateoas import Link
 
 
 class ONUSummary(BaseModel):
@@ -27,3 +28,7 @@ class UnauthorizedONU(BaseModel):
     serial: str
     model: Optional[str] = None
     detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+

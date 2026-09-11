@@ -5,7 +5,8 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-82%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-89%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/HATEOAS-RFC%209110%20Ready-blueviolet.svg" alt="HATEOAS">
   <img src="https://img.shields.io/badge/UUIDv7-RFC%209562-orange.svg" alt="UUIDv7">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
 </p>
@@ -27,10 +28,11 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 1. **Visualizar Configurações da OLT:** Coleta e exibição em tempo real do *running-config* ativo via SSH/CLI ou TL1.
 2. **Backups com Integridade Criptográfica:** Geração de backups em disco com identificador **UUIDv7**, hash SHA-256 e download seguro via streaming.
 3. **Módulo de Disaster Recovery & Detecção de Drift:** Auditoria de integridade via SHA-256, unified diff linha a linha e rotinas de retenção/expurgo seguro de backups obsoletos.
-4. **Consulta de Portas e Diagnóstico de ONUs:** Leitura de status operacional e potências ópticas (sinal Rx/Tx em dBm) direto da fibra.
-5. **Descoberta de ONUs Não Autorizadas (*Autofind*):** Varredura em tempo real de equipamentos conectados na rede óptica aguardando autorização.
-6. **Provisionamento Padronizado de ONUs:** Ativação imediata de ONU com VLAN, profile e descrição através de um único payload JSON agnóstico de marca.
-7. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras, Huawei, Fiberhome, V-SOL e ZTE).
+4. **Fluxos Guiados por HATEOAS & RFC 9110:** Respostas com cabeçalho padrão `Location` em criações (201) e links contextuais (`_links`) enxutos baseados no status da OLT (`online` vs `unreachable`).
+5. **Consulta de Portas e Diagnóstico de ONUs:** Leitura de status operacional e potências ópticas (sinal Rx/Tx em dBm) direto da fibra.
+6. **Descoberta de ONUs Não Autorizadas (*Autofind*):** Varredura em tempo real de equipamentos conectados na rede óptica aguardando autorização, acompanhados de link direto para ativação.
+7. **Provisionamento Padronizado de ONUs:** Ativação imediata de ONU com VLAN, profile e descrição através de um único payload JSON agnóstico de marca.
+8. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras, Huawei, Fiberhome, V-SOL e ZTE).
 
 ---
 
@@ -135,9 +137,10 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 | Método | Endpoint | Descrição |
 | :--- | :--- | :--- |
 | `GET` | `/health` | Healthcheck público da API (status 200) |
-| `POST` | `/api/v1/olts` | Cadastrar uma nova OLT |
+| `POST` | `/api/v1/olts` | Cadastrar OLT com teste de conectividade e Location header |
 | `GET` | `/api/v1/olts` | Listar todas as OLTs cadastradas |
-| `GET` | `/api/v1/olts/{id}` | Obter detalhes de uma OLT específica |
+| `GET` | `/api/v1/olts/{id}` | Obter detalhes e links HATEOAS de uma OLT específica |
+| `POST` | `/api/v1/olts/{id}/test-connection` | Teste de conectividade TCP e diagnóstico de latência |
 | `GET` | `/api/v1/olts/{id}/config` | Obter o *running-config* atual da OLT |
 | `POST` | `/api/v1/olts/{id}/backups` | Disparar backup com hash SHA-256 e UUIDv7 |
 | `GET` | `/api/v1/olts/{id}/backups` | Listar backups realizados de uma OLT |
@@ -149,9 +152,9 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 | `GET` | `/api/v1/backups/audit-all` | Auditoria consolidada de todo o parque de OLTs |
 | `POST` | `/api/v1/backups/purge-all` | Expurgo global de backups em todas as OLTs |
 | `GET` | `/api/v1/olts/{id}/ports/{port}/onus` | Listar ONUs conectadas em uma porta PON |
-| `GET` | `/api/v1/olts/{id}/onus/{serial}/details` | Consultar potência óptica (Rx/Tx dBm) e status |
-| `GET` | `/api/v1/olts/{id}/onus/unauthorized` | Varredura de ONUs pendentes de ativação (*autofind*) |
-| `POST` | `/api/v1/olts/{id}/onus/provision` | Provisionar ONU com VLAN e perfil |
+| `GET` | `/api/v1/olts/{id}/onus/{serial}` | Consultar potência óptica (Rx/Tx dBm) e status da ONU |
+| `GET` | `/api/v1/olts/{id}/unauthorized` | Varredura de ONUs pendentes de ativação com link de provision |
+| `POST` | `/api/v1/olts/{id}/onus` | Provisionar ONU com VLAN, profile e Location header |
 | `POST` | `/api/v1/bootstrap/preview` | Pré-visualizar comandos CLI de inicialização zero-touch |
 | `POST` | `/api/v1/bootstrap/apply` | Aplicar comandos de inicialização na OLT |
 
@@ -159,7 +162,7 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 
 ## 🧪 Testes Unitários
 
-A integridade do projeto é garantida por 82 testes automatizados com cobertura completa de segurança, parsers regex e drivers:
+A integridade do projeto é garantida por 89 testes automatizados com cobertura completa de segurança, parsers regex, fluxos HATEOAS e drivers:
 
 ```bash
 # Executar a suite de testes

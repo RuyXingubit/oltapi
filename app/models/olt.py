@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
 from app.core.uuid import generate_uuid7
+from app.models.hateoas import Link
 
 
 class OLTVendor(str, Enum):
@@ -51,10 +52,31 @@ class OLTResponse(BaseModel):
     host: str
     port: int
     protocol: OLTProtocol
+    status: Optional[str] = Field(default="online", description="Status de conectividade (online, unreachable)")
+    connection_message: Optional[str] = Field(default=None, description="Diagnóstico de conectividade inicial")
     created_at: datetime
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+
+
+class ConnectionTestResult(BaseModel):
+    olt_id: str
+    host: str
+    port: int
+    reachable: bool
+    latency_ms: Optional[float] = None
+    message: str
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
 
 
 class OLTConfigResponse(BaseModel):
     olt_id: str
     collected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     config_text: str
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+
