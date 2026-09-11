@@ -41,34 +41,33 @@ Para cadastrar um novo equipamento gerenciado:
   "name": "OLT-POP-CENTRO-01",
   "vendor": "intelbras",
   "model": "8820i",
-  "ip_address": "10.0.100.2",
+  "host": "10.0.100.2",
   "port": 22,
   "protocol": "ssh",
   "username": "admin",
-  "password": "MinhaSenhaForte123",
-  "description": "OLT Principal do Bairro Centro"
+  "password": "MinhaSenhaForte123"
 }
 ```
 
 > [!TIP]
-> Fabricantes e modelos atualmente suportados:
-> - `vendor: "intelbras"` / `model: "8820"` ou `"8820i"`
-> - `vendor: "intelbras"` / `model: "g08"`
-> - `vendor: "intelbras"` / `model: "g16"`
+> Fabricantes e modelos atualmente homologados:
+> - **Intelbras:** `vendor: "intelbras"` / `model: "8820"`, `"8820i"`, `"g08"`, `"g16"`
+> - **Huawei:** `vendor: "huawei"` / `model: "ma5800"`, `"ma5800-x2"`, `"ma5800-x7"`, `"ma5608t"`, `"ma5680t"`
+> - **Fiberhome:** `vendor: "fiberhome"` / `model: "an5516"`, `"an5516-01"`, `"an5516-04"`, `"an5516-06"`, `"an6000"`
+> - **V-SOL:** `vendor: "vsol"` / `model: "v1600gt"`, `"v1600g"`, `"v1600g-04"`, `"v1600g-08"`, `"v1600g-16"`
+> - **ZTE:** `vendor: "zte"` / `model: "c300"`, `"c320"`, `"c600"`
 
 ### Resposta de Sucesso (`201 Created`):
 ```json
 {
-  "id": "018e3c45-6789-7abc-def0-123456789abc",
+  "id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
   "name": "OLT-POP-CENTRO-01",
   "vendor": "intelbras",
   "model": "8820i",
-  "ip_address": "10.0.100.2",
+  "host": "10.0.100.2",
   "port": 22,
   "protocol": "ssh",
-  "username": "admin",
-  "description": "OLT Principal do Bairro Centro",
-  "created_at": "2026-09-10T19:30:00Z"
+  "created_at": "2026-09-11T19:30:00Z"
 }
 ```
 *Observe que o campo `password` NUNCA é retornado na resposta por motivos de segurança.*
@@ -83,18 +82,18 @@ Para cadastrar um novo equipamento gerenciado:
 Retorna a íntegra da configuração que está rodando na memória da OLT.
 
 ### 3.2 Gerar Backup com Hash Criptográfico
-`POST /api/v1/olts/{olt_id}/backup`
+`POST /api/v1/olts/{olt_id}/backups`
 
 Gera um arquivo de backup em disco com nome seguro baseado em UUIDv7 e calcula o hash SHA-256 da configuração:
 
 ```json
 {
-  "id": "018e3c50-abcd-7ef0-1234-567890abcdef",
-  "olt_id": "018e3c45-6789-7abc-def0-123456789abc",
-  "filename": "backup_018e3c45-6789-7abc-def0-123456789abc_20260910_193000.cfg",
-  "file_size": 24512,
-  "sha256": "3a7b9c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b",
-  "created_at": "2026-09-10T19:30:00Z"
+  "backup_id": "0191e512-3456-789a-bcde-f0123456789a",
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "created_at": "2026-09-11T19:30:00Z",
+  "size_bytes": 24512,
+  "sha256_hash": "3a7b9c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b",
+  "filename": "backup_0191e512-3456-789a-bcde-f0123456789a.cfg"
 }
 ```
 
@@ -102,6 +101,60 @@ Gera um arquivo de backup em disco com nome seguro baseado em UUIDv7 e calcula o
 `GET /api/v1/olts/{olt_id}/backups/{backup_id}/download`
 
 Faz o download via stream do arquivo de configuração para armazenamento externo, cofre ou replicação S3.
+
+### 3.4 Auditoria de Integridade e Detecção de Drift
+`GET /api/v1/olts/{olt_id}/backups/audit`
+
+Retorna métricas de saúde dos backups da OLT e se houve alteração no *running-config* (`has_changed: true/false`):
+
+```json
+{
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "olt_name": "OLT-POP-CENTRO-01",
+  "total_backups": 15,
+  "total_bytes": 367680,
+  "latest_backup": { "backup_id": "...", "sha256_hash": "..." },
+  "previous_backup": { "backup_id": "...", "sha256_hash": "..." },
+  "has_changed": true,
+  "last_backup_at": "2026-09-11T19:30:00Z"
+}
+```
+
+### 3.5 Comparador de Backups com Unified Diff (Estilo Git Diff)
+`GET /api/v1/olts/{olt_id}/backups/compare`
+*(Opcional: `?base_id={id1}&target_id={id2}`. Se omitido, compara os 2 backups mais recentes).*
+
+```json
+{
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "base_backup_id": "0191e4f2-...",
+  "target_backup_id": "0191e512-...",
+  "identical": false,
+  "base_sha256": "3a7b9c...",
+  "target_sha256": "8f2e1a...",
+  "diff_lines": [
+    "--- backup_base.cfg",
+    "+++ backup_target.cfg",
+    "@@ -15,4 +15,6 @@",
+    " vlan 100",
+    "+vlan 200",
+    "+ name CLIENTES_FIBRA",
+    " interface gpon 0/1"
+  ],
+  "additions_count": 2,
+  "deletions_count": 0
+}
+```
+
+### 3.6 Expurgo e Política de Retenção sob Demanda
+`POST /api/v1/olts/{olt_id}/backups/purge`
+Payload opcional: `{"max_backups_per_olt": 30, "max_age_days": 60}`.
+
+### 3.7 Operações Globais em Lote
+- `POST /api/v1/backups/run-all`: Coleta backups de todo o parque de OLTs sequencialmente.
+- `GET /api/v1/backups/audit-all`: Visão de auditoria de todas as OLTs cadastradas.
+- `POST /api/v1/backups/purge-all`: Aplica limpeza global de backups antigos.
+
 
 ---
 

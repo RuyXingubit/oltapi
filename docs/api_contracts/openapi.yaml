@@ -556,7 +556,7 @@ components:
           example: "OLT-POP-CENTRO"
         vendor:
           type: string
-          enum: [intelbras, huawei, fiberhome, parks]
+          enum: [intelbras, huawei, fiberhome, vsol, zte, parks]
           example: "intelbras"
         model:
           type: string

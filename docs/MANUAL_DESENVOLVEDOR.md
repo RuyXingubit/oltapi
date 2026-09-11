@@ -42,8 +42,10 @@ O **OLTAPI** foi projetado com os seguintes princípios:
 [ Driver Abstraction (BaseOLTDriver) ]
            ├──> Intelbras8820Driver (Broadcom CLI)
            ├──> IntelbrasGSeriesDriver (G08 / G16 CLI)
-           ├──> HuaweiMA5800Driver (VRP CLI) ────> [Roadmap]
-           └──> FiberhomeAN5516Driver (TL1/CLI) ─> [Roadmap]
+           ├──> HuaweiVRPDriver (MA5800 / MA5600T CLI)
+           ├──> FiberhomeTL1Driver (AN5516 / AN6000 TL1)
+           ├──> VSOLV1600Driver (V1600GT / V1600G CLI)
+           └──> ZTEZXROSDriver (C300 / C320 / C600 CLI)
 ```
 
 ---
@@ -54,37 +56,44 @@ O **OLTAPI** foi projetado com os seguintes princípios:
 oltapi/
 ├── app/
 │   ├── api/
-│   │   └── v1/                  # Endpoints REST organizados por domínio
-│   │       ├── olts.py          # Cadastro, consulta e running-config de OLTs
-│   │       ├── diagnostics.py   # Consulta de portas, ONUs e diagnóstico óptico
-│   │       ├── provisioning.py  # Provisionamento de ONUs e autofind
-│   │       └── bootstrap.py     # Assistente de configuração inicial zero-touch
+│   │   └── v1/                      # Endpoints REST organizados por domínio
+│   │       ├── endpoints_olts.py        # Cadastro, running-config, backups, audit e diff
+│   │       ├── endpoints_backups.py     # Disparo em lote (run-all) e auditoria global
+│   │       ├── endpoints_diagnostics.py # Portas, ONUs e diagnóstico óptico
+│   │       ├── endpoints_provision.py   # Provisionamento de ONUs e autofind
+│   │       └── endpoints_bootstrap.py   # Inicialização zero-touch de OLT virgem
 │   ├── core/
-│   │   ├── config.py            # Configurações com Pydantic Settings
-│   │   ├── security.py          # Sanitizadores regex e validação de API Key
-│   │   └── uuid.py              # Gerador e validador nativo de UUIDv7 (RFC 9562)
+│   │   ├── config.py                # Pydantic Settings (.env, retenção, timeouts)
+│   │   ├── security.py              # Sanitizadores regex e validação de API Key
+│   │   └── uuid.py                  # Gerador e validador nativo de UUIDv7 (RFC 9562)
 │   ├── drivers/
-│   │   ├── base.py              # Interface abstrata BaseOLTDriver
-│   │   ├── factory.py           # DriverFactory com cache e resolução dinâmica
-│   │   └── intelbras/
-│   │       ├── intelbras_8820.py    # Driver 8820 / 8820i (Broadcom CLI)
-│   │       └── intelbras_gseries.py # Driver G08 e G16 (G-Series CLI)
-│   ├── models/                  # Schemas Pydantic v2 tipados
+│   │   ├── base.py                  # Interface abstrata BaseOLTDriver
+│   │   ├── factory.py               # DriverFactory com cache e resolução dinâmica
+│   │   ├── intelbras/               # Intelbras 8820 e Concentradores G08/G16
+│   │   ├── huawei/                  # Huawei MA5800 e MA5600T (VRP CLI)
+│   │   ├── fiberhome/               # Fiberhome AN5516 e AN6000 (TL1 Bellcore)
+│   │   ├── vsol/                    # V-SOL V1600GT e série V1600G (CLI)
+│   │   └── zte/                     # ZTE C300, C320 e Titan C600 (ZXROS CLI)
+│   ├── models/                      # Schemas Pydantic v2 tipados
 │   │   ├── olt.py
 │   │   ├── onu.py
+│   │   ├── backup.py                # Metadados, Diff, Auditoria e Expurgo
 │   │   ├── provision.py
 │   │   └── bootstrap.py
-│   ├── storage/                 # Repositórios de dados e persistência
-│   │   ├── olt_repository.py    # Repositório de OLTs
-│   │   └── backup_storage.py    # Gerenciamento de backups com SHA-256 e UUIDv7
-│   └── main.py                  # Ponto de entrada FastAPI e middlewares
-├── docs/                        # Documentação técnica, arquitetura e PRD
+│   ├── services/
+│   │   └── backup_service.py        # Orquestrador de backups em lote e expurgo
+│   ├── storage/                     # Repositórios de dados e persistência
+│   │   ├── olt_repository.py        # Repositório de OLTs (JSON / DB)
+│   │   └── backup_storage.py        # Gestão de arquivos .cfg, SHA-256 e unified diff
+│   └── main.py                      # Ponto de entrada FastAPI e middlewares
+├── docs/                            # Documentação técnica, arquitetura, manuais e PRD
 ├── tests/
-│   └── unit/                    # Testes unitários com parsers regex puros
-├── .github/workflows/ci.yml     # Pipeline GitHub Actions otimizado
-├── Dockerfile                   # Build multi-stage seguro (não-root)
-├── docker-compose.yml           # Orquestração local
-└── requirements.txt             # Dependências Python
+│   └── unit/                        # 82 testes unitários com parsers regex puros
+├── .github/workflows/ci.yml         # Pipeline GitHub Actions otimizado
+├── Dockerfile                       # Build multi-stage seguro (Python 3.13-slim non-root)
+├── docker-compose.yml               # Orquestração local e produção com healthcheck
+├── .env.example                     # Modelo de variáveis de ambiente
+└── requirements.txt                 # Dependências Python
 ```
 
 ---
