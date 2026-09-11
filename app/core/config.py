@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     # Configuração de Conexão com OLTs
     DEFAULT_SSH_TIMEOUT: int = 15  # segundos
 
+    # Políticas de Backup e Retenção Padrão
+    BACKUP_RETENTION_MAX: int = 30
+    BACKUP_RETENTION_DAYS: int = 60
+
+    # Nível de Log
+    LOG_LEVEL: str = "INFO"
+
 
 settings = Settings()
 

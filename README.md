@@ -87,14 +87,17 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 ### Pré-requisitos
 - Docker e Docker Compose **OU** Python 3.11+ instalado.
 
-### Opção 1: Via Docker Compose (Recomendado)
+### Opção 1: Via Docker Compose (Recomendado para Produção)
 
 ```bash
-# Clone o repositório
+# 1. Clone o repositório
 git clone https://github.com/RuyXingubit/oltapi.git
 cd oltapi
 
-# Inicie o container
+# 2. Configure as variáveis de ambiente (opcional, defaults seguros inclusos)
+cp .env.example .env
+
+# 3. Inicie o container em background com healthcheck nativo
 docker compose up -d --build
 ```
 
@@ -127,18 +130,24 @@ Com a aplicação rodando, acesse a documentação interativa com Swagger e ReDo
 
 ## ⚡ Resumo dos Endpoints da API
 
-Todas as rotas exigem o cabeçalho `X-API-Key: oltapi-default-secret-key` (exceto `/health`).
+Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_me` (exceto `/health`).
 
 | Método | Endpoint | Descrição |
 | :--- | :--- | :--- |
-| `GET` | `/api/v1/health` | Healthcheck público da API |
+| `GET` | `/health` | Healthcheck público da API (status 200) |
 | `POST` | `/api/v1/olts` | Cadastrar uma nova OLT |
 | `GET` | `/api/v1/olts` | Listar todas as OLTs cadastradas |
 | `GET` | `/api/v1/olts/{id}` | Obter detalhes de uma OLT específica |
 | `GET` | `/api/v1/olts/{id}/config` | Obter o *running-config* atual da OLT |
-| `POST` | `/api/v1/olts/{id}/backup` | Disparar backup com hash SHA-256 e UUIDv7 |
+| `POST` | `/api/v1/olts/{id}/backups` | Disparar backup com hash SHA-256 e UUIDv7 |
 | `GET` | `/api/v1/olts/{id}/backups` | Listar backups realizados de uma OLT |
 | `GET` | `/api/v1/olts/{id}/backups/{bid}/download` | Download seguro do arquivo de backup |
+| `GET` | `/api/v1/olts/{id}/backups/audit` | Auditoria de integridade e status de alteração (drift) |
+| `GET` | `/api/v1/olts/{id}/backups/compare` | Comparador de 2 backups com unified diff (git diff) |
+| `POST` | `/api/v1/olts/{id}/backups/purge` | Expurgo sob demanda conforme política de retenção |
+| `POST` | `/api/v1/backups/run-all` | Execução em lote de backup de todas as OLTs |
+| `GET` | `/api/v1/backups/audit-all` | Auditoria consolidada de todo o parque de OLTs |
+| `POST` | `/api/v1/backups/purge-all` | Expurgo global de backups em todas as OLTs |
 | `GET` | `/api/v1/olts/{id}/ports/{port}/onus` | Listar ONUs conectadas em uma porta PON |
 | `GET` | `/api/v1/olts/{id}/onus/{serial}/details` | Consultar potência óptica (Rx/Tx dBm) e status |
 | `GET` | `/api/v1/olts/{id}/onus/unauthorized` | Varredura de ONUs pendentes de ativação (*autofind*) |
@@ -150,7 +159,7 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi-default-secret-key` (excet
 
 ## 🧪 Testes Unitários
 
-A integridade do projeto é garantida por 39 testes automatizados com cobertura completa de segurança, parsers regex e drivers:
+A integridade do projeto é garantida por 82 testes automatizados com cobertura completa de segurança, parsers regex e drivers:
 
 ```bash
 # Executar a suite de testes
