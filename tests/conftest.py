@@ -4,42 +4,91 @@ import tempfile
 from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from alembic.config import Config
+from alembic import command
 
 from app.core.config import settings
 from app.main import app
 from app.models.olt import OLTCreateRequest, OLTInDB, OLTVendor, OLTProtocol
-from app.storage.backup_storage import BackupStorage
-from app.storage.olt_repository import OLTRepository
-from app.storage.onu_repository import ONUInventoryRepository
-from app.storage.webhook_repository import WebhookRepository
+from app.storage.sql.olt_repository import SQLOLTRepository
+from app.storage.sql.onu_repository import SQLONUInventoryRepository
+from app.storage.sql.webhook_repository import SQLWebhookRepository
+from app.storage.sql.backup_storage import SQLBackupStorage
 from app.services.webhook_dispatcher import WebhookDispatcher
+from app.services.onu_reconciliation_service import ONUReconciliationService
+from app.services.autofind_scanner import AutofindScannerService
 from app.api import deps
 
 
+@pytest.fixture(scope="session")
+def postgres_container():
+    """
+    Sobe container PostgreSQL 16 oficial via Testcontainers.
+    Executa as migrações do Alembic (alembic upgrade head).
+    Fallback automático para SQLite caso o daemon do Docker esteja inacessível.
+    """
+    try:
+        from testcontainers.community.postgres import PostgresContainer
+    except ImportError:
+        from testcontainers.postgres import PostgresContainer
+
+    try:
+        postgres = PostgresContainer("postgres:16-alpine")
+        postgres.start()
+        db_url = postgres.get_connection_url()
+
+        # Executa migrações canônicas do Alembic no Postgres real
+        alembic_cfg = Config("alembic.ini")
+        alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+        command.upgrade(alembic_cfg, "head")
+
+        engine = create_engine(db_url, pool_pre_ping=True)
+        session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+        yield {
+            "postgres": postgres,
+            "engine": engine,
+            "session_factory": session_factory,
+            "url": db_url,
+            "type": "postgres",
+        }
+
+        postgres.stop()
+    except Exception as e:
+        # Fallback gracioso para SQLite WAL se Docker estiver indisponível
+        temp_db = Path(tempfile.mkdtemp()) / "test_fallback.db"
+        sqlite_url = f"sqlite:///{temp_db}"
+        alembic_cfg = Config("alembic.ini")
+        alembic_cfg.set_main_option("sqlalchemy.url", sqlite_url)
+        command.upgrade(alembic_cfg, "head")
+
+        engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})
+        session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+        yield {
+            "postgres": None,
+            "engine": engine,
+            "session_factory": session_factory,
+            "url": sqlite_url,
+            "type": "sqlite",
+        }
+
+
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_env():
-    # Cria diretório temporário para testes
+def setup_test_env(postgres_container):
     temp_dir = Path(tempfile.mkdtemp())
     test_backup_dir = temp_dir / "backups"
-    test_data_dir = temp_dir / "data"
-
     test_backup_dir.mkdir(parents=True, exist_ok=True)
-    test_data_dir.mkdir(parents=True, exist_ok=True)
 
-    test_olt_repo = OLTRepository(data_file=test_data_dir / "olts.json")
-    test_backup_storage = BackupStorage(base_dir=test_backup_dir, data_file=test_data_dir / "backups.json")
-    test_onu_repo = ONUInventoryRepository(
-        inventory_file=test_data_dir / "onus_inventory.json",
-        history_file=test_data_dir / "onus_history.json",
-    )
-    test_webhook_repo = WebhookRepository(
-        subscriptions_file=test_data_dir / "webhooks.json",
-        deliveries_file=test_data_dir / "webhook_deliveries.json",
-    )
+    session_factory = postgres_container["session_factory"]
+
+    test_olt_repo = SQLOLTRepository(session_factory=session_factory)
+    test_backup_storage = SQLBackupStorage(session_factory=session_factory, base_dir=test_backup_dir)
+    test_onu_repo = SQLONUInventoryRepository(session_factory=session_factory)
+    test_webhook_repo = SQLWebhookRepository(session_factory=session_factory)
     test_webhook_dispatcher = WebhookDispatcher(repo=test_webhook_repo)
-    
-    from app.services.onu_reconciliation_service import ONUReconciliationService
-    from app.services.autofind_scanner import AutofindScannerService
 
     test_reconciliation_service = ONUReconciliationService(
         olt_repo=test_olt_repo,
@@ -70,10 +119,10 @@ def setup_test_env():
         "webhook_dispatcher": test_webhook_dispatcher,
         "reconciliation_service": test_reconciliation_service,
         "scanner_service": test_scanner_service,
+        "session_factory": session_factory,
         "temp_dir": temp_dir,
     }
 
-    # Limpeza
     shutil.rmtree(temp_dir, ignore_errors=True)
     app.dependency_overrides.clear()
 
@@ -90,7 +139,7 @@ def auth_headers():
 
 @pytest.fixture
 def sample_olt_8820(setup_test_env) -> OLTInDB:
-    repo: OLTRepository = setup_test_env["repo"]
+    repo: SQLOLTRepository = setup_test_env["repo"]
     for existing in repo.list_all():
         if existing.name == "OLT-TESTE-8820":
             return existing

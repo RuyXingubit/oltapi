@@ -931,6 +931,21 @@ alembic downgrade -1
 > [!NOTE]
 > Para compatibilidade total entre SQLite e PostgreSQL, o arquivo `alembic/env.py` está configurado com `render_as_batch=True`, permitindo alterações de tabelas com constraints sem limitações de engine.
 
+### 11.4 Ambiente de Testes Fidedigno com Testcontainers (PostgreSQL 16)
+
+Para garantir paridade absoluta com a infraestrutura de produção, o OLTAPI integra **Testcontainers** (`testcontainers[postgres]`). 
+
+Ao executar a suite de testes:
+```bash
+pytest tests/ -v
+```
+1. O Pytest se comunica com o Docker daemon local e inicializa uma instância limpa de `postgres:16-alpine`.
+2. Executa todas as migrações canônicas do Alembic (`alembic upgrade head`) diretamente no container efêmero.
+3. Roda todos os 134 testes de API, conciliação e inventário contra o banco PostgreSQL real.
+4. Ao final da suite, o container é destruído automaticamente sem deixar processos órfãos.
+
+*(Caso o Docker não esteja em execução na máquina do desenvolvedor, a suite ativa um fallback transparente para SQLite WAL, mantendo o fluxo de trabalho ágil).*
+
 ---
 
 Dúvidas ou sugestões operacionais? Abra uma issue ou contribua através do nosso [Guia de Contribuição](../CONTRIBUTING.md)!

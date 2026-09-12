@@ -19,8 +19,10 @@ from app.db.models import Base
 # access to the values within the .ini file in use.
 config = context.config
 
-# Define a URL do banco a partir das configurações ativas
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Define a URL do banco se não tiver sido especificada dinamicamente
+current_url = config.get_main_option("sqlalchemy.url")
+if not current_url or current_url == "driver://user:pass@localhost/dbname":
+    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

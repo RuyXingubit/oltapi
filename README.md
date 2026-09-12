@@ -6,6 +6,7 @@
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
   <img src="https://img.shields.io/badge/tests-134%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Testcontainers-PostgreSQL%2016-blue.svg" alt="Testcontainers PostgreSQL 16">
   <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg" alt="SQLAlchemy 2.0">
   <img src="https://img.shields.io/badge/Alembic-Migrations-orange.svg" alt="Alembic Migrations">
   <img src="https://img.shields.io/badge/HATEOAS-RFC%209110%20Ready-blueviolet.svg" alt="HATEOAS">
@@ -191,12 +192,12 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 
 ---
 
-## 🧪 Testes Unitários
+## 🧪 Testes Automatizados com Testcontainers & PostgreSQL 16
 
-A integridade do projeto é garantida por **134 testes automatizados** com cobertura completa de segurança, parsers regex, fluxos HATEOAS, ações remotas, auto-conciliação, webhooks, autofind scanner e persistência relacional com migrações Alembic:
+A integridade do projeto é garantida por **134 testes automatizados** executados diretamente contra uma instância real de **PostgreSQL 16** via **Testcontainers**, aplicando as migrações canônicas do **Alembic** e cobrindo segurança contra injeção, parsers de fabricantes, fluxos HATEOAS, ações remotas, auto-conciliação física e webhooks HMAC:
 
 ```bash
-# Executar a suite de testes
+# Executar a suite de testes (sobe o container Postgres 16 automaticamente)
 pytest tests/ -v
 ```
 
