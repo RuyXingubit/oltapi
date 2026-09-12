@@ -64,10 +64,10 @@ Para cadastrar um novo equipamento gerenciado:
 ```
 
 > [!TIP]
-> Fabricantes e modelos atualmente homologados:
+> Fabricantes e modelos atualmente suportados na arquitetura de drivers:
+> - **Fiberhome:** `vendor: "fiberhome"` / `model: "an5516"`, `"an5516-01"`, `"an5516-04"`, `"an5516-06"`, `"an6000"` (em validação ativa de bancada)
 > - **Intelbras:** `vendor: "intelbras"` / `model: "8820"`, `"8820i"`, `"g08"`, `"g16"`
 > - **Huawei:** `vendor: "huawei"` / `model: "ma5800"`, `"ma5800-x2"`, `"ma5800-x7"`, `"ma5608t"`, `"ma5680t"`
-> - **Fiberhome:** `vendor: "fiberhome"` / `model: "an5516"`, `"an5516-01"`, `"an5516-04"`, `"an5516-06"`, `"an6000"`
 > - **V-SOL:** `vendor: "vsol"` / `model: "v1600gt"`, `"v1600g"`, `"v1600g-04"`, `"v1600g-08"`, `"v1600g-16"`
 > - **ZTE:** `vendor: "zte"` / `model: "c300"`, `"c320"`, `"c600"`
 

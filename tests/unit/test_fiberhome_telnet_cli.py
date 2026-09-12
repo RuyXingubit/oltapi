@@ -169,6 +169,25 @@ def test_build_telnet_provision_commands_router():
     assert any("apply wancfg slot 1 2 15;" in c for c in cmds)
 
 
+def test_build_telnet_provision_commands_third_party_veip():
+    cmds = build_telnet_provision_commands(
+        slot=1,
+        pon=16,
+        onu_id=20,
+        mac="HWTCbbaa2ab6",
+        onu_tipo="HG260",
+        vlan=11,
+        mode="veip",
+    )
+    assert "cd onu" in cmds
+    assert any("mac_num_limit 30" in c for c in cmds)
+    assert "cd lan" in cmds
+    assert any("speed 1000m duplex full" in c for c in cmds)
+    assert any("onuveip 1 33024 11" in c for c in cmds)
+    assert any("apply onu 1 16 20 vlan;" in c for c in cmds)
+
+
+
 def test_build_telnet_lifecycle_commands():
     deprovision_cmds = build_telnet_deprovision_commands(1, 1, 5)
     assert any("set whitelist action delete slot 1 pon 1 onu 5 ;" in c for c in deprovision_cmds)

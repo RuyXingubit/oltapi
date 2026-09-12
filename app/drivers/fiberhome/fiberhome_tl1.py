@@ -764,13 +764,19 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         pppoe_pass: Optional[str] = None,
     ) -> List[str]:
         """Gera lista de comandos no CLI Fiberhome para provisionamento em router ou bridge."""
+        is_veip = mode.lower() in ("veip", "bridge_veip", "third_party") or (mode.lower() == "bridge" and mac.upper().startswith("HWTC"))
+
         cmds = [
             "cd onu",
             f"set whitelist phy_addr address {mac} password null action add slot {slot} pon {pon} onu {onu_id} type {onu_tipo} ;",
-            f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type data fix 16 assure 0 max 128000;",
             f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type iptv fix 16 assure 0 max 64;",
-            "cd lan",
+            f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type data fix 16 assure 0 max 128000;",
         ]
+        if is_veip:
+            cmds.append(f"set epon slot {slot} pon {pon} onu {onu_id} port 1 enable mac_num_limit 30;")
+
+        cmds.append("cd lan")
+
         if mode.lower() == "router":
             u = pppoe_user or "user"
             p = pppoe_pass or "pass"
@@ -779,6 +785,15 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                 f"set wancfg slot {slot} {pon} {onu_id} index 1 ip-stack-mode ipv4 ipv6-src-type slaac prefix-src-type delegate pppoe-authmode chap;",
                 f"set wanbind slot {slot} {pon} {onu_id} index 1 entries 1 fe1;",
                 f"apply wancfg slot {slot} {pon} {onu_id};",
+            ])
+        elif is_veip:
+            # Modo bridge VEIP para equipamentos de terceiros (Huawei, ZTE, etc.)
+            cmds.extend([
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service number 1;",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 enable speed 1000m duplex full flowcontrol disable;",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service 1 vlan_m tag 0 33024 {vlan};",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 onuveip 1 33024 {vlan} 65535 33024 65535 65535 33024 65535 65535 0 1 65535 servname null;",
+                f"apply onu {slot} {pon} {onu_id} vlan;",
             ])
         else:
             # bridge mode
@@ -845,7 +860,10 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                     logger.warning(f"Não foi possível calcular ID automático da ONU na porta {req.port}: {e}")
                     target_onu_id = 1
 
-            onu_tipo = req.onu_model if req.onu_model and req.onu_model.lower() != "auto" else "HG6145E"
+            if not req.onu_model or req.onu_model.lower() == "auto":
+                onu_tipo = "HG260" if safe_serial.upper().startswith("HWTC") else "HG6145E"
+            else:
+                onu_tipo = req.onu_model
             mode = (req.mode or "bridge").lower()
             cmds = self.build_telnet_provision_commands(
                 slot=slot,

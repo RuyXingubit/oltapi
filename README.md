@@ -54,17 +54,18 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 
 ## 🖥️ Matriz de Equipamentos Suportados
 
-| Fabricante | Modelo | Portas PON | Protocolo | Status | Suporte |
+> [!NOTE]
+> **Critério Rigoroso de Homologação:** O status **🟢 Homologado em Campo** é atribuído única e exclusivamente após validação com tráfego real em bancada ou hardware físico em produção (leitura, escrita e provisionamento ponta a ponta com ONU). Drivers validados via suíte de testes unitários automatizados constam com precisão como **🔵 Driver Implementado (Aguardando Hardware Físico)**.
+
+| Fabricante | Modelo | Portas PON | Protocolo | Status de Validação | Suporte |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Intelbras** | 8820 / 8820i | 8 GPON | SSH / Telnet | 🟢 Homologado | Completo (CLI Broadcom) |
-| **Intelbras** | OLT G08 | 8 GPON | SSH / Telnet | 🟢 Homologado | Completo (G-Series CLI) |
-| **Intelbras** | OLT G16 | 16 GPON | SSH / Telnet | 🟢 Homologado | Completo (G-Series CLI) |
-| **Huawei** | SmartAX MA5800 (X2/X7/X15/X17) | 8 a 16 GPON/XGS | SSH | 🟢 Homologado | Completo (VRP CLI) |
-| **Huawei** | MA5600T (MA5608T / MA5680T) | 8 a 16 GPON | SSH | 🟢 Homologado | Completo (VRP CLI) |
-| **Fiberhome** | AN5516 (01/04/06) & AN6000 | 4 a 16 GPON | TL1 (TCP 3337) / SSH | 🟢 Homologado | Completo (TL1 Bellcore) |
-| **V-SOL** | V1600GT / V1600G Series | 4 a 16 GPON | SSH / Telnet | 🟢 Homologado | Completo (CLI V-SOL) |
-| **ZTE** | C300 / C320 / C600 | 8 a 16 GPON | SSH / Telnet | 🟢 Homologado | Completo (ZXROS CLI) |
-| **Parks / Datacom / Nokia** | Vários | GPON | SSH | 🟡 Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
+| **Fiberhome** | AN5516-01 / 04 / 06 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟡 Em Validação de Bancada | Leitura de VLANs, perfis, ONUs ativas, running-config e backup FTP validados em hardware real. Aguardando ONU física de teste. |
+| **Intelbras** | 8820 / 8820i | 8 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (CLI Broadcom) - Validação unitária com mocks |
+| **Intelbras** | OLT G08 / G16 | 8 e 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (G-Series CLI) - Validação unitária com mocks |
+| **Huawei** | SmartAX MA5800 / MA5600T | 8 a 16 GPON/XGS | SSH | 🔵 Driver Implementado | Completo (VRP CLI) - Validação unitária com mocks |
+| **V-SOL** | V1600GT / Série V1600G | 4 a 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (CLI V-SOL) - Validação unitária com mocks |
+| **ZTE** | C300 / C320 / C600 | 8 a 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (ZXROS CLI) - Validação unitária com mocks |
+| **Parks / Datacom / Nokia** | Vários | GPON | SSH | ⚪ Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
 
 ---
 
