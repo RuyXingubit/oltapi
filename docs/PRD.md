@@ -38,6 +38,7 @@ A plataforma cobre as operações vitais para o ciclo de vida operacional de red
 9. **ONU como Entidade Autônoma & Auto-Recuperação Reativa (TR-101):** Rastreamento de hardware ancorado ao contrato comercial do ERP. Resolução automática de fusões invertidas em caixas CEO, trocas de CTO ou cutovers de POP com recálculo do Circuit ID Broadband Forum TR-101 e desprovisionamento da posição fantasma antiga.
 10. **Linha do Tempo do NOC & Geolocalização GIS:** Linha do tempo global reversa para auditoria matinal de movimentações noturnas e suporte a latitude/longitude para integração geográfica.
 11. **Webhooks Criptografados para ERPs (HMAC SHA-256):** Notificações push assíncronas em tempo real com integridade criptográfica para sincronização de novos Circuit IDs e eventos de rede com o ERP.
+12. **Autofind Scanner em Segundo Plano:** Worker periódico em background com locks defensivos por OLT, detecção de ONUs virgens e auto-conciliação autônoma contínua.
 
 *Parque de Fabricantes Suportados:*
 - **Intelbras:** 8820i / 8820 (Broadcom CLI) e Linha G-Series (G08 / G16).
@@ -58,5 +59,6 @@ A plataforma cobre as operações vitais para o ciclo de vida operacional de red
 - [x] Suporte a HATEOAS em todos os endpoints fornecendo transições de estado navegáveis.
 - [x] Motor de Auto-Recuperação Reativa de Campo e Circuit ID Broadband Forum TR-101.
 - [x] Subsistema de Webhooks com assinatura digital HMAC SHA-256 e execução não-bloqueante.
-- [x] 100% de cobertura de testes unitários automatizados (122 testes passando).
+- [x] Autofind Scanner periódico em background com proteção de concorrência por OLT e endpoints de controle operacional.
+- [x] 100% de cobertura de testes unitários automatizados (128 testes passando).
 - [x] Pipeline CI/CD GitHub Actions otimizado, sem avisos de depreciação e com limite de tempo e controle de concorrência.

@@ -816,6 +816,60 @@ function validar_webhook(string $secret, string $rawBody, string $signatureHeade
 
 ---
 
+## 10. Autofind Scanner em Segundo Plano (Monitoramento Autônomo & Auto-Conciliação)
+
+O **Autofind Scanner Service** transforma o OLTAPI em uma plataforma proativa de supervisão contínua da rede óptica. Um worker assíncrono em background varre ciclicamente todas as OLTs cadastradas, detecta ONUs que acabaram de acender na fibra e executa o roteamento inteligente:
+
+```mermaid
+graph LR
+    Worker["Autofind Scanner Loop"] -->|Varredura Periódica| Driver["OLTDriver.list_unauthorized_onus"]
+    Driver -->|ONUs Desautorizadas| Classifier{"Status no Inventário?"}
+    Classifier -->|Contrato ATIVO| Reconcile["Auto-Reconciliação<br/>(Provisiona nova porta + limpa antiga)"]
+    Classifier -->|Virgem / Não Cadastrada| WebhookDetected["Webhook: onu.detected"]
+    Classifier -->|Estoque / Cancelada| Reject["Herança Bloqueada<br/>(Segurança)"]
+    Reconcile -->|Broadband Forum TR-101| WebhookReconciled["Webhook: onu.reconciled"]
+```
+
+### 10.1 Proteção de Recursos das OLTs (Security-First)
+- **Lock Assíncrono por OLT:** Evita concorrência e sobrecarga de CPU nos processadores de controle das OLTs. Varreduras periódicas nunca sobrepõem comandos de provisionamento manual.
+- **Threadpool I/O Assíncrono:** Todas as chamadas de socket/SSH/telnet rodam via `asyncio.to_thread` sem travar o event loop da API.
+- **Isolamento de Falhas:** Se uma OLT sofrer timeout ou ficar inacessível, o erro é contabilizado no ciclo e a varredura prossegue nas demais OLTs normalmente.
+- **Piso Mínimo Defensivo:** Intervalo padrão de 60s, com piso rígido de 10s para evitar saturação.
+
+### 10.2 Endpoints de Controle Operacional
+
+| Endpoint | Método | Descrição |
+|---|---|---|
+| `/api/v1/scanner/status` | `GET` | Consulta status do worker (ativo/parado), intervalo e métricas acumuladas |
+| `/api/v1/scanner/start` | `POST` | Inicia o worker em background |
+| `/api/v1/scanner/stop` | `POST` | Interrompe graciosamente o worker em background |
+| `/api/v1/scanner/run-now` | `POST` | Força uma varredura avulsa imediata com relatório completo (UUIDv7) |
+| `/api/v1/scanner/interval` | `PATCH` | Ajusta dinamicamente a frequência de varredura em segundos (min: 10s) |
+
+### 10.3 Exemplo de Resposta: `GET /api/v1/scanner/status`
+```json
+{
+  "is_running": true,
+  "interval_seconds": 60,
+  "last_run_at": "2026-09-12T10:15:00.124Z",
+  "last_run_duration_ms": 145.2,
+  "last_cycle_id": "0191e5a2-3b4c-7def-8901-23456789abcd",
+  "total_cycles": 120,
+  "total_onus_detected": 15,
+  "total_onus_reconciled": 4,
+  "total_virgin_onus": 11,
+  "total_errors": 0,
+  "_links": {
+    "self": { "href": "/api/v1/scanner/status", "method": "GET" },
+    "start": { "href": "/api/v1/scanner/start", "method": "POST" },
+    "stop": { "href": "/api/v1/scanner/stop", "method": "POST" },
+    "run_now": { "href": "/api/v1/scanner/run-now", "method": "POST" }
+  }
+}
+```
+
+---
+
 Dúvidas ou sugestões operacionais? Abra uma issue ou contribua através do nosso [Guia de Contribuição](../CONTRIBUTING.md)!
 
 

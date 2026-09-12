@@ -1114,6 +1114,82 @@ paths:
         '404':
           description: Webhook não encontrado
 
+  /api/v1/scanner/status:
+    get:
+      summary: Consultar status do Autofind Scanner
+      description: Retorna o estado operacional do worker (ativo/inativo), intervalo atual e métricas acumuladas com links HATEOAS.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Status atual do scanner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScannerStatus'
+
+  /api/v1/scanner/start:
+    post:
+      summary: Iniciar worker do Autofind Scanner
+      description: Inicia o loop assíncrono periódico de varredura em segundo plano.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Scanner iniciado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScannerStatus'
+
+  /api/v1/scanner/stop:
+    post:
+      summary: Parar worker do Autofind Scanner
+      description: Interrompe graciosamente o loop de varredura periódica.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Scanner parado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScannerStatus'
+
+  /api/v1/scanner/run-now:
+    post:
+      summary: Forçar varredura de autofind sob demanda
+      description: Executa imediatamente um ciclo de varredura em todas as OLTs cadastradas e retorna o resultado detalhado.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Resultado detalhado do ciclo de varredura
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScannerRunResult'
+
+  /api/v1/scanner/interval:
+    patch:
+      summary: Atualizar intervalo de varredura
+      description: Modifica a cadência periódica em segundos (mínimo defensivo: 10s).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScannerIntervalUpdateRequest'
+      responses:
+        '200':
+          description: Intervalo atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScannerStatus'
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -1929,3 +2005,135 @@ components:
         timestamp:
           type: string
           format: date-time
+
+    ScannerStatus:
+      type: object
+      required:
+        - is_running
+        - interval_seconds
+      properties:
+        is_running:
+          type: boolean
+        interval_seconds:
+          type: integer
+          example: 60
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_run_duration_ms:
+          type: number
+          format: float
+          nullable: true
+        last_cycle_id:
+          type: string
+          format: uuid
+          nullable: true
+        total_cycles:
+          type: integer
+          example: 15
+        total_onus_detected:
+          type: integer
+          example: 42
+        total_onus_reconciled:
+          type: integer
+          example: 3
+        total_virgin_onus:
+          type: integer
+          example: 39
+        total_errors:
+          type: integer
+          example: 0
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HateoasLink'
+
+    ScannerOLTSummary:
+      type: object
+      required:
+        - olt_id
+        - olt_name
+        - status
+      properties:
+        olt_id:
+          type: string
+          format: uuid
+        olt_name:
+          type: string
+          example: "OLT-POP-CENTRAL"
+        status:
+          type: string
+          example: "success"
+        detected_onus_count:
+          type: integer
+          example: 2
+        reconciled_serials:
+          type: array
+          items:
+            type: string
+        virgin_serials:
+          type: array
+          items:
+            type: string
+        error_message:
+          type: string
+          nullable: true
+
+    ScannerRunResult:
+      type: object
+      required:
+        - cycle_id
+        - started_at
+        - completed_at
+        - duration_ms
+        - olts_scanned
+      properties:
+        cycle_id:
+          type: string
+          format: uuid
+          example: "018e6a2b-871c-7f51-b753-f72535928d11"
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        duration_ms:
+          type: number
+          format: float
+          example: 125.4
+        olts_scanned:
+          type: integer
+          example: 4
+        detected_onus_count:
+          type: integer
+          example: 3
+        reconciled_onus_count:
+          type: integer
+          example: 1
+        virgin_onus_count:
+          type: integer
+          example: 2
+        errors_count:
+          type: integer
+          example: 0
+        olt_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScannerOLTSummary'
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HateoasLink'
+
+    ScannerIntervalUpdateRequest:
+      type: object
+      required:
+        - interval_seconds
+      properties:
+        interval_seconds:
+          type: integer
+          minimum: 10
+          maximum: 86400
+          example: 120

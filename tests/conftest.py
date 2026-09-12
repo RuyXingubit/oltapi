@@ -37,6 +37,21 @@ def setup_test_env():
         deliveries_file=test_data_dir / "webhook_deliveries.json",
     )
     test_webhook_dispatcher = WebhookDispatcher(repo=test_webhook_repo)
+    
+    from app.services.onu_reconciliation_service import ONUReconciliationService
+    from app.services.autofind_scanner import AutofindScannerService
+
+    test_reconciliation_service = ONUReconciliationService(
+        olt_repo=test_olt_repo,
+        onu_repo=test_onu_repo,
+        webhook_dispatcher=test_webhook_dispatcher,
+    )
+    test_scanner_service = AutofindScannerService(
+        olt_repo=test_olt_repo,
+        onu_repo=test_onu_repo,
+        reconciliation_service=test_reconciliation_service,
+        webhook_dispatcher=test_webhook_dispatcher,
+    )
 
     # Override das dependências FastAPI
     app.dependency_overrides[deps.get_olt_repo] = lambda: test_olt_repo
@@ -44,6 +59,8 @@ def setup_test_env():
     app.dependency_overrides[deps.get_onu_repo] = lambda: test_onu_repo
     app.dependency_overrides[deps.get_webhook_repo] = lambda: test_webhook_repo
     app.dependency_overrides[deps.get_webhook_dispatcher] = lambda: test_webhook_dispatcher
+    app.dependency_overrides[deps.get_reconciliation_service] = lambda: test_reconciliation_service
+    app.dependency_overrides[deps.get_scanner_service] = lambda: test_scanner_service
 
     yield {
         "repo": test_olt_repo,
@@ -51,6 +68,8 @@ def setup_test_env():
         "onu_repo": test_onu_repo,
         "webhook_repo": test_webhook_repo,
         "webhook_dispatcher": test_webhook_dispatcher,
+        "reconciliation_service": test_reconciliation_service,
+        "scanner_service": test_scanner_service,
         "temp_dir": temp_dir,
     }
 

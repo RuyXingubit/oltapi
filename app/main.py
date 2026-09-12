@@ -1,9 +1,21 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.deps import get_scanner_service
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scanner = get_scanner_service()
+    if settings.SCANNER_ENABLED_ON_STARTUP:
+        scanner.start()
+    yield
+    await scanner.stop()
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -12,6 +24,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",
     redoc_url=f"{settings.API_V1_STR}/redoc",
+    lifespan=lifespan,
 )
 
 # Configuração de CORS para permitir integração segura com frontends e ERPs web

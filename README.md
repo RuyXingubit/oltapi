@@ -5,9 +5,10 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-122%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-128%20passed%20(100%25)-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/HATEOAS-RFC%209110%20Ready-blueviolet.svg" alt="HATEOAS">
   <img src="https://img.shields.io/badge/Webhooks-HMAC%20SHA--256-brightgreen.svg" alt="HMAC Webhooks">
+  <img src="https://img.shields.io/badge/Autofind%20Scanner-Background%20Worker-blue.svg" alt="Autofind Scanner">
   <img src="https://img.shields.io/badge/TR--101-Circuit%20ID-blue.svg" alt="Broadband Forum TR-101">
   <img src="https://img.shields.io/badge/UUIDv7-RFC%209562-orange.svg" alt="UUIDv7">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
@@ -43,6 +44,7 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 11. **ONU como Entidade Autônoma & Auto-Recuperação Reativa (Broadband Forum TR-101):** Rastreamento perpétuo de hardware vinculado ao contrato no ERP. Quando uma fusão invertida em caixa de emenda (CEO), mudança de endereço ou cutover noturno de POP ocorre, a API provisiona na nova porta/OLT, remove a posição fantasma anterior, gera o Circuit ID padronizado (`{OLT} eth {slot}/{port}:{onu_id}:{vlan}`) e registra a manobra no histórico do NOC.
 12. **Linha do Tempo Global do NOC & Coordenadas GIS:** Auditoria transparente de todas as correções ocorridas na rede e suporte nativo a geolocalização (latitude/longitude) para integração com mapas.
 13. **Webhooks com Assinatura Criptográfica HMAC SHA-256:** Notificação push assíncrona (BackgroundTasks) em tempo real para os ERPs (`onu.reconciled`, `onu.detected`, `webhook.ping`) com verificação contra ataques de temporização e log de auditoria de entregas.
+14. **Autofind Scanner em Segundo Plano (Supervisão Autônoma):** Worker assíncrono proativo com locks defensivos por OLT, auto-reconciliação de contratos ativos e notificações instantâneas de novos equipamentos na fibra.
 
 ---
 
@@ -171,12 +173,24 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 | `POST` | `/api/v1/olts/{id}/onus/{serial}/resume` | Reativar / desbloquear financeiramente a ONU |
 | `POST` | `/api/v1/bootstrap/preview` | Pré-visualizar comandos CLI de inicialização zero-touch |
 | `POST` | `/api/v1/bootstrap/apply` | Aplicar comandos de inicialização na OLT |
+| `GET` | `/api/v1/onus` | Listar inventário global de ONUs e Circuit IDs |
+| `POST` | `/api/v1/onus/reconcile-field-event` | Conciliação e auto-recuperação física reativa de ONU |
+| `GET` | `/api/v1/onus/history` | Linha do tempo cronológica global do NOC |
+| `GET` | `/api/v1/webhooks` | Listar assinaturas de Webhooks do ERP |
+| `POST` | `/api/v1/webhooks` | Cadastrar novo Webhook com HMAC SHA-256 |
+| `POST` | `/api/v1/webhooks/{id}/ping` | Disparar ping de teste HMAC para o ERP |
+| `GET` | `/api/v1/webhooks/deliveries` | Auditoria de histórico de entregas de Webhook |
+| `GET` | `/api/v1/scanner/status` | Consultar status, intervalo e métricas do Autofind Scanner |
+| `POST` | `/api/v1/scanner/start` | Iniciar worker periódico de varredura em background |
+| `POST` | `/api/v1/scanner/stop` | Interromper graciosamente o worker de varredura |
+| `POST` | `/api/v1/scanner/run-now` | Forçar ciclo avulso imediato de varredura sob demanda |
+| `PATCH` | `/api/v1/scanner/interval` | Modificar intervalo de varredura (mínimo defensivo: 10s) |
 
 ---
 
 ## 🧪 Testes Unitários
 
-A integridade do projeto é garantida por **101 testes automatizados** com cobertura completa de segurança, parsers regex, fluxos HATEOAS, ações remotas e drivers multi-fabricante:
+A integridade do projeto é garantida por **128 testes automatizados** com cobertura completa de segurança, parsers regex, fluxos HATEOAS, ações remotas, auto-conciliação, webhooks e o autofind scanner:
 
 ```bash
 # Executar a suite de testes
