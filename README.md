@@ -5,8 +5,9 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-101%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-110%20passed%20(100%25)-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/HATEOAS-RFC%209110%20Ready-blueviolet.svg" alt="HATEOAS">
+  <img src="https://img.shields.io/badge/TR--101-Circuit%20ID-blue.svg" alt="Broadband Forum TR-101">
   <img src="https://img.shields.io/badge/UUIDv7-RFC%209562-orange.svg" alt="UUIDv7">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
 </p>
@@ -38,6 +39,8 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
    - **Suspensão Administrativa (Inadimplência):** Desativação do tráfego GPON mantendo configurações intactas para fácil religamento.
    - **Reativação / Desbloqueio Financeiro:** Restabelecimento instantâneo do sinal após confirmação de pagamento.
 10. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras, Huawei, Fiberhome, V-SOL e ZTE).
+11. **ONU como Entidade Autônoma & Auto-Recuperação Reativa (Broadband Forum TR-101):** Rastreamento perpétuo de hardware vinculado ao contrato no ERP. Quando uma fusão invertida em caixa de emenda (CEO), mudança de endereço ou cutover noturno de POP ocorre, a API provisiona na nova porta/OLT, remove a posição fantasma anterior, gera o Circuit ID padronizado (`{OLT} eth {slot}/{port}:{onu_id}:{vlan}`) e registra a manobra no histórico do NOC.
+12. **Linha do Tempo Global do NOC & Coordenadas GIS:** Auditoria transparente de todas as correções ocorridas na rede e suporte nativo a geolocalização (latitude/longitude) para integração com mapas.
 
 ---
 

@@ -35,6 +35,8 @@ A plataforma cobre as operações vitais para o ciclo de vida operacional de red
 6. **Desprovisionamento & Cancelamento:** Excluir ONU da OLT e liberar recursos da porta PON (`DELETE`).
 7. **Ações Remotas de Assinante:** Reboot remoto OMCI, Suspensão Administrativa (bloqueio por inadimplência) e Reativação / Desbloqueio financeiro (`suspend` / `resume`).
 8. **Assistente Zero-Touch Bootstrap:** Geração de scripts oficiais para OLTs novas de fábrica.
+9. **ONU como Entidade Autônoma & Auto-Recuperação Reativa (TR-101):** Rastreamento de hardware ancorado ao contrato comercial do ERP. Resolução automática de fusões invertidas em caixas CEO, trocas de CTO ou cutovers de POP com recálculo do Circuit ID Broadband Forum TR-101 e desprovisionamento da posição fantasma antiga.
+10. **Linha do Tempo do NOC & Geolocalização GIS:** Linha do tempo global reversa para auditoria matinal de movimentações noturnas e suporte a latitude/longitude para integração geográfica.
 
 *Parque de Fabricantes Suportados:*
 - **Intelbras:** 8820i / 8820 (Broadcom CLI) e Linha G-Series (G08 / G16).
@@ -53,5 +55,6 @@ A plataforma cobre as operações vitais para o ciclo de vida operacional de red
 - [x] 6 Drivers de fabricantes implementados com parsers e geração de comandos realistas.
 - [x] Ciclo de vida completo de ONUs: Descoberta, Provisionamento, Reboot, Suspensão, Reativação e Desprovisionamento.
 - [x] Suporte a HATEOAS em todos os endpoints fornecendo transições de estado navegáveis.
-- [x] 100% de cobertura de testes unitários automatizados (101 testes passando).
+- [x] Motor de Auto-Recuperação Reativa de Campo e Circuit ID Broadband Forum TR-101.
+- [x] 100% de cobertura de testes unitários automatizados (110 testes passando).
 - [x] Pipeline CI/CD GitHub Actions otimizado, sem avisos de depreciação e com limite de tempo e controle de concorrência.

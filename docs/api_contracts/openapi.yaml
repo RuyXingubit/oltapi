@@ -811,6 +811,175 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurgeResult'
 
+  /api/v1/onus:
+    get:
+      summary: Listar ONUs do inventário global
+      description: Retorna todas as ONUs com dados de contrato ERP, Circuit ID TR-101 e coordenadas GPS.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: port
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: contract_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, SUSPENDED, CANCELLED, IN_STOCK]
+        - name: contract_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de equipamentos no inventário
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ONUInventoryItem'
+    post:
+      summary: Cadastrar ou vincular ONU no inventário
+      description: Registra uma ONU ancorando seu serial de hardware ao contrato do assinante e topologia física.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterONUInventoryRequest'
+      responses:
+        '201':
+          description: ONU cadastrada com sucesso com Location header e links HATEOAS
+          headers:
+            Location:
+              description: URI canônica da ONU
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUInventoryItem'
+
+  /api/v1/onus/history:
+    get:
+      summary: Linha do Tempo Global de Movimentações (NOC Timeline)
+      description: Auditoria completa e reversa de todas as manobras físicas, trocas de POP e correções automáticas de fusão.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: serial
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: from_olt_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: to_olt_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Eventos cronológicos da linha do tempo do NOC
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ONUMigrationEvent'
+
+  /api/v1/onus/reconcile-field-event:
+    post:
+      summary: Motor de Auto-Recuperação e Conciliação Reativa de Campo
+      description: Processa evento de autofind em campo. Se contrato ativo, provisiona nova posição, limpa a antiga fantasma e recalcula Circuit ID TR-101.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileFieldEventRequest'
+      responses:
+        '200':
+          description: Resultado da conciliação e manobra executada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconcileFieldEventResponse'
+
+  /api/v1/onus/{serial}:
+    get:
+      summary: Consultar dados cadastrais, topologia e status de uma ONU
+      description: Retorna visão 360º da ONU incluindo coordenadas geográficas e identificador Broadband Forum TR-101.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: serial
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dados detalhados do inventário da ONU
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUInventoryItem'
+        '404':
+          description: ONU não encontrada
+
+  /api/v1/onus/{serial}/history:
+    get:
+      summary: Histórico individual de movimentações de uma ONU
+      description: Retorna todas as migrações entre portas e OLTs sofridas por este hardware específico.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: serial
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Histórico cronológico desta ONU
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ONUMigrationEvent'
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -1282,3 +1451,257 @@ components:
           type: integer
         message:
           type: string
+
+    ONUInventoryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "0191e4f2-51a8-7d84-a12b-3456789abcde"
+        serial:
+          type: string
+          example: "INCL12345678"
+        contract_id:
+          type: string
+          nullable: true
+          example: "CTR-100200"
+        subscriber_name:
+          type: string
+          nullable: true
+          example: "Empresa XPTO Fibra"
+        contract_status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, CANCELLED, IN_STOCK]
+          example: "ACTIVE"
+        vlan:
+          type: integer
+          nullable: true
+          example: 100
+        profile:
+          type: string
+          example: "DEFAULT"
+        description:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: float
+          nullable: true
+          example: -23.55052
+        longitude:
+          type: number
+          format: float
+          nullable: true
+          example: -46.633308
+        current_olt_id:
+          type: string
+          format: uuid
+          nullable: true
+        current_port:
+          type: string
+          nullable: true
+          example: "1/1"
+        current_onu_id:
+          type: integer
+          nullable: true
+          example: 4
+        circuit_id:
+          type: string
+          nullable: true
+          example: "OLT-CENTRAL-01 eth 1/1:4:100"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HateoasLink'
+
+    RegisterONUInventoryRequest:
+      type: object
+      required:
+        - serial
+      properties:
+        serial:
+          type: string
+          example: "INCL12345678"
+        olt_id:
+          type: string
+          nullable: true
+        port:
+          type: string
+          nullable: true
+          example: "1/1"
+        onu_id:
+          type: integer
+          nullable: true
+          example: 4
+        vlan:
+          type: integer
+          nullable: true
+          example: 100
+        profile:
+          type: string
+          default: "DEFAULT"
+        contract_id:
+          type: string
+          nullable: true
+          example: "CTR-100200"
+        subscriber_name:
+          type: string
+          nullable: true
+          example: "Empresa XPTO Fibra"
+        contract_status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, CANCELLED, IN_STOCK]
+          default: "ACTIVE"
+        description:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: float
+          nullable: true
+        longitude:
+          type: number
+          format: float
+          nullable: true
+
+    ReconcileFieldEventRequest:
+      type: object
+      required:
+        - serial
+        - detected_olt_id
+        - detected_port
+      properties:
+        serial:
+          type: string
+          example: "INCL12345678"
+        detected_olt_id:
+          type: string
+          format: uuid
+        detected_port:
+          type: string
+          example: "1/2"
+        detected_onu_id:
+          type: integer
+          nullable: true
+          example: 5
+        latitude:
+          type: number
+          format: float
+          nullable: true
+        longitude:
+          type: number
+          format: float
+          nullable: true
+        reason:
+          type: string
+          default: "field_event_auto_reconciliation"
+          example: "Fusão invertida na caixa CEO-04"
+
+    ReconcileFieldEventResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        action_taken:
+          type: string
+          enum: [reconciled_intra_olt, reconciled_cross_olt, rejected_in_stock_onu, onu_not_found]
+        serial:
+          type: string
+        contract_id:
+          type: string
+          nullable: true
+        subscriber_name:
+          type: string
+          nullable: true
+        old_olt_id:
+          type: string
+          nullable: true
+        new_olt_id:
+          type: string
+          nullable: true
+        old_port:
+          type: string
+          nullable: true
+        new_port:
+          type: string
+          nullable: true
+        old_onu_id:
+          type: integer
+          nullable: true
+        new_onu_id:
+          type: integer
+          nullable: true
+        old_circuit_id:
+          type: string
+          nullable: true
+        new_circuit_id:
+          type: string
+          nullable: true
+        message:
+          type: string
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HateoasLink'
+
+    ONUMigrationEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        serial:
+          type: string
+        contract_id:
+          type: string
+          nullable: true
+        subscriber_name:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        from_olt_id:
+          type: string
+          nullable: true
+        from_olt_name:
+          type: string
+          nullable: true
+        from_port:
+          type: string
+          nullable: true
+        from_onu_id:
+          type: integer
+          nullable: true
+        from_circuit_id:
+          type: string
+          nullable: true
+        to_olt_id:
+          type: string
+        to_olt_name:
+          type: string
+        to_port:
+          type: string
+        to_onu_id:
+          type: integer
+        to_circuit_id:
+          type: string
+        status:
+          type: string
+          example: "success"
+        details:
+          type: string
+          nullable: true
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HateoasLink'

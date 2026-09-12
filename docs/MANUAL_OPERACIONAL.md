@@ -585,4 +585,137 @@ async function checkOpticalPower(oltId, serial) {
 
 ---
 
+## 8. ONU como Entidade Autônoma, Broadband Forum TR-101 e Auto-Recuperação Reativa
+
+No mundo real de telecomunicações, **portas PON e OLTs são efêmeras, mas o serial do equipamento e o contrato do assinante são perenes**. Durante manutenções na madrugada, cutovers de anel óptico, fusões invertidas em caixas de emenda (CEOs) ou mudanças de endereço de assinantes, a ONU pode surgir fisicamente em outra porta da mesma OLT ou até em outra OLT de outro POP.
+
+O OLTAPI trata a ONU como uma entidade de primeira classe orientada a objetos baseada na **Tríade de Identidade**:
+1. **Serial de Hardware (MAC/EPON/GPON):** Identificador físico imutável gravado de fábrica na EEPROM do modem.
+2. **Vínculo Comercial no ERP:** Contrato do cliente (`contract_id`) e status (`ACTIVE`, `IN_STOCK`, `SUSPENDED`, `CANCELLED`).
+3. **Circuit ID (Broadband Forum TR-101 / RFC 3046):** Localizador topológico dinâmico da porta física onde a luz acende:
+   `{OLT-NAME} eth {slot}/{port}:{onu_id}:{vlan}`.
+
+---
+
+### 8.1 Cadastrar Equipamento no Inventário Global
+
+Cadastra ou atualiza uma ONU no inventário central com coordenadas GPS para mapeamento GIS:
+
+`POST /api/v1/onus`
+
+```json
+{
+  "serial": "INCL99887766",
+  "contract_id": "CTR-49102",
+  "subscriber_name": "Provedor Turbo Fibra Ltda",
+  "contract_status": "ACTIVE",
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "port": "1/1",
+  "onu_id": 4,
+  "vlan": 150,
+  "profile": "1G_DOWN_500M_UP",
+  "latitude": -23.550520,
+  "longitude": -46.633308,
+  "description": "Cliente corporativo migrado"
+}
+```
+
+**Resposta 201 Created:**
+```json
+{
+  "id": "0191e4f3-a1b2-7c3d-8e4f-567890abcdef",
+  "serial": "INCL99887766",
+  "contract_id": "CTR-49102",
+  "subscriber_name": "Provedor Turbo Fibra Ltda",
+  "contract_status": "ACTIVE",
+  "vlan": 150,
+  "profile": "1G_DOWN_500M_UP",
+  "latitude": -23.55052,
+  "longitude": -46.633308,
+  "current_olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "current_port": "1/1",
+  "current_onu_id": 4,
+  "circuit_id": "OLT-POP-CENTRO-01 eth 1/1:4:150",
+  "_links": {
+    "self": {
+      "href": "/api/v1/onus/INCL99887766",
+      "method": "GET",
+      "description": "Consultar cadastro da ONU"
+    },
+    "history": {
+      "href": "/api/v1/onus/INCL99887766/history",
+      "method": "GET",
+      "description": "Histórico de movimentações"
+    }
+  }
+}
+```
+
+---
+
+### 8.2 Motor de Auto-Recuperação e Conciliação Reativa de Campo
+
+Quando um script de varredura ou worker de autofind detecta uma ONU ligada em uma porta PON, ele submete o evento ao endpoint de conciliação:
+
+`POST /api/v1/onus/reconcile-field-event`
+
+```json
+{
+  "serial": "INCL99887766",
+  "detected_olt_id": "0191e4f5-9988-7766-5544-33221100aabb",
+  "detected_port": "0/2",
+  "detected_onu_id": 2,
+  "latitude": -23.551000,
+  "longitude": -46.634000,
+  "reason": "Fusão invertida identificada na caixa CEO-04"
+}
+```
+
+#### Comportamentos Automáticos do Motor:
+- **Se Contrato ATIVO (`ACTIVE`):**
+  1. Provisiona imediatamente a ONU na nova OLT/porta detectada (`detected_olt_id`, `detected_port`).
+  2. Executa a limpeza física da posição antiga (desprovisiona a ONU fantasma da OLT/porta anterior para liberar slots e evitar colisões).
+  3. Recalcula o Circuit ID Broadband Forum TR-101.
+  4. Atualiza as coordenadas geográficas se fornecidas.
+  5. Grava o evento imutável na Linha do Tempo do NOC (`ONUMigrationEvent`).
+- **Se Contrato em ESTOQUE ou CANCELADO (`IN_STOCK` ou `CANCELLED`):**
+  - **Bloqueia a conciliação** (`success: false`, `action_taken: "rejected_in_stock_onu"`).
+  - Impede que um equipamento recolhido em campo herde credenciais ou VLANs do antigo titular antes de ser reassociado a um novo contrato no ERP.
+
+---
+
+### 8.3 Linha do Tempo Global para o NOC (Auditoria Noturna)
+
+Os operadores do NOC que chegam pela manhã podem visualizar todas as auto-recuperações e manobras realizadas de forma transparente durante a madrugada:
+
+`GET /api/v1/onus/history?limit=100`
+
+```json
+[
+  {
+    "id": "0191e4f6-1122-7788-9900-aabbccddeeff",
+    "serial": "INCL99887766",
+    "contract_id": "CTR-49102",
+    "subscriber_name": "Provedor Turbo Fibra Ltda",
+    "timestamp": "2026-09-12T04:15:30Z",
+    "reason": "Cutover de anel óptico da madrugada - POP Centro",
+    "from_olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+    "from_olt_name": "OLT-POP-CENTRO-01",
+    "from_port": "1/1",
+    "from_onu_id": 4,
+    "from_circuit_id": "OLT-POP-CENTRO-01 eth 1/1:4:150",
+    "to_olt_id": "0191e4f5-9988-7766-5544-33221100aabb",
+    "to_olt_name": "OLT-HUAWEI-POP-SUL",
+    "to_port": "0/2",
+    "to_onu_id": 2,
+    "to_circuit_id": "OLT-HUAWEI-POP-SUL eth 0/2:2:150",
+    "status": "success",
+    "details": "ONU detectada em nova posição física com contrato ativo. Migração e limpeza executadas com sucesso."
+  }
+]
+```
+
+---
+
 Dúvidas ou sugestões operacionais? Abra uma issue ou contribua através do nosso [Guia de Contribuição](../CONTRIBUTING.md)!
+

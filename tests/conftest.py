@@ -10,6 +10,7 @@ from app.main import app
 from app.models.olt import OLTCreateRequest, OLTInDB, OLTVendor, OLTProtocol
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
+from app.storage.onu_repository import ONUInventoryRepository
 from app.api import deps
 
 
@@ -25,14 +26,20 @@ def setup_test_env():
 
     test_olt_repo = OLTRepository(data_file=test_data_dir / "olts.json")
     test_backup_storage = BackupStorage(base_dir=test_backup_dir, data_file=test_data_dir / "backups.json")
+    test_onu_repo = ONUInventoryRepository(
+        inventory_file=test_data_dir / "onus_inventory.json",
+        history_file=test_data_dir / "onus_history.json",
+    )
 
     # Override das dependências FastAPI
     app.dependency_overrides[deps.get_olt_repo] = lambda: test_olt_repo
     app.dependency_overrides[deps.get_backup_storage] = lambda: test_backup_storage
+    app.dependency_overrides[deps.get_onu_repo] = lambda: test_onu_repo
 
     yield {
         "repo": test_olt_repo,
         "storage": test_backup_storage,
+        "onu_repo": test_onu_repo,
         "temp_dir": temp_dir,
     }
 
@@ -54,6 +61,9 @@ def auth_headers():
 @pytest.fixture
 def sample_olt_8820(setup_test_env) -> OLTInDB:
     repo: OLTRepository = setup_test_env["repo"]
+    for existing in repo.list_all():
+        if existing.name == "OLT-TESTE-8820":
+            return existing
     req = OLTCreateRequest(
         name="OLT-TESTE-8820",
         vendor=OLTVendor.INTELBRAS,
