@@ -133,7 +133,11 @@ async def test_connection(olt_id: str, repo: OLTRepository = Depends(get_olt_rep
 
 
 @router.get("/{olt_id}/config", response_model=OLTConfigResponse)
-def get_olt_config(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+def get_olt_config(
+    olt_id: str,
+    repo: OLTRepository = Depends(get_olt_repo),
+    storage: BackupStorage = Depends(get_backup_storage),
+):
     """Coleta e visualiza o running-config completo da OLT."""
     olt = repo.get_by_id(olt_id)
     if not olt:
@@ -141,7 +145,18 @@ def get_olt_config(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
 
     try:
         driver = DriverFactory.get_driver(olt)
-        config_text = driver.get_running_config(olt)
+        config_text = ""
+        try:
+            config_text = driver.get_running_config(olt)
+        except Exception as driver_err:
+            latest_backups = storage.list_by_olt(olt.id)
+            if latest_backups:
+                content = storage.get_backup_content(olt.id, latest_backups[0].backup_id)
+                if content:
+                    config_text = content
+            if not config_text:
+                raise driver_err
+
         return OLTConfigResponse(
             olt_id=olt.id,
             config_text=config_text,

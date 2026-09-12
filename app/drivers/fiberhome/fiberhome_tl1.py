@@ -521,7 +521,151 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         finally:
             client.close()
 
+    @staticmethod
+    def is_telnet_cli(olt: OLTInDB) -> bool:
+        """Determina se a OLT deve ser acessada via Telnet CLI em vez de TL1 Bellcore puro."""
+        return olt.port == 23 or getattr(olt, "protocol", "").lower() == "telnet"
+
+    def _open_telnet_session(self, olt: OLTInDB) -> TelnetClient:
+        """Estabelece sessão Telnet com login e escalada para enable se necessário."""
+        client = TelnetClient(olt.host, olt.port, timeout=self.timeout)
+        client.connect()
+        client.read_until([b"Login:", b"login:"])
+        client.write(f"{olt.username}\r\n")
+        client.read_until([b"Password:", b"password:"])
+        client.write(f"{olt.password}\r\n")
+        buf = client.read_until([b">", b"#"])
+        if b">" in buf:
+            client.write("enable\r\n")
+            client.read_until([b"Password:", b"password:"])
+            client.write(f"{olt.password}\r\n")
+            client.read_until([b"#"])
+        return client
+
+    def _exec_telnet_cmd(self, client: TelnetClient, cmd: str) -> str:
+        """Executa comando no CLI Telnet tratando paginação automática."""
+        client.write(f"{cmd}\r\n")
+        full_buf = bytearray()
+        while True:
+            buf = client.read_until([b"#", b"--Press any key to continue Ctrl+c to stop--"], timeout=6)
+            full_buf.extend(buf)
+            if b"--Press any key to continue" in buf:
+                client.write(" ")
+                time.sleep(0.1)
+            elif b"#" in buf:
+                break
+        return full_buf.decode("ascii", errors="ignore")
+
+    @staticmethod
+    def parse_telnet_vlans(output: str) -> List[VLANItem]:
+        """Interpreta saída de 'show vlan all' no diretório vlan do CLI Fiberhome."""
+        results: List[VLANItem] = []
+        seen_vids = set()
+        for line in output.splitlines():
+            line_clean = line.strip()
+            if not line_clean or "vlan count" in line_clean.lower() or line_clean.startswith("Admin"):
+                continue
+            line_clean = line_clean.rstrip(",")
+            parts = [p.strip() for p in line_clean.split(",") if p.strip()]
+            for p in parts:
+                if "~" in p:
+                    v_parts = p.split("~")
+                    if len(v_parts) == 2:
+                        try:
+                            start_v = int(v_parts[0].strip())
+                            end_v = int(v_parts[1].strip())
+                            for vid in range(start_v, end_v + 1):
+                                if vid not in seen_vids:
+                                    seen_vids.add(vid)
+                                    results.append(VLANItem(vlan_id=vid, name=f"VLAN_{vid}"))
+                        except ValueError:
+                            pass
+                else:
+                    try:
+                        vid = int(p.strip())
+                        if vid not in seen_vids:
+                            seen_vids.add(vid)
+                            results.append(VLANItem(vlan_id=vid, name=f"VLAN_{vid}"))
+                    except ValueError:
+                        pass
+        return results
+
+    @staticmethod
+    def parse_telnet_port_onus(output: str, port: str) -> List[ONUSummary]:
+        """Interpreta saída de 'show authorization slot X pon Y' do CLI Fiberhome."""
+        results: List[ONUSummary] = []
+        for line in output.splitlines():
+            line_clean = line.strip()
+            m = re.match(
+                r"^(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+([APR])\s+(\d+)\s+(up|dn)\s+([A-Za-z0-9\-]+)",
+                line_clean,
+                re.IGNORECASE,
+            )
+            if m:
+                slot, pon, onu_id, onu_type, _st, _lic, ost, phy_id = m.groups()
+                status = "online" if ost.lower() == "up" else "offline"
+                results.append(
+                    ONUSummary(
+                        port=f"{slot}/{pon}",
+                        onu_id=int(onu_id),
+                        serial=phy_id,
+                        status=status,
+                        name=onu_type,
+                    )
+                )
+        return results
+
+    @staticmethod
+    def parse_telnet_unauth_onus(output: str) -> List[UnauthorizedONU]:
+        """Interpreta saída de 'show unauthlist' ou 'show discovery' do CLI Fiberhome."""
+        results: List[UnauthorizedONU] = []
+        for line in output.splitlines():
+            line_clean = line.strip()
+            if not line_clean or "unauth table" in line_clean.lower() or line_clean.startswith("---") or line_clean.startswith("No") or "command execute" in line_clean.lower() or line_clean.startswith("Admin"):
+                continue
+            # Padrão 1: Slot Pon OnuType PhyId (show discovery: 4 colunas)
+            m_disc = re.match(r"^(\d+)\s+(\d+)\s+(\S+)\s+([A-Za-z0-9\-]+)", line_clean)
+            if m_disc:
+                slot, pon, model, serial = m_disc.groups()
+                results.append(UnauthorizedONU(port=f"{slot}/{pon}", serial=serial, model=model))
+                continue
+            # Padrão 2: No OnuType PhyId (show unauthlist: 3 colunas)
+            m = re.match(r"^\d+\s+(\S+)\s+([A-Za-z0-9\-]+)", line_clean)
+            if m:
+                model, serial = m.groups()
+                results.append(UnauthorizedONU(port="auto", serial=serial, model=model))
+                continue
+        return results
+
+    @staticmethod
+    def parse_telnet_profiles(output: str) -> List[ProfileItem]:
+        """Interpreta saída de 'show servmode profile all' do CLI Fiberhome."""
+        results: List[ProfileItem] = []
+        for line in output.splitlines():
+            m = re.search(r"name\s+([^\s;]+)\s+type\s+([^\s;]+)", line, re.IGNORECASE)
+            if m:
+                pname, ptype = m.groups()
+                results.append(ProfileItem(name=pname, profile_type=ptype.lower()))
+        return results
+
     def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
+        if self.is_telnet_cli(olt):
+            client = self._open_telnet_session(olt)
+            try:
+                client.write("cd onu\r\n")
+                time.sleep(0.2)
+                client.read_until([b"#"])
+                out = self._exec_telnet_cmd(client, "show unauthlist")
+                results = self.parse_telnet_unauth_onus(out)
+                if not results:
+                    for slot in [1, 11]:
+                        disc_out = self._exec_telnet_cmd(client, f"show discovery slot {slot} pon all")
+                        results.extend(self.parse_telnet_unauth_onus(disc_out))
+                return results
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
         commands = [
             "LST-UNREGONU::DEV=ALL:1::;",
         ]
@@ -531,6 +675,19 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     def get_port_onus(self, olt: OLTInDB, port: str) -> List[ONUSummary]:
         safe_port = sanitize_port(port)
         slot, pon = self.parse_port_components(safe_port)
+
+        if self.is_telnet_cli(olt):
+            client = self._open_telnet_session(olt)
+            try:
+                client.write("cd onu\r\n")
+                time.sleep(0.2)
+                client.read_until([b"#"])
+                out = self._exec_telnet_cmd(client, f"show authorization slot {slot} pon {pon}")
+                return self.parse_telnet_port_onus(out, f"{slot}/{pon}")
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
         commands = [
             f"LST-ONU::OLTID={slot},PONID={pon}:1::;",
         ]
@@ -538,6 +695,41 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         return self.parse_port_onus(output, f"{slot}/{pon}")
 
     def get_onu_details(self, olt: OLTInDB, serial_or_id: str) -> ONUDetails:
+        if self.is_telnet_cli(olt):
+            client = self._open_telnet_session(olt)
+            try:
+                client.write("cd onu\r\n")
+                time.sleep(0.2)
+                client.read_until([b"#"])
+                out = self._exec_telnet_cmd(client, f"show onu-info by {serial_or_id}")
+                m = re.search(r"(\d+)\s+(\d+)\s+(\d+)\s+([A-Za-z]+)", out)
+                if m:
+                    slot, pon, onu_id, _state = m.groups()
+                    auth_out = self._exec_telnet_cmd(client, f"show authorization slot {slot} pon {pon}")
+                    status = "online"
+                    for line in auth_out.splitlines():
+                        if serial_or_id.lower() in line.lower():
+                            if " dn " in line.lower():
+                                status = "offline"
+                            elif " up " in line.lower():
+                                status = "online"
+                            break
+                    return ONUDetails(
+                        port=f"{slot}/{pon}",
+                        onu_id=int(onu_id),
+                        serial=serial_or_id,
+                        status=status,
+                    )
+                return ONUDetails(
+                    port="1/1",
+                    onu_id=1,
+                    serial=serial_or_id,
+                    status="offline",
+                )
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
         safe_id = sanitize_safe_string(serial_or_id, "identificador da onu")
         # Medição de potência via TL1
         commands = [
@@ -731,6 +923,21 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
     def list_all_authorized_onus(self, olt: OLTInDB) -> List[ONUSummary]:
         """Varredura de todas as ONUs autorizadas no chassi da Fiberhome."""
+        if self.is_telnet_cli(olt):
+            client = self._open_telnet_session(olt)
+            try:
+                client.write("cd onu\r\n")
+                time.sleep(0.2)
+                client.read_until([b"#"])
+                all_onus: List[ONUSummary] = []
+                for slot in [1, 11]:
+                    out = self._exec_telnet_cmd(client, f"show authorization slot {slot} pon all")
+                    all_onus.extend(self.parse_telnet_port_onus(out, f"{slot}/all"))
+                return all_onus
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
         commands = [
             "LST-ONU:::1::;",
         ]
@@ -739,6 +946,18 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
     def list_vlans(self, olt: OLTInDB) -> List[VLANItem]:
         """Lista todas as VLANs configuradas no chassi Fiberhome."""
+        if self.is_telnet_cli(olt):
+            client = self._open_telnet_session(olt)
+            try:
+                client.write("cd vlan\r\n")
+                time.sleep(0.2)
+                client.read_until([b"#"])
+                out = self._exec_telnet_cmd(client, "show vlan all")
+                return self.parse_telnet_vlans(out)
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
         commands = [
             "LST-VLAN:::1::;",
         ]
@@ -763,6 +982,18 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
     def list_profiles(self, olt: OLTInDB) -> List[ProfileItem]:
         """Lista os profiles de linha e tráfego na OLT Fiberhome."""
+        if self.is_telnet_cli(olt):
+            client = self._open_telnet_session(olt)
+            try:
+                client.write("cd profile\r\n")
+                time.sleep(0.2)
+                client.read_until([b"#"])
+                out = self._exec_telnet_cmd(client, "show servmode profile all")
+                return self.parse_telnet_profiles(out)
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
         commands = [
             "LST-LINEPROF:::1::;",
             "LST-DBAPROF:::1::;",
@@ -786,4 +1017,8 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 parse_all_authorized_onus = FiberhomeTL1Driver.parse_all_authorized_onus
 parse_vlans = FiberhomeTL1Driver.parse_vlans
 parse_profiles = FiberhomeTL1Driver.parse_profiles
+parse_telnet_vlans = FiberhomeTL1Driver.parse_telnet_vlans
+parse_telnet_port_onus = FiberhomeTL1Driver.parse_telnet_port_onus
+parse_telnet_unauth_onus = FiberhomeTL1Driver.parse_telnet_unauth_onus
+parse_telnet_profiles = FiberhomeTL1Driver.parse_telnet_profiles
 
