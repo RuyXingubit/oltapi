@@ -5,7 +5,9 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-128%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-134%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg" alt="SQLAlchemy 2.0">
+  <img src="https://img.shields.io/badge/Alembic-Migrations-orange.svg" alt="Alembic Migrations">
   <img src="https://img.shields.io/badge/HATEOAS-RFC%209110%20Ready-blueviolet.svg" alt="HATEOAS">
   <img src="https://img.shields.io/badge/Webhooks-HMAC%20SHA--256-brightgreen.svg" alt="HMAC Webhooks">
   <img src="https://img.shields.io/badge/Autofind%20Scanner-Background%20Worker-blue.svg" alt="Autofind Scanner">
@@ -45,6 +47,7 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 12. **Linha do Tempo Global do NOC & Coordenadas GIS:** Auditoria transparente de todas as correções ocorridas na rede e suporte nativo a geolocalização (latitude/longitude) para integração com mapas.
 13. **Webhooks com Assinatura Criptográfica HMAC SHA-256:** Notificação push assíncrona (BackgroundTasks) em tempo real para os ERPs (`onu.reconciled`, `onu.detected`, `webhook.ping`) com verificação contra ataques de temporização e log de auditoria de entregas.
 14. **Autofind Scanner em Segundo Plano (Supervisão Autônoma):** Worker assíncrono proativo com locks defensivos por OLT, auto-reconciliação de contratos ativos e notificações instantâneas de novos equipamentos na fibra.
+15. **Persistência Relacional ACID & Migrações Canônicas Alembic:** Camada de banco de dados relacional via **SQLAlchemy 2.0**, com suporte híbrido para SQLite WAL (alta concorrência sem bloqueio de leituras) e PostgreSQL empresarial, migração transparente sem perdas de bases legadas JSON e controle de versão de schema profissional via Alembic.
 
 ---
 
@@ -190,7 +193,7 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 
 ## 🧪 Testes Unitários
 
-A integridade do projeto é garantida por **128 testes automatizados** com cobertura completa de segurança, parsers regex, fluxos HATEOAS, ações remotas, auto-conciliação, webhooks e o autofind scanner:
+A integridade do projeto é garantida por **134 testes automatizados** com cobertura completa de segurança, parsers regex, fluxos HATEOAS, ações remotas, auto-conciliação, webhooks, autofind scanner e persistência relacional com migrações Alembic:
 
 ```bash
 # Executar a suite de testes

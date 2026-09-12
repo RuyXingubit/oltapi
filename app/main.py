@@ -6,10 +6,13 @@ from fastapi.responses import JSONResponse
 from app.api.deps import get_scanner_service
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
+from app.db.init_db import init_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Executa migrações do banco relacional (Alembic) e migra dados legados
+    init_db()
     scanner = get_scanner_service()
     if settings.SCANNER_ENABLED_ON_STARTUP:
         scanner.start()

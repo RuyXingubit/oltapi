@@ -19,6 +19,10 @@ Este manual destina-se a **engenheiros de rede**, **administradores de provedore
    - 5.6 [Desprovisionamento / Cancelamento](#56-desprovisionamento-e-cancelamento-de-contrato)
 6. [Assistente de Bootstrap Zero-Touch (OLT Virgem)](#6-assistente-de-bootstrap-zero-touch-olt-virgem)
 7. [Exemplos Práticos de Integração (cURL, Python, PHP, Node.js)](#7-exemplos-práticos-de-integração)
+8. [Disaster Recovery & Auditoria de Configuração](#8-disaster-recovery--auditoria-de-configuração)
+9. [Sistema de Webhooks em Tempo Real & Eventos](#9-sistema-de-webhooks-em-tempo-real--eventos)
+10. [Autofind Scanner em Segundo Plano (Monitoramento Autônomo)](#10-autofind-scanner-em-segundo-plano-monitoramento-autônomo--auto-conciliação)
+11. [Persistência Relacional, Banco de Dados & Alembic Migrations](#11-persistência-relacional-banco-de-dados--migrações-com-alembic)
 
 ---
 
@@ -870,6 +874,63 @@ graph LR
 
 ---
 
+## 11. Persistência Relacional, Banco de Dados & Migrações com Alembic
+
+O OLTAPI adota uma camada de persistência relacional com **SQLAlchemy 2.0** e versionamento canônico de esquema via **Alembic**, garantindo transações ACID, isolamento concorrente e integridade referencial com chaves primárias **UUIDv7**.
+
+### 11.1 Configuração da Base de Dados
+
+A persistência é configurada via variável de ambiente `DATABASE_URL` no arquivo `.env`:
+
+```bash
+# Modo Padrão / Embarcado: SQLite com Write-Ahead Logging (WAL)
+DATABASE_URL="sqlite:///./data/oltapi.db"
+
+# Modo Corporativo / Alta Disponibilidade: PostgreSQL
+DATABASE_URL="postgresql+psycopg2://oltapi:senha_forte@postgres.infra.local:5432/oltapi_prod"
+
+# Ativar logs SQL de depuração (opcional, padrão: false)
+DATABASE_ECHO=false
+```
+
+> [!TIP]
+> **Performance no SQLite (WAL Mode):**
+> Em conexões SQLite, o OLTAPI ativa automaticamente no evento de conexão:
+> - `PRAGMA journal_mode=WAL;` (permite múltiplas leituras concorrentes sem bloquear escritas).
+> - `PRAGMA foreign_keys=ON;` (garante integridade referencial rígida).
+> - `PRAGMA synchronous=NORMAL;` (excelente throughput sem risco de corrupção).
+
+### 11.2 Migração Transparente de Dados Legados (Zero Downtime)
+
+Caso seu ambiente possua arquivos JSON legados (`olts.json`, `onus_inventory.json`, `onus_history.json`, `webhooks.json`, `backups_metadata.json`), o OLTAPI na inicialização:
+1. Executa o comando canônico `alembic upgrade head` para certificar que todas as tabelas e índices estão atualizados.
+2. Identifica os arquivos JSON legados e importa todos os registros para as tabelas relacionais de forma **idempotente** (sem duplicatas).
+3. Renomeia os arquivos antigos com sufixo `.migrated` para manter histórico seguro.
+
+### 11.3 Operação com o CLI do Alembic
+
+Para administradores e engenheiros de DevOps que desejam manipular migrações via terminal:
+
+```bash
+# 1. Aplicar todas as migrações pendentes até a versão mais recente
+alembic upgrade head
+
+# 2. Verificar histórico de revisões aplicadas
+alembic history --verbose
+
+# 3. Consultar versão atual da base de dados
+alembic current
+
+# 4. Criar uma nova migração a partir de alterações no modelo SQLAlchemy
+alembic revision --autogenerate -m "adicionar_campo_xpto"
+
+# 5. Reverter a última migração aplicada (Rollback)
+alembic downgrade -1
+```
+
+> [!NOTE]
+> Para compatibilidade total entre SQLite e PostgreSQL, o arquivo `alembic/env.py` está configurado com `render_as_batch=True`, permitindo alterações de tabelas com constraints sem limitações de engine.
+
+---
+
 Dúvidas ou sugestões operacionais? Abra uma issue ou contribua através do nosso [Guia de Contribuição](../CONTRIBUTING.md)!
-
-

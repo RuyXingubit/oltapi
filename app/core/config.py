@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     BACKUP_DIR: Path = BASE_DIR / "backups"
     DATA_DIR: Path = BASE_DIR / "data"
 
+    # Banco de Dados Relacional (SQLite WAL por padrão, PostgreSQL via DATABASE_URL)
+    DATABASE_URL: str = "sqlite:///./data/oltapi.db"
+    DATABASE_ECHO: bool = False
+
     # Configuração de Conexão com OLTs
     DEFAULT_SSH_TIMEOUT: int = 15  # segundos
 

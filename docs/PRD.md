@@ -39,6 +39,7 @@ A plataforma cobre as operações vitais para o ciclo de vida operacional de red
 10. **Linha do Tempo do NOC & Geolocalização GIS:** Linha do tempo global reversa para auditoria matinal de movimentações noturnas e suporte a latitude/longitude para integração geográfica.
 11. **Webhooks Criptografados para ERPs (HMAC SHA-256):** Notificações push assíncronas em tempo real com integridade criptográfica para sincronização de novos Circuit IDs e eventos de rede com o ERP.
 12. **Autofind Scanner em Segundo Plano:** Worker periódico em background com locks defensivos por OLT, detecção de ONUs virgens e auto-conciliação autônoma contínua.
+13. **Persistência Relacional ACID & Migrações Alembic:** Armazenamento transacional robusto via **SQLAlchemy 2.0** com suporte híbrido SQLite WAL e PostgreSQL, migração idempotente transparente de dados JSON e controle canônico de versões de banco de dados via Alembic.
 
 *Parque de Fabricantes Suportados:*
 - **Intelbras:** 8820i / 8820 (Broadcom CLI) e Linha G-Series (G08 / G16).
@@ -60,5 +61,6 @@ A plataforma cobre as operações vitais para o ciclo de vida operacional de red
 - [x] Motor de Auto-Recuperação Reativa de Campo e Circuit ID Broadband Forum TR-101.
 - [x] Subsistema de Webhooks com assinatura digital HMAC SHA-256 e execução não-bloqueante.
 - [x] Autofind Scanner periódico em background com proteção de concorrência por OLT e endpoints de controle operacional.
-- [x] 100% de cobertura de testes unitários automatizados (128 testes passando).
+- [x] Persistência Relacional com SQLAlchemy 2.0, suporte SQLite WAL / PostgreSQL e migrações canônicas Alembic.
+- [x] 100% de cobertura de testes unitários automatizados (134 testes passando).
 - [x] Pipeline CI/CD GitHub Actions otimizado, sem avisos de depreciação e com limite de tempo e controle de concorrência.
