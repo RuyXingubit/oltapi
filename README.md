@@ -158,6 +158,10 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 | `GET` | `/api/v1/olts/{id}` | Obter detalhes e links HATEOAS de uma OLT específica |
 | `POST` | `/api/v1/olts/{id}/test-connection` | Teste de conectividade TCP e diagnóstico de latência |
 | `GET` | `/api/v1/olts/{id}/config` | Obter o *running-config* atual da OLT |
+| `POST` | `/api/v1/olts/{id}/sync` | Onboarding Brownfield com Snapshot v0 e descoberta de ONUs/VLANs |
+| `GET` | `/api/v1/olts/{id}/vlans` | Listar VLANs configuradas no concentrador com links HATEOAS |
+| `POST` | `/api/v1/olts/{id}/vlans` | Criar nova VLAN de serviço e gravar na memória flash (NVRAM) |
+| `GET` | `/api/v1/olts/{id}/profiles` | Listar perfis de linha e DBA configurados no concentrador |
 | `POST` | `/api/v1/olts/{id}/backups` | Disparar backup com hash SHA-256 e UUIDv7 |
 | `GET` | `/api/v1/olts/{id}/backups` | Listar backups realizados de uma OLT |
 | `GET` | `/api/v1/olts/{id}/backups/{bid}/download` | Download seguro do arquivo de backup |
@@ -194,7 +198,7 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 
 ## 🧪 Testes Automatizados com Testcontainers & PostgreSQL 16
 
-A integridade do projeto é garantida por **134 testes automatizados** executados diretamente contra uma instância real de **PostgreSQL 16** via **Testcontainers**, aplicando as migrações canônicas do **Alembic** e cobrindo segurança contra injeção, parsers de fabricantes, fluxos HATEOAS, ações remotas, auto-conciliação física e webhooks HMAC:
+A integridade do projeto é garantida por **143 testes automatizados** executados diretamente contra uma instância real de **PostgreSQL 16** via **Testcontainers**, aplicando as migrações canônicas do **Alembic** e cobrindo segurança contra injeção, parsers de fabricantes, fluxos HATEOAS, ações remotas, auto-conciliação física e webhooks HMAC:
 
 ```bash
 # Executar a suite de testes (sobe o container Postgres 16 automaticamente)

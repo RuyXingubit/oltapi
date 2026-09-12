@@ -2,8 +2,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse
 
-from app.api.deps import get_backup_storage, get_olt_repo, require_api_key
+from app.api.deps import get_backup_storage, get_olt_repo, get_sync_service, require_api_key
 from app.drivers.factory import DriverFactory
+from app.models.vlan import SyncOLTResponse
 from app.models.backup import (
     BackupAuditReport,
     BackupDiffResult,
@@ -273,4 +274,27 @@ def purge_olt_backups(
         max_backups_per_olt=p.max_backups_per_olt,
         max_age_days=p.max_age_days,
     )
+
+
+@router.post("/{olt_id}/sync", response_model=SyncOLTResponse)
+def sync_olt(
+    olt_id: str,
+    sync_service=Depends(get_sync_service),
+):
+    """
+    Onboarding e Ingestão Reversa de OLT Brownfield:
+    1. Realiza Snapshot v0 preventivo e obrigatório da configuração da OLT.
+    2. Descobre todas as ONUs ativas no chassi via hardware.
+    3. Cadastra/atualiza ONUs no inventário com cálculo de Circuit ID (TR-101).
+    4. Descobre VLANs configuradas.
+    """
+    try:
+        return sync_service.sync_olt(olt_id=olt_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao sincronizar OLT: {str(e)}",
+        )
 

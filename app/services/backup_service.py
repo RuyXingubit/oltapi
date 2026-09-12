@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 from app.drivers.factory import DriverFactory
-from app.models.backup import BackupAuditReport, BatchBackupResult, PurgeResult
+from app.models.backup import BackupAuditReport, BackupMetadata, BatchBackupResult, PurgeResult
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
 
@@ -14,6 +14,15 @@ class BackupService:
     def __init__(self, olt_repo: OLTRepository, storage: BackupStorage):
         self.olt_repo = olt_repo
         self.storage = storage
+
+    def create_backup(self, olt_id: str, notes: Optional[str] = None) -> BackupMetadata:
+        """Cria e persiste backup individual da OLT especificada."""
+        olt = self.olt_repo.get_by_id(olt_id)
+        if not olt:
+            raise ValueError(f"OLT '{olt_id}' não encontrada.")
+        driver = DriverFactory.get_driver(olt)
+        content = driver.backup_config(olt)
+        return self.storage.save_backup(olt_id=olt.id, content=content)
 
     def run_all_backups(
         self,

@@ -17,6 +17,7 @@ from app.models.bootstrap import BootstrapMode, BootstrapRequest
 from app.models.olt import OLTInDB
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
+from app.models.vlan import VLANItem, VLANCreateRequest, ProfileItem
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +270,140 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
         return rx_power, tx_power
 
+    @staticmethod
+    def parse_all_authorized_onus(response: str) -> List[ONUSummary]:
+        """
+        Interpreta resposta TL1 de listagem global de ONUs do chassi.
+        Suporta formato com chaves TL1 e formato posicional/tabular.
+        """
+        results: List[ONUSummary] = []
+        lines = response.splitlines()
+        for line in lines:
+            line_str = line.strip()
+            if not line_str or "COMPLD" in line_str or line_str.startswith(";") or line_str.startswith("IP") or line_str.startswith("RESPONSE"):
+                continue
+
+            # 1. Padrão Chave-Valor TL1
+            slot_match = re.search(r"SLOTNO[=:](\d+)", line_str, re.IGNORECASE)
+            port_match = re.search(r"PORTNO[=:](\d+)", line_str, re.IGNORECASE)
+            onuid_match = re.search(r"ONUID[=:](\d+)", line_str, re.IGNORECASE)
+            mac_match = re.search(r"(?:MAC|SN)[=:]([A-Za-z0-9\-]+)", line_str, re.IGNORECASE)
+            name_match = re.search(r'NAME[=:](?:"([^"]*)"|([^\s;,]+))', line_str, re.IGNORECASE)
+            status_match = re.search(r"STATUS[=:]([a-zA-Z_\-]+)", line_str, re.IGNORECASE)
+
+            if onuid_match and mac_match:
+                onu_id = int(onuid_match.group(1))
+                slot = slot_match.group(1) if slot_match else "1"
+                pon = port_match.group(1) if port_match else "1"
+                serial = mac_match.group(1)
+                desc = name_match.group(1) or name_match.group(2) if name_match else None
+                raw_status = status_match.group(1).lower() if status_match else "unknown"
+                status = "online" if raw_status in ["up", "online", "active"] else "offline"
+
+                results.append(
+                    ONUSummary(
+                        port=f"{slot}/{pon}",
+                        onu_id=onu_id,
+                        serial=serial,
+                        status=status,
+                        name=desc,
+                    )
+                )
+                continue
+
+            # 2. Padrão Posicional / Tabular (ex: 1-1-1-1 FHTT12345678 ACTIVE CLIENTE_JOAO_FIBRA)
+            pos_match = re.search(
+                r"^(\d+)[-/](\d+)[-/](\d+)[-/: ]+(\d+)\s+([A-Za-z0-9\-]+)(?:\s+([a-zA-Z_\-]+))?(?:\s+(.+))?",
+                line_str,
+            )
+            if pos_match:
+                frame = pos_match.group(1)
+                slot = pos_match.group(2)
+                pon = pos_match.group(3)
+                onu_id = int(pos_match.group(4))
+                serial = pos_match.group(5)
+                raw_status = (pos_match.group(6) or "unknown").lower()
+                status = "ACTIVE" if raw_status in ["up", "online", "active"] else ("INACTIVE" if raw_status in ["down", "inactive", "offline"] else raw_status)
+                desc = pos_match.group(7).strip() if pos_match.group(7) else None
+
+                results.append(
+                    ONUSummary(
+                        port=f"{frame}/{slot}/{pon}" if frame != "0" and frame != "1" else f"{slot}/{pon}",
+                        onu_id=onu_id,
+                        serial=serial,
+                        status=status,
+                        name=desc,
+                    )
+                )
+
+        return results
+
+    @staticmethod
+    def parse_vlans(response: str) -> List[VLANItem]:
+        """
+        Interpreta resposta TL1 de listagem de VLANs.
+        Suporta formato com chaves TL1 e formato posicional/tabular.
+        """
+        results: List[VLANItem] = []
+        lines = response.splitlines()
+        for line in lines:
+            line_str = line.strip()
+            if not line_str or "COMPLD" in line_str or line_str.startswith(";") or line_str.startswith("IP") or line_str.startswith("RESPONSE"):
+                continue
+
+            vlan_match = re.search(r"VLANID[=:](\d+)", line_str, re.IGNORECASE)
+            name_match = re.search(r"VLANNAME[=:]([^\s;,]+)", line_str, re.IGNORECASE)
+            desc_match = re.search(r'DESC[=:](?:"([^"]*)"|([^\s;,]+))', line_str, re.IGNORECASE)
+
+            if vlan_match:
+                vid = int(vlan_match.group(1))
+                vname = name_match.group(1) if name_match else None
+                desc = desc_match.group(1) or desc_match.group(2) if desc_match else None
+                results.append(VLANItem(vlan_id=vid, name=vname, description=desc))
+                continue
+
+            # Formato alternativo tabular (ex: VLAN 100: INTERNET_PPPOE)
+            vlan_alt = re.search(r"VLAN\s+(\d+)(?:\s*:\s*([^\s;]+))?(?:\s+(.+))?", line_str, re.IGNORECASE)
+            if vlan_alt:
+                vid = int(vlan_alt.group(1))
+                vname = vlan_alt.group(2) if vlan_alt.group(2) else None
+                desc = vlan_alt.group(3) if vlan_alt.group(3) else None
+                results.append(VLANItem(vlan_id=vid, name=vname, description=desc))
+
+        return results
+
+    @staticmethod
+    def parse_profiles(response: str) -> List[ProfileItem]:
+        """
+        Interpreta resposta TL1 de listagem de perfis.
+        Suporta formato com chaves TL1 e formato posicional/tabular.
+        """
+        results: List[ProfileItem] = []
+        lines = response.splitlines()
+        for line in lines:
+            line_str = line.strip()
+            if not line_str or "COMPLD" in line_str or line_str.startswith(";") or line_str.startswith("IP") or line_str.startswith("RESPONSE"):
+                continue
+
+            name_match = re.search(r'(?:NAME|PROFNAME)[=:](?:"([^"]*)"|([^\s;,]+))', line_str, re.IGNORECASE)
+            type_match = re.search(r'(?:TYPE|PROFTYPE)[=:]([^\s;,]+)', line_str, re.IGNORECASE)
+
+            if name_match:
+                pname = name_match.group(1) or name_match.group(2)
+                ptype = type_match.group(1).lower() if type_match else "line"
+                results.append(ProfileItem(name=pname, profile_type=ptype))
+                continue
+
+            # Formato alternativo tabular (ex: LINEPROF: 100M_PLAN ou DBAPROF: DBA_DEFAULT)
+            prof_alt = re.search(r"(LINEPROF|DBAPROF|TRAFFICPROF)\s*:\s*([^\s;,]+)", line_str, re.IGNORECASE)
+            if prof_alt:
+                raw_type = prof_alt.group(1).upper()
+                ptype = "line" if "LINE" in raw_type else ("dba" if "DBA" in raw_type else "traffic")
+                pname = prof_alt.group(2)
+                results.append(ProfileItem(name=pname, profile_type=ptype))
+
+        return results
+
     # ----------------------------------------------------------------------
     # Métodos da Interface BaseOLTDriver
     # ----------------------------------------------------------------------
@@ -489,3 +624,62 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         commands = self.generate_bootstrap_commands(req)
         self._execute_tl1_commands(olt, commands)
         return len(commands)
+
+    def list_all_authorized_onus(self, olt: OLTInDB) -> List[ONUSummary]:
+        """Varredura de todas as ONUs autorizadas no chassi da Fiberhome."""
+        commands = [
+            "LST-ONU:::1::;",
+        ]
+        output = self._execute_tl1_commands(olt, commands)
+        return self.parse_all_authorized_onus(output)
+
+    def list_vlans(self, olt: OLTInDB) -> List[VLANItem]:
+        """Lista todas as VLANs configuradas no chassi Fiberhome."""
+        commands = [
+            "LST-VLAN:::1::;",
+        ]
+        output = self._execute_tl1_commands(olt, commands)
+        return self.parse_vlans(output)
+
+    def create_vlan(self, olt: OLTInDB, req: VLANCreateRequest) -> bool:
+        """Cria uma nova VLAN de serviço na OLT Fiberhome."""
+        safe_id = sanitize_vlan(req.vlan_id)
+        safe_name = sanitize_safe_string(req.name or f"VLAN_{safe_id}", "nome da vlan")
+        safe_desc = sanitize_description(req.description or "Criada via OLTAPI")
+        commands = [
+            f'ADD-VLAN:::1::VLANID={safe_id},VLANNAME="{safe_name}",DESC="{safe_desc}";',
+        ]
+        if req.tagged_uplink_ports:
+            for port in req.tagged_uplink_ports:
+                clean_port = sanitize_port(port)
+                commands.append(f"ADD-UPLINKPORTVLAN:::1::PORT={clean_port},VLANID={safe_id};")
+
+        self._execute_tl1_commands(olt, commands)
+        return True
+
+    def list_profiles(self, olt: OLTInDB) -> List[ProfileItem]:
+        """Lista os profiles de linha e tráfego na OLT Fiberhome."""
+        commands = [
+            "LST-LINEPROF:::1::;",
+            "LST-DBAPROF:::1::;",
+        ]
+        output = self._execute_tl1_commands(olt, commands)
+        return self.parse_profiles(output)
+
+    def save_running_config(self, olt: OLTInDB) -> bool:
+        """Comita alterações na memória flash permanente da Fiberhome."""
+        commands = [
+            "SAVE::DEV=ALL:1::;",
+        ]
+        try:
+            self._execute_tl1_commands(olt, commands)
+        except Exception as e:
+            logger.warning(f"Aviso ao persistir flash na Fiberhome {olt.name}: {e}")
+        return True
+
+
+# Exportações no nível do módulo
+parse_all_authorized_onus = FiberhomeTL1Driver.parse_all_authorized_onus
+parse_vlans = FiberhomeTL1Driver.parse_vlans
+parse_profiles = FiberhomeTL1Driver.parse_profiles
+

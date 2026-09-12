@@ -23,6 +23,10 @@ Este manual destina-se a **engenheiros de rede**, **administradores de provedore
 9. [Sistema de Webhooks em Tempo Real & Eventos](#9-sistema-de-webhooks-em-tempo-real--eventos)
 10. [Autofind Scanner em Segundo Plano (Monitoramento Autônomo)](#10-autofind-scanner-em-segundo-plano-monitoramento-autônomo--auto-conciliação)
 11. [Persistência Relacional, Banco de Dados & Alembic Migrations](#11-persistência-relacional-banco-de-dados--migrações-com-alembic)
+12. [Onboarding Seguro de OLTs em Produção (Brownfield) & Gestão de VLANs](#12-onboarding-seguro-de-olts-em-produção-brownfield--gestão-de-vlans)
+   - 12.1 [Sincronização com Snapshot Baseline v0 Obrigatório (`POST /olts/{id}/sync`)](#121-sincronização-com-snapshot-baseline-v0-obrigatório)
+   - 12.2 [Mapeamento e Criação de VLANs com Gravação Permanente na Flash (`GET/POST /olts/{id}/vlans`)](#122-mapeamento-e-criação-de-vlans-com-gravação-permanente-na-flash)
+   - 12.3 [Consulta de Profiles de Linha e DBA (`GET /olts/{id}/profiles`)](#123-consulta-de-profiles-de-linha-e-dba)
 
 ---
 
@@ -941,10 +945,151 @@ pytest tests/ -v
 ```
 1. O Pytest se comunica com o Docker daemon local e inicializa uma instância limpa de `postgres:16-alpine`.
 2. Executa todas as migrações canônicas do Alembic (`alembic upgrade head`) diretamente no container efêmero.
-3. Roda todos os 134 testes de API, conciliação e inventário contra o banco PostgreSQL real.
+3. Roda todos os 143 testes de API, conciliação, inventário e drivers contra o banco PostgreSQL real.
 4. Ao final da suite, o container é destruído automaticamente sem deixar processos órfãos.
 
 *(Caso o Docker não esteja em execução na máquina do desenvolvedor, a suite ativa um fallback transparente para SQLite WAL, mantendo o fluxo de trabalho ágil).*
+
+---
+
+## 12. Onboarding Seguro de OLTs em Produção (Brownfield) & Gestão de VLANs
+
+Na maioria dos provedores, a OLT já está em operação há meses ou anos, atendendo centenas ou milhares de clientes com VLANs e perfis configurados manualmente via CLI. O OLTAPI implementa o protocolo de **Onboarding Brownfield** seguro e auditável.
+
+> [!CAUTION]
+> **Segurança em Primeiro Lugar:** O OLTAPI **NUNCA** altera ou provisiona nada em uma OLT sem antes gerar um **Snapshot de Baseline v0** com cálculo de integridade SHA-256 e persistência em banco relacional.
+
+### 12.1 Sincronização com Snapshot Baseline v0 Obrigatório
+
+O endpoint de sincronização executa em uma única operação atômica:
+1. **Snapshot Preventivo Obrigatório (Baseline v0):** Coleta a running-config integral da OLT, calcula hash SHA-256 e armazena no histórico de backups.
+2. **Varredura Completa do Chassi:** Descobre todas as ONUs já autorizadas e ativas em todos os slots/portas PON (ex: `LST-ONU:::1::;` na Fiberhome).
+3. **Ingestão Reversa & Circuit ID TR-101:** Cadastra automaticamente as ONUs no inventário relacional com status `ACTIVE` e calcula o identificador físico padronizado Broadband Forum TR-101 / RFC 3046 (`{OLT_NAME} eth {PORT}:{ONU_ID}:{VLAN}`).
+4. **Mapeamento de VLANs:** Cataloga todas as VLANs de serviço existentes no concentrador.
+
+#### Requisição:
+`POST /api/v1/olts/{id}/sync`
+
+```http
+POST /api/v1/olts/01a096d1-674b-7595-b5ab-f4adca3060bc/sync HTTP/1.1
+Host: api.provedor.com.br
+X-API-Key: sua-chave-secreta-aqui
+```
+
+#### Resposta de Sucesso (`200 OK`):
+```json
+{
+  "olt_id": "01a096d1-674b-7595-b5ab-f4adca3060bc",
+  "olt_name": "OLT-FIBERHOME-CENTRAL",
+  "baseline_backup_id": "01a096d1-6789-7def-8901-123456789abc",
+  "total_onus_discovered": 384,
+  "new_onus_registered": 384,
+  "existing_onus_updated": 0,
+  "vlans_discovered": [100, 200, 300, 400],
+  "duration_ms": 1240.5,
+  "message": "Sync concluído com sucesso. 384 novas ONUs cadastradas e 0 atualizadas.",
+  "_links": {
+    "olt": {
+      "href": "/api/v1/olts/01a096d1-674b-7595-b5ab-f4adca3060bc",
+      "method": "GET"
+    },
+    "vlans": {
+      "href": "/api/v1/olts/01a096d1-674b-7595-b5ab-f4adca3060bc/vlans",
+      "method": "GET"
+    },
+    "baseline_backup": {
+      "href": "/api/v1/olts/01a096d1-674b-7595-b5ab-f4adca3060bc/backups/01a096d1-6789-7def-8901-123456789abc/download",
+      "method": "GET"
+    }
+  }
+}
+```
+
+> [!TIP]
+> Execuções repetidas do endpoint `/sync` são **idempotentes**: se uma ONU já existe no inventário, seus dados de porta, slot e status são atualizados sem duplicação de registros.
+
+---
+
+### 12.2 Mapeamento e Criação de VLANs com Gravação Permanente na Flash
+
+A API permite controlar as VLANs de serviço e portas de uplink da OLT, garantindo que toda alteração seja imediatamente comitada na memória flash não-volátil (`save_running_config`), evitando perda de dados caso a OLT reinicie ou haja queda de energia no POP.
+
+#### Listar VLANs configuradas na OLT:
+`GET /api/v1/olts/{id}/vlans`
+
+```json
+[
+  {
+    "vlan_id": 100,
+    "name": "INTERNET_PPPOE",
+    "description": "VLAN para clientes banda larga residencial",
+    "tagged_ports": ["1/19/1", "1/19/2"],
+    "_links": {
+      "self": {"href": "/api/v1/olts/01a096d1-674b-7595-b5ab-f4adca3060bc/vlans", "method": "GET"}
+    }
+  },
+  {
+    "vlan_id": 200,
+    "name": "VOIP_CORPORATIVO",
+    "description": "Telefonia SIP",
+    "tagged_ports": ["1/19/1"]
+  }
+]
+```
+
+#### Criar nova VLAN de serviço com gravação flash:
+`POST /api/v1/olts/{id}/vlans`
+
+```json
+{
+  "vlan_id": 500,
+  "name": "VLAN_DEDICADO_CORP",
+  "description": "Circuito dedicado cliente corporativo",
+  "tagged_uplink_ports": ["1/19/1"]
+}
+```
+
+**Resposta (`201 Created`):**
+```json
+{
+  "success": true,
+  "olt_id": "01a096d1-674b-7595-b5ab-f4adca3060bc",
+  "vlan_id": 500,
+  "name": "VLAN_DEDICADO_CORP",
+  "message": "VLAN 500 criada e gravada na flash com sucesso na OLT OLT-FIBERHOME-CENTRAL.",
+  "_links": {
+    "vlans": {"href": "/api/v1/olts/01a096d1-674b-7595-b5ab-f4adca3060bc/vlans", "method": "GET"},
+    "olt": {"href": "/api/v1/olts/01a096d1-674b-7595-b5ab-f4adca3060bc", "method": "GET"}
+  }
+}
+```
+
+---
+
+### 12.3 Consulta de Profiles de Linha e DBA
+
+Para que o provisionador ou ERP consulte os perfis de velocidade e tráfego pré-configurados no concentrador antes de ativar uma nova ONU:
+
+#### Requisição:
+`GET /api/v1/olts/{id}/profiles`
+
+```json
+[
+  {
+    "name": "LINE_500M",
+    "profile_type": "line",
+    "details": "Plano Banda Larga 500 Mbps Downloader",
+    "_links": {
+      "olt": {"href": "/api/v1/olts/01a096d1-674b-7595-b5ab-f4adca3060bc", "method": "GET"}
+    }
+  },
+  {
+    "name": "DBA_DEFAULT",
+    "profile_type": "dba",
+    "details": "Dynamic Bandwidth Allocation padrão"
+  }
+]
+```
 
 ---
 

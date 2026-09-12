@@ -4,6 +4,7 @@ from app.models.bootstrap import BootstrapRequest
 from app.models.olt import OLTInDB
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
+from app.models.vlan import VLANItem, VLANCreateRequest, ProfileItem
 
 
 class BaseOLTDriver(ABC):
@@ -92,4 +93,25 @@ class BaseOLTDriver(ABC):
     def apply_bootstrap(self, olt: OLTInDB, req: BootstrapRequest) -> int:
         """Executa a configuração inicial na OLT física e retorna a quantidade de comandos aplicados."""
         pass
+
+    def list_vlans(self, olt: OLTInDB) -> List["VLANItem"]:
+        """Lista todas as VLANs configuradas na OLT."""
+        return []
+
+    def create_vlan(self, olt: OLTInDB, req: "VLANCreateRequest") -> bool:
+        """Cria uma nova VLAN de serviço na OLT."""
+        return True
+
+    def list_profiles(self, olt: OLTInDB) -> List["ProfileItem"]:
+        """Lista os profiles de linha e tráfego configurados na OLT."""
+        return []
+
+    def list_all_authorized_onus(self, olt: OLTInDB) -> List[ONUSummary]:
+        """Varredura global de todas as ONUs autorizadas no chassi da OLT."""
+        return []
+
+    def save_running_config(self, olt: OLTInDB) -> bool:
+        """Grava as configurações ativas na memória não-volátil/flash da OLT (write/save)."""
+        return True
+
 

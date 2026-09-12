@@ -80,3 +80,12 @@ def require_api_key(api_key: str = Depends(verify_api_key)) -> str:
     return api_key
 
 
+def get_sync_service(
+    olt_repo: Union[SQLOLTRepository, OLTRepository] = Depends(get_olt_repo),
+    onu_repo: Union[SQLONUInventoryRepository, ONUInventoryRepository] = Depends(get_onu_repo),
+    backup_service: BackupService = Depends(get_backup_service),
+) -> "OLTSyncService":
+    from app.services.olt_sync_service import OLTSyncService
+    return OLTSyncService(olt_repo=olt_repo, onu_repo=onu_repo, backup_service=backup_service)
+
+
