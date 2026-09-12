@@ -4,11 +4,14 @@ from app.services.backup_service import BackupService
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
 from app.storage.onu_repository import ONUInventoryRepository
+from app.storage.webhook_repository import WebhookRepository
+from app.services.webhook_dispatcher import WebhookDispatcher
 
 # Instâncias singleton para injeção de dependência
 _olt_repo = OLTRepository()
 _backup_storage = BackupStorage()
 _onu_repo = ONUInventoryRepository()
+_webhook_repo = WebhookRepository()
 
 
 def get_olt_repo() -> OLTRepository:
@@ -17,6 +20,16 @@ def get_olt_repo() -> OLTRepository:
 
 def get_onu_repo() -> ONUInventoryRepository:
     return _onu_repo
+
+
+def get_webhook_repo() -> WebhookRepository:
+    return _webhook_repo
+
+
+def get_webhook_dispatcher(
+    repo: WebhookRepository = Depends(get_webhook_repo),
+) -> WebhookDispatcher:
+    return WebhookDispatcher(repo=repo)
 
 
 def get_backup_storage() -> BackupStorage:

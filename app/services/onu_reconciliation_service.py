@@ -11,6 +11,7 @@ from app.models.onu_inventory import (
     ReconcileFieldEventResponse,
 )
 from app.models.provision import ProvisionRequest
+from app.services.webhook_dispatcher import WebhookDispatcher
 from app.storage.olt_repository import OLTRepository
 from app.storage.onu_repository import ONUInventoryRepository
 
@@ -24,9 +25,15 @@ class ONUReconciliationService:
     ou migração física de cordoalhas ópticas em janelas de manutenção de POP.
     """
 
-    def __init__(self, olt_repo: OLTRepository, onu_repo: ONUInventoryRepository):
+    def __init__(
+        self,
+        olt_repo: OLTRepository,
+        onu_repo: ONUInventoryRepository,
+        webhook_dispatcher: Optional[WebhookDispatcher] = None,
+    ):
         self.olt_repo = olt_repo
         self.onu_repo = onu_repo
+        self.webhook_dispatcher = webhook_dispatcher
 
     def reconcile_field_event(self, req: ReconcileFieldEventRequest) -> ReconcileFieldEventResponse:
         item = self.onu_repo.get_by_serial(req.serial)
@@ -152,6 +159,34 @@ class ONUReconciliationService:
 
         is_cross_olt = bool(old_olt_id and old_olt_id != req.detected_olt_id)
         action_name = "reconciled_cross_olt" if is_cross_olt else "reconciled_intra_olt"
+
+        # Dispara evento webhook para o ERP (se despachante configurado)
+        if self.webhook_dispatcher:
+            event_data = {
+                "serial": req.serial,
+                "contract_id": item.contract_id,
+                "subscriber_name": item.subscriber_name,
+                "action_taken": action_name,
+                "old_olt_id": old_olt_id,
+                "old_olt_name": old_olt_name,
+                "old_port": old_port,
+                "old_onu_id": old_onu_id,
+                "old_circuit_id": old_circuit_id,
+                "new_olt_id": req.detected_olt_id,
+                "new_olt_name": detected_olt.name,
+                "new_port": req.detected_port,
+                "new_onu_id": target_onu_id,
+                "new_circuit_id": new_circuit_id,
+                "vlan": item.vlan,
+                "profile": item.profile,
+                "latitude": item.latitude,
+                "longitude": item.longitude,
+                "reason": req.reason or "field_event_auto_reconciliation",
+            }
+            try:
+                self.webhook_dispatcher.dispatch("onu.reconciled", event_data)
+            except Exception as e:
+                logger.warning(f"Falha ao despachar webhook onu.reconciled para {req.serial}: {e}")
 
         # G) Retorna resposta detalhada com links HATEOAS
         return ReconcileFieldEventResponse(

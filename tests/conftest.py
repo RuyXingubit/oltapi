@@ -11,6 +11,8 @@ from app.models.olt import OLTCreateRequest, OLTInDB, OLTVendor, OLTProtocol
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
 from app.storage.onu_repository import ONUInventoryRepository
+from app.storage.webhook_repository import WebhookRepository
+from app.services.webhook_dispatcher import WebhookDispatcher
 from app.api import deps
 
 
@@ -30,16 +32,25 @@ def setup_test_env():
         inventory_file=test_data_dir / "onus_inventory.json",
         history_file=test_data_dir / "onus_history.json",
     )
+    test_webhook_repo = WebhookRepository(
+        subscriptions_file=test_data_dir / "webhooks.json",
+        deliveries_file=test_data_dir / "webhook_deliveries.json",
+    )
+    test_webhook_dispatcher = WebhookDispatcher(repo=test_webhook_repo)
 
     # Override das dependências FastAPI
     app.dependency_overrides[deps.get_olt_repo] = lambda: test_olt_repo
     app.dependency_overrides[deps.get_backup_storage] = lambda: test_backup_storage
     app.dependency_overrides[deps.get_onu_repo] = lambda: test_onu_repo
+    app.dependency_overrides[deps.get_webhook_repo] = lambda: test_webhook_repo
+    app.dependency_overrides[deps.get_webhook_dispatcher] = lambda: test_webhook_dispatcher
 
     yield {
         "repo": test_olt_repo,
         "storage": test_backup_storage,
         "onu_repo": test_onu_repo,
+        "webhook_repo": test_webhook_repo,
+        "webhook_dispatcher": test_webhook_dispatcher,
         "temp_dir": temp_dir,
     }
 

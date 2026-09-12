@@ -980,6 +980,140 @@ paths:
                 items:
                   $ref: '#/components/schemas/ONUMigrationEvent'
 
+  /api/v1/webhooks:
+    get:
+      summary: Listar assinaturas de Webhook
+      description: Retorna todos os endpoints de ERPs cadastrados para recebimento de eventos push em tempo real.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: active_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Lista de assinaturas de webhook
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookSubscription'
+    post:
+      summary: Cadastrar webhook para o ERP
+      description: Registra uma URL para envio de eventos com assinatura digital HMAC SHA-256 no cabeçalho X-OLTAPI-Signature.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookCreateRequest'
+      responses:
+        '201':
+          description: Webhook cadastrado com sucesso
+          headers:
+            Location:
+              description: URI canônica da assinatura
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+
+  /api/v1/webhooks/deliveries:
+    get:
+      summary: Consultar histórico de entregas de webhooks
+      description: Logs de auditoria das tentativas de envio de eventos push aos ERPs com status HTTP e latência.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: subscription_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Logs de auditoria de entregas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookDeliveryLog'
+
+  /api/v1/webhooks/{subscription_id}:
+    get:
+      summary: Consultar assinatura de webhook
+      description: Retorna dados cadastrais, eventos monitorados e secret da assinatura.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: subscription_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dados da assinatura
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+        '404':
+          description: Webhook não encontrado
+    delete:
+      summary: Remover assinatura de webhook
+      description: Cancela o envio de eventos push para a URL especificada.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: subscription_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Assinatura removida com sucesso
+        '404':
+          description: Webhook não encontrado
+
+  /api/v1/webhooks/{subscription_id}/ping:
+    post:
+      summary: Disparar ping de teste HMAC para o ERP
+      description: Envia uma requisição HTTP POST assinado com HMAC SHA-256 para validar a integridade da comunicação com o ERP.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: subscription_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Relatório imediato da tentativa de entrega
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDeliveryLog'
+        '404':
+          description: Webhook não encontrado
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -1705,3 +1839,93 @@ components:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/HateoasLink'
+
+    WebhookSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        secret:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HateoasLink'
+
+    WebhookCreateRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          example: "https://erp.provedor.com.br/api/v1/webhooks/oltapi"
+        secret:
+          type: string
+          nullable: true
+          example: "whsec_custom_secret_key"
+        events:
+          type: array
+          items:
+            type: string
+          default: ["*"]
+          example: ["onu.reconciled", "onu.detected"]
+        is_active:
+          type: boolean
+          default: true
+        description:
+          type: string
+          nullable: true
+          example: "ERP IXC Soft Matriz"
+
+    WebhookDeliveryLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        subscription_id:
+          type: string
+          format: uuid
+        event:
+          type: string
+          example: "onu.reconciled"
+        url:
+          type: string
+          format: uri
+        status_code:
+          type: integer
+          nullable: true
+          example: 200
+        success:
+          type: boolean
+        duration_ms:
+          type: number
+          format: float
+          example: 45.2
+        error_message:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time

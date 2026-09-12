@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import get_olt_repo, get_onu_repo, require_api_key
+from app.api.deps import get_olt_repo, get_onu_repo, get_webhook_dispatcher, require_api_key
 from app.core.circuit_id import generate_circuit_id
 from app.core.security import sanitize_port, sanitize_safe_string, sanitize_serial, sanitize_vlan
 from app.models.hateoas import Link
@@ -13,6 +13,7 @@ from app.models.onu_inventory import (
     RegisterONUInventoryRequest,
 )
 from app.services.onu_reconciliation_service import ONUReconciliationService
+from app.services.webhook_dispatcher import WebhookDispatcher
 from app.storage.olt_repository import OLTRepository
 from app.storage.onu_repository import ONUInventoryRepository
 
@@ -88,6 +89,7 @@ def reconcile_field_event(
     req: ReconcileFieldEventRequest,
     onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
     olt_repo: OLTRepository = Depends(get_olt_repo),
+    webhook_dispatcher: WebhookDispatcher = Depends(get_webhook_dispatcher),
 ):
     """
     Motor de Auto-Recuperação Reativa de Campo.
@@ -108,7 +110,11 @@ def reconcile_field_event(
             reason=req.reason,
         )
 
-        service = ONUReconciliationService(olt_repo=olt_repo, onu_repo=onu_repo)
+        service = ONUReconciliationService(
+            olt_repo=olt_repo,
+            onu_repo=onu_repo,
+            webhook_dispatcher=webhook_dispatcher,
+        )
         return service.reconcile_field_event(clean_req)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

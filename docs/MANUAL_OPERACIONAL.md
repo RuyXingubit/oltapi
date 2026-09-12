@@ -717,5 +717,105 @@ Os operadores do NOC que chegam pela manhã podem visualizar todas as auto-recup
 
 ---
 
+## 9. Webhooks e Notificações Push para o ERP (HMAC SHA-256)
+
+Para manter o ERP (IXC Soft, MK-Auth, Voalle, SGP, etc.) **100% sincronizado em tempo real** sem necessidade de polling constante, o OLTAPI dispõe de um subsistema de **Webhooks com Assinatura Criptográfica HMAC SHA-256**.
+
+Sempre que uma ONU for auto-recuperada na madrugada (`onu.reconciled`), uma nova ONU acender na fibra (`onu.detected`) ou um backup for concluído, o OLTAPI envia uma requisição HTTP POST imediata para a URL cadastrada do ERP.
+
+---
+
+### 9.1 Cadastrar Webhook do ERP
+
+`POST /api/v1/webhooks`
+
+```json
+{
+  "url": "https://erp.provedor.com.br/api/v1/webhooks/oltapi",
+  "description": "Sincronizador em Tempo Real - IXC Soft Matriz",
+  "events": ["onu.reconciled", "onu.detected"],
+  "secret": "whsec_minha_chave_secreta_super_segura_123"
+}
+```
+*(Se o campo `secret` for omitido, o OLTAPI gerará automaticamente uma chave criptográfica segura com prefixo `whsec_`).*
+
+---
+
+### 9.2 Cabeçalhos de Segurança Enviados ao ERP
+
+Cada entrega HTTP POST enviada pelo OLTAPI inclui:
+- `X-OLTAPI-Signature`: `sha256=<hex_digest_hmac>`
+- `X-OLTAPI-Event`: `onu.reconciled`
+- `X-OLTAPI-Delivery`: `<uuid7_da_entrega>` (para deduplicação e idempotência no ERP)
+- `X-OLTAPI-Timestamp`: `<timestamp_iso_utc>`
+- `Content-Type`: `application/json`
+
+---
+
+### 9.3 Validando a Assinatura no ERP
+
+#### Exemplo em Python (FastAPI / Flask / Django):
+```python
+import hashlib
+import hmac
+
+def validar_webhook(secret: str, raw_body_bytes: bytes, signature_header: str) -> bool:
+    expected = "sha256=" + hmac.new(secret.encode("utf-8"), raw_body_bytes, hashlib.sha256).hexdigest()
+    # Comparação em tempo constante para evitar timing attacks
+    return hmac.compare_digest(expected, signature_header)
+```
+
+#### Exemplo em PHP (Laravel / nativo):
+```php
+<?php
+function validar_webhook(string $secret, string $rawBody, string $signatureHeader): bool {
+    $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $secret);
+    return hash_equals($expected, $signatureHeader);
+}
+```
+
+---
+
+### 9.4 Exemplo de Payload do Evento `onu.reconciled`
+
+```json
+{
+  "id": "0191e4f7-3344-7788-9900-112233445566",
+  "event": "onu.reconciled",
+  "timestamp": "2026-09-12T04:15:30.123456Z",
+  "data": {
+    "serial": "INCL99887766",
+    "contract_id": "CTR-49102",
+    "subscriber_name": "Provedor Turbo Fibra Ltda",
+    "action_taken": "reconciled_cross_olt",
+    "old_olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+    "old_olt_name": "OLT-POP-CENTRO-01",
+    "old_port": "1/1",
+    "old_onu_id": 4,
+    "old_circuit_id": "OLT-POP-CENTRO-01 eth 1/1:4:150",
+    "new_olt_id": "0191e4f5-9988-7766-5544-33221100aabb",
+    "new_olt_name": "OLT-HUAWEI-POP-SUL",
+    "new_port": "0/2",
+    "new_onu_id": 2,
+    "new_circuit_id": "OLT-HUAWEI-POP-SUL eth 0/2:2:150",
+    "vlan": 150,
+    "profile": "1G_DOWN_500M_UP",
+    "latitude": -23.551,
+    "longitude": -46.634,
+    "reason": "Fusão invertida corrigida na caixa CEO-04"
+  }
+}
+```
+
+---
+
+### 9.5 Teste de Conectividade e Auditoria de Entregas
+
+- **Disparar Ping de Teste:** `POST /api/v1/webhooks/{id}/ping`
+- **Consultar Histórico de Entregas Recentes:** `GET /api/v1/webhooks/deliveries?limit=50`
+
+---
+
 Dúvidas ou sugestões operacionais? Abra uma issue ou contribua através do nosso [Guia de Contribuição](../CONTRIBUTING.md)!
+
 
