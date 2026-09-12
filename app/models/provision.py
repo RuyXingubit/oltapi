@@ -10,6 +10,10 @@ class ProvisionRequest(BaseModel):
     profile: Optional[str] = Field(default="DEFAULT", description="Perfil de tráfego/linha", json_schema_extra={"example": "PLAN_100M"})
     description: Optional[str] = Field(default="Cliente", description="Identificação do cliente", json_schema_extra={"example": "Cliente_Joao_Silva"})
     onu_model: Optional[str] = Field(default="auto", description="Modelo da ONU ou 'auto'")
+    mode: Optional[str] = Field(default="bridge", description="Modo de operação: 'bridge' ou 'router'")
+    pppoe_user: Optional[str] = Field(default=None, description="Usuário PPPoE para modo router")
+    pppoe_password: Optional[str] = Field(default=None, description="Senha PPPoE para modo router")
+    onu_id: Optional[int] = Field(default=None, description="ID da ONU na porta PON (auto-calculado se omitido)")
 
 
 class ProvisionResponse(BaseModel):

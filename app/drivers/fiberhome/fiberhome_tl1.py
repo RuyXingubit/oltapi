@@ -524,6 +524,8 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     @staticmethod
     def is_telnet_cli(olt: OLTInDB) -> bool:
         """Determina se a OLT deve ser acessada via Telnet CLI em vez de TL1 Bellcore puro."""
+        if olt.port == 3337:
+            return False
         return olt.port == 23 or getattr(olt, "protocol", "").lower() == "telnet"
 
     def _open_telnet_session(self, olt: OLTInDB) -> TelnetClient:
@@ -749,6 +751,80 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             tx_power_dbm=tx,
         )
 
+    @staticmethod
+    def build_telnet_provision_commands(
+        slot: int,
+        pon: int,
+        onu_id: int,
+        mac: str,
+        onu_tipo: str,
+        vlan: int,
+        mode: str = "bridge",
+        pppoe_user: Optional[str] = None,
+        pppoe_pass: Optional[str] = None,
+    ) -> List[str]:
+        """Gera lista de comandos no CLI Fiberhome para provisionamento em router ou bridge."""
+        cmds = [
+            "cd onu",
+            f"set whitelist phy_addr address {mac} password null action add slot {slot} pon {pon} onu {onu_id} type {onu_tipo} ;",
+            f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type data fix 16 assure 0 max 128000;",
+            f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type iptv fix 16 assure 0 max 64;",
+            "cd lan",
+        ]
+        if mode.lower() == "router":
+            u = pppoe_user or "user"
+            p = pppoe_pass or "pass"
+            cmds.extend([
+                f"set wancfg slot {slot} {pon} {onu_id} index 1 mode internet type route {vlan} 0 nat enable qos disable qinq disable 33024 65535 1 dsp pppoe proxy disable {u} {p} null auto entries 1 fe1;",
+                f"set wancfg slot {slot} {pon} {onu_id} index 1 ip-stack-mode ipv4 ipv6-src-type slaac prefix-src-type delegate pppoe-authmode chap;",
+                f"set wanbind slot {slot} {pon} {onu_id} index 1 entries 1 fe1;",
+                f"apply wancfg slot {slot} {pon} {onu_id};",
+            ])
+        else:
+            # bridge mode
+            cmds.extend([
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service number 1;",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service 1 vlan_mode tag 0 33024 {vlan};",
+                f"apply onu {slot} {pon} {onu_id} vlan;",
+            ])
+        cmds.extend([
+            "cd ..",
+            "cd ..",
+        ])
+        return cmds
+
+    @staticmethod
+    def build_telnet_deprovision_commands(slot: int, pon: int, onu_id: int) -> List[str]:
+        return [
+            "cd onu",
+            f"set whitelist action delete slot {slot} pon {pon} onu {onu_id} ;",
+            "cd ..",
+        ]
+
+    @staticmethod
+    def build_telnet_suspend_commands(slot: int, pon: int, onu_id: int) -> List[str]:
+        return [
+            "cd onu",
+            f"set whitelist action lock slot {slot} pon {pon} onu {onu_id} ;",
+            "cd ..",
+        ]
+
+    @staticmethod
+    def build_telnet_resume_commands(slot: int, pon: int, onu_id: int) -> List[str]:
+        return [
+            "cd onu",
+            f"set whitelist action unlock slot {slot} pon {pon} onu {onu_id} ;",
+            "cd ..",
+        ]
+
+    @staticmethod
+    def build_telnet_reboot_commands(slot: int, pon: int, onu_id: int) -> List[str]:
+        return [
+            "cd onu",
+            f"reboot onu slot {slot} pon {pon} onu {onu_id} ;",
+            "cd ..",
+        ]
+
     def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
         safe_port = sanitize_port(req.port)
         safe_serial = sanitize_serial(req.serial)
@@ -757,6 +833,46 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         line_profile = sanitize_safe_string(req.profile or "LINE-DEFAULT", "line profile")
 
         slot, pon = self.parse_port_components(safe_port)
+
+        if self.is_telnet_cli(olt):
+            target_onu_id = req.onu_id
+            if not target_onu_id:
+                try:
+                    existing = self.get_port_onus(olt, req.port)
+                    used_ids = {o.onu_id for o in existing}
+                    target_onu_id = next(i for i in range(1, 129) if i not in used_ids)
+                except Exception as e:
+                    logger.warning(f"Não foi possível calcular ID automático da ONU na porta {req.port}: {e}")
+                    target_onu_id = 1
+
+            onu_tipo = req.onu_model if req.onu_model and req.onu_model.lower() != "auto" else "HG6145E"
+            mode = (req.mode or "bridge").lower()
+            cmds = self.build_telnet_provision_commands(
+                slot=slot,
+                pon=pon,
+                onu_id=target_onu_id,
+                mac=safe_serial,
+                onu_tipo=onu_tipo,
+                vlan=safe_vlan,
+                mode=mode,
+                pppoe_user=req.pppoe_user,
+                pppoe_pass=req.pppoe_password,
+            )
+            client = self._open_telnet_session(olt)
+            try:
+                for c in cmds:
+                    self._exec_telnet_cmd(client, c)
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
+            return ProvisionResponse(
+                success=True,
+                port=f"{slot}/{pon}",
+                onu_id=target_onu_id,
+                serial=safe_serial,
+                message=f"ONU {safe_serial} provisionada via Telnet CLI em modo {mode.upper()} (Slot {slot}, PON {pon}, ONUID {target_onu_id}, VLAN {safe_vlan}).",
+            )
 
         commands = [
             f'ADD-ONU::OLTID={slot},PONID={pon}:1::NAME="{safe_desc}",AUTHTYPE=MAC,MAC={safe_serial},LINEPROF="{line_profile}";',
@@ -783,6 +899,26 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         slot, pon = self.parse_port_components(safe_port)
         safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
         onu_idx = onu_id if onu_id is not None else 1
+
+        if self.is_telnet_cli(olt):
+            cmds = self.build_telnet_deprovision_commands(slot, pon, onu_idx)
+            client = self._open_telnet_session(olt)
+            try:
+                for c in cmds:
+                    self._exec_telnet_cmd(client, c)
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
+            return ONUActionResponse(
+                success=True,
+                action="deprovision",
+                olt_id=str(olt.id),
+                serial=safe_serial,
+                port=f"{slot}/{pon}",
+                onu_id=onu_idx,
+                message=f"ONU {safe_serial} removida via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
+            )
 
         commands = [
             f"DEL-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::;",
@@ -812,6 +948,26 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
         onu_idx = onu_id if onu_id is not None else 1
 
+        if self.is_telnet_cli(olt):
+            cmds = self.build_telnet_reboot_commands(slot, pon, onu_idx)
+            client = self._open_telnet_session(olt)
+            try:
+                for c in cmds:
+                    self._exec_telnet_cmd(client, c)
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
+            return ONUActionResponse(
+                success=True,
+                action="reboot",
+                olt_id=str(olt.id),
+                serial=safe_serial,
+                port=f"{slot}/{pon}",
+                onu_id=onu_idx,
+                message=f"ONU {safe_serial} reiniciada via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
+            )
+
         commands = [
             f"RESET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::;",
         ]
@@ -840,6 +996,26 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
         onu_idx = onu_id if onu_id is not None else 1
 
+        if self.is_telnet_cli(olt):
+            cmds = self.build_telnet_suspend_commands(slot, pon, onu_idx)
+            client = self._open_telnet_session(olt)
+            try:
+                for c in cmds:
+                    self._exec_telnet_cmd(client, c)
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
+            return ONUActionResponse(
+                success=True,
+                action="suspend",
+                olt_id=str(olt.id),
+                serial=safe_serial,
+                port=f"{slot}/{pon}",
+                onu_id=onu_idx,
+                message=f"ONU {safe_serial} suspensa administrativamente via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
+            )
+
         commands = [
             f"SET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::ADMINSTATUS=DOWN;",
         ]
@@ -867,6 +1043,26 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         slot, pon = self.parse_port_components(safe_port)
         safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
         onu_idx = onu_id if onu_id is not None else 1
+
+        if self.is_telnet_cli(olt):
+            cmds = self.build_telnet_resume_commands(slot, pon, onu_idx)
+            client = self._open_telnet_session(olt)
+            try:
+                for c in cmds:
+                    self._exec_telnet_cmd(client, c)
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
+            return ONUActionResponse(
+                success=True,
+                action="resume",
+                olt_id=str(olt.id),
+                serial=safe_serial,
+                port=f"{slot}/{pon}",
+                onu_id=onu_idx,
+                message=f"ONU {safe_serial} reativada via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
+            )
 
         commands = [
             f"SET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::ADMINSTATUS=UP;",
@@ -1021,4 +1217,9 @@ parse_telnet_vlans = FiberhomeTL1Driver.parse_telnet_vlans
 parse_telnet_port_onus = FiberhomeTL1Driver.parse_telnet_port_onus
 parse_telnet_unauth_onus = FiberhomeTL1Driver.parse_telnet_unauth_onus
 parse_telnet_profiles = FiberhomeTL1Driver.parse_telnet_profiles
+build_telnet_provision_commands = FiberhomeTL1Driver.build_telnet_provision_commands
+build_telnet_deprovision_commands = FiberhomeTL1Driver.build_telnet_deprovision_commands
+build_telnet_suspend_commands = FiberhomeTL1Driver.build_telnet_suspend_commands
+build_telnet_resume_commands = FiberhomeTL1Driver.build_telnet_resume_commands
+build_telnet_reboot_commands = FiberhomeTL1Driver.build_telnet_reboot_commands
 

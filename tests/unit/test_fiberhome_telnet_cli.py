@@ -3,12 +3,18 @@ import pytest
 
 from app.drivers.fiberhome.fiberhome_tl1 import (
     FiberhomeTL1Driver,
+    build_telnet_deprovision_commands,
+    build_telnet_provision_commands,
+    build_telnet_reboot_commands,
+    build_telnet_resume_commands,
+    build_telnet_suspend_commands,
     parse_telnet_port_onus,
     parse_telnet_profiles,
     parse_telnet_unauth_onus,
     parse_telnet_vlans,
 )
 from app.models.olt import OLTInDB, OLTProtocol, OLTVendor
+from app.models.provision import ProvisionRequest
 
 
 def test_is_telnet_cli():
@@ -130,6 +136,53 @@ Admin\\profile#
     assert profiles[1].profile_type == "unicast"
 
 
+def test_build_telnet_provision_commands_bridge():
+    cmds = build_telnet_provision_commands(
+        slot=1,
+        pon=1,
+        onu_id=60,
+        mac="FHTT12345678",
+        onu_tipo="HG6145E",
+        vlan=100,
+        mode="bridge",
+    )
+    assert "cd onu" in cmds
+    assert any("set whitelist  phy_addr address FHTT12345678" in c or "set whitelist phy_addr address FHTT12345678" in c for c in cmds)
+    assert any("set epon slot 1 pon 1 onu 60 port 1 service 1 vlan_mode tag 0 33024 100;" in c for c in cmds)
+    assert any("apply onu 1 1 60 vlan;" in c for c in cmds)
+
+
+def test_build_telnet_provision_commands_router():
+    cmds = build_telnet_provision_commands(
+        slot=1,
+        pon=2,
+        onu_id=15,
+        mac="FHTT88776655",
+        onu_tipo="HG6145E",
+        vlan=300,
+        mode="router",
+        pppoe_user="cliente_teste",
+        pppoe_pass="senha_secreta",
+    )
+    assert "cd lan" in cmds
+    assert any("cliente_teste senha_secreta" in c for c in cmds)
+    assert any("apply wancfg slot 1 2 15;" in c for c in cmds)
+
+
+def test_build_telnet_lifecycle_commands():
+    deprovision_cmds = build_telnet_deprovision_commands(1, 1, 5)
+    assert any("set whitelist action delete slot 1 pon 1 onu 5 ;" in c for c in deprovision_cmds)
+
+    suspend_cmds = build_telnet_suspend_commands(1, 1, 5)
+    assert any("set whitelist action lock slot 1 pon 1 onu 5 ;" in c for c in suspend_cmds)
+
+    resume_cmds = build_telnet_resume_commands(1, 1, 5)
+    assert any("set whitelist action unlock slot 1 pon 1 onu 5 ;" in c for c in resume_cmds)
+
+    reboot_cmds = build_telnet_reboot_commands(1, 1, 5)
+    assert any("reboot onu slot 1 pon 1 onu 5 ;" in c for c in reboot_cmds)
+
+
 def test_telnet_driver_mocked_flow():
     driver = FiberhomeTL1Driver()
     olt = OLTInDB(
@@ -144,7 +197,6 @@ def test_telnet_driver_mocked_flow():
     )
 
     mock_client = MagicMock()
-    # Simula respostas para login e comandos
     mock_client.read_until.return_value = b"Admin#"
 
     with patch.object(driver, "_open_telnet_session", return_value=mock_client), \
@@ -174,3 +226,29 @@ def test_telnet_driver_mocked_flow():
         profs = driver.list_profiles(olt)
         assert len(profs) == 1
         assert profs[0].name == "PLAN_100M"
+
+        # Teste provision_onu (modo router)
+        req = ProvisionRequest(
+            port="1/1",
+            serial="FHTT99881122",
+            vlan=100,
+            mode="router",
+            pppoe_user="user1",
+            pppoe_password="pass1",
+            onu_id=5,
+        )
+        mock_exec.return_value = "Command execute success.\nAdmin#"
+        res = driver.provision_onu(olt, req)
+        assert res.success is True
+        assert res.onu_id == 5
+        assert res.serial == "FHTT99881122"
+
+        # Teste deprovision_onu
+        dep_res = driver.deprovision_onu(olt, serial_or_id="FHTT99881122", port="1/1", onu_id=5)
+        assert dep_res.success is True
+        assert dep_res.action == "deprovision"
+
+        # Teste reboot_onu
+        reb_res = driver.reboot_onu(olt, serial_or_id="FHTT99881122", port="1/1", onu_id=5)
+        assert reb_res.success is True
+        assert reb_res.action == "reboot"
