@@ -6,6 +6,10 @@ __pycache__/
 htmlcov/
 *.egg-info/
 .env
+.env.*
+!.env.example
+*.cfg
+*.bak
 venv/
 .venv/
 backups/*
@@ -13,3 +17,4 @@ backups/*
 data/*
 !data/.gitkeep
 .DS_Store
+

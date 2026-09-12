@@ -162,3 +162,54 @@ class BackupMetadataModel(Base):
         default=lambda: datetime.now(timezone.utc),
     )
     notes = Column(Text, nullable=True)
+
+
+class FTPServerModel(Base):
+    __tablename__ = "ftp_servers"
+
+    id = Column(String(36), primary_key=True)
+    name = Column(String(64), unique=True, index=True, nullable=False)
+    host = Column(String(128), nullable=False)
+    port = Column(Integer, nullable=False, default=21)
+    username = Column(String(64), nullable=False)
+    password = Column(String(256), nullable=False)
+    base_path = Column(String(128), nullable=False, default="/")
+    is_global_default = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    destinations = relationship(
+        "OLTFTPDestinationModel",
+        back_populates="ftp_server",
+        cascade="all, delete-orphan",
+    )
+
+
+class OLTFTPDestinationModel(Base):
+    __tablename__ = "olt_ftp_destinations"
+
+    id = Column(String(36), primary_key=True)
+    olt_id = Column(
+        String(36),
+        ForeignKey("olts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    ftp_server_id = Column(
+        String(36),
+        ForeignKey("ftp_servers.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    ftp_server = relationship("FTPServerModel", back_populates="destinations")
+

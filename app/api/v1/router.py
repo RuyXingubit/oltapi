@@ -8,6 +8,7 @@ from app.api.v1.endpoints_onu_inventory import router as onu_inventory_router
 from app.api.v1.endpoints_webhooks import router as webhooks_router
 from app.api.v1.endpoints_scanner import router as scanner_router
 from app.api.v1.endpoints_vlans import router as vlans_router
+from app.api.v1.endpoints_ftp import router as ftp_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(olts_router)
@@ -19,4 +20,6 @@ api_v1_router.include_router(onu_inventory_router)
 api_v1_router.include_router(webhooks_router)
 api_v1_router.include_router(scanner_router)
 api_v1_router.include_router(vlans_router)
+api_v1_router.include_router(ftp_router)
+
 

@@ -16,7 +16,7 @@ class BaseOLTDriver(ABC):
         pass
 
     @abstractmethod
-    def backup_config(self, olt: OLTInDB) -> str:
+    def backup_config(self, olt: OLTInDB, ftp_servers: Optional[List[object]] = None) -> str:
         """Gera o backup da configuração e retorna o conteúdo textual."""
         pass
 

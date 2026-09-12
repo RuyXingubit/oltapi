@@ -179,7 +179,7 @@ def test_api_sync_olt_endpoint(client: TestClient, auth_headers, sample_olt_fibe
     ]
     mock_vlans = [VLANItem(vlan_id=150, name="VLAN_PROVEDOR")]
 
-    with patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.get_running_config", return_value="RUNNING_CFG_TL1"), \
+    with patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.backup_config", return_value="RUNNING_CFG_TL1"), \
          patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.list_all_authorized_onus", return_value=mock_onus), \
          patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.list_vlans", return_value=mock_vlans):
 

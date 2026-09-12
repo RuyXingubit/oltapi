@@ -1,7 +1,8 @@
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 from app.drivers.factory import DriverFactory
 from app.models.backup import BackupAuditReport, BackupMetadata, BatchBackupResult, PurgeResult
+from app.services.ftp_service import FTPService
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
 
@@ -11,18 +12,63 @@ logger = logging.getLogger(__name__)
 class BackupService:
     """Serviço de orquestração de backups em lote, auditoria de integridade e políticas de expurgo."""
 
-    def __init__(self, olt_repo: OLTRepository, storage: BackupStorage):
+    def __init__(
+        self,
+        olt_repo: OLTRepository,
+        storage: BackupStorage,
+        ftp_repo: Optional[Any] = None,
+    ):
         self.olt_repo = olt_repo
         self.storage = storage
+        self.ftp_repo = ftp_repo
+
+    def _get_effective_ftps(self, olt_id: str) -> List[Any]:
+        if not self.ftp_repo:
+            return []
+        try:
+            destinations = self.ftp_repo.get_destinations_for_olt(olt_id)
+            raw_ftps = []
+            for d in destinations.effective_destinations:
+                raw = self.ftp_repo.get_raw_by_id(d.id)
+                if raw and raw.is_active:
+                    raw_ftps.append(raw)
+            return raw_ftps
+        except Exception as e:
+            logger.warning(f"Erro ao obter destinos FTP para OLT {olt_id}: {e}")
+            return []
+
+    def _mirror_backup(self, olt, backup_id: str, content: str, raw_ftps: List[Any]) -> None:
+        if not raw_ftps:
+            return
+        vendor_str = olt.vendor.value if hasattr(olt.vendor, "value") else str(olt.vendor)
+        targets_to_mirror = raw_ftps[1:] if vendor_str.lower() == "fiberhome" else raw_ftps
+        for target in targets_to_mirror:
+            try:
+                remote_name = f"backup_{olt.id}_{backup_id}.cfg"
+                FTPService.upload_file(
+                    host=target.host,
+                    port=target.port,
+                    username=target.username,
+                    password=target.password,
+                    remote_filename=remote_name,
+                    content=content,
+                    base_path=target.base_path or "/",
+                )
+                logger.info(f"Backup replicado com sucesso para FTP '{target.name}' ({target.host})")
+            except Exception as e:
+                logger.error(f"Erro ao replicar backup para FTP '{target.name}': {e}")
 
     def create_backup(self, olt_id: str, notes: Optional[str] = None) -> BackupMetadata:
         """Cria e persiste backup individual da OLT especificada."""
         olt = self.olt_repo.get_by_id(olt_id)
         if not olt:
             raise ValueError(f"OLT '{olt_id}' não encontrada.")
+        raw_ftps = self._get_effective_ftps(olt.id)
         driver = DriverFactory.get_driver(olt)
-        content = driver.backup_config(olt)
-        return self.storage.save_backup(olt_id=olt.id, content=content)
+        content = driver.backup_config(olt, ftp_servers=raw_ftps)
+        meta = self.storage.save_backup(olt_id=olt.id, content=content)
+        self._mirror_backup(olt, meta.backup_id, content, raw_ftps)
+        return meta
 
     def run_all_backups(
         self,
@@ -42,9 +88,11 @@ class BackupService:
 
         for olt in olts:
             try:
+                raw_ftps = self._get_effective_ftps(olt.id)
                 driver = DriverFactory.get_driver(olt)
-                content = driver.backup_config(olt)
+                content = driver.backup_config(olt, ftp_servers=raw_ftps)
                 meta = self.storage.save_backup(olt_id=olt.id, content=content)
+                self._mirror_backup(olt, meta.backup_id, content, raw_ftps)
                 result.backups.append(meta)
                 result.successful += 1
                 logger.info(f"Backup concluído com sucesso para OLT '{olt.name}' ({olt.id}): {meta.backup_id}")

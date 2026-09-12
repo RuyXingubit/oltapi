@@ -1,8 +1,15 @@
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse
 
-from app.api.deps import get_backup_storage, get_olt_repo, get_sync_service, require_api_key
+from app.api.deps import (
+    get_backup_storage,
+    get_ftp_repo,
+    get_olt_repo,
+    get_sync_service,
+    require_api_key,
+)
 from app.drivers.factory import DriverFactory
 from app.models.vlan import SyncOLTResponse
 from app.models.backup import (
@@ -20,8 +27,12 @@ from app.models.olt import (
     OLTResponse,
 )
 from app.services.connection_service import test_olt_connectivity
+from app.services.ftp_service import FTPService
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
+from app.storage.sql.ftp_repository import SQLFTPRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/olts", tags=["OLTs & Backups"], dependencies=[Depends(require_api_key)])
 
@@ -172,17 +183,51 @@ def trigger_backup(
     response: Response,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
+    ftp_repo: SQLFTPRepository = Depends(get_ftp_repo),
 ):
     """Dispara a rotina de backup na OLT, salva em disco e retorna Location header e links de download e diff."""
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
 
+    # Busca destinos FTP efetivos (específicos vinculados + globais padrão)
+    raw_ftps = []
+    if ftp_repo:
+        try:
+            destinations = ftp_repo.get_destinations_for_olt(olt.id)
+            for d in destinations.effective_destinations:
+                raw = ftp_repo.get_raw_by_id(d.id)
+                if raw and raw.is_active:
+                    raw_ftps.append(raw)
+        except Exception as e:
+            logger.warning(f"Erro ao obter destinos FTP para OLT {olt.id}: {e}")
+
     try:
         driver = DriverFactory.get_driver(olt)
-        content = driver.backup_config(olt)
+        content = driver.backup_config(olt, ftp_servers=raw_ftps)
         metadata = storage.save_backup(olt_id=olt.id, content=content)
-        
+
+        # Replicação para servidores FTP secundários / adicionais
+        if raw_ftps:
+            vendor_str = olt.vendor.value if hasattr(olt.vendor, "value") else str(olt.vendor)
+            targets_to_mirror = raw_ftps[1:] if vendor_str.lower() == "fiberhome" else raw_ftps
+
+            for target in targets_to_mirror:
+                try:
+                    remote_name = f"backup_{olt.id}_{metadata.backup_id}.cfg"
+                    FTPService.upload_file(
+                        host=target.host,
+                        port=target.port,
+                        username=target.username,
+                        password=target.password,
+                        remote_filename=remote_name,
+                        content=content,
+                        base_path=target.base_path or "/",
+                    )
+                    logger.info(f"Backup replicado com sucesso para FTP secundário '{target.name}' ({target.host})")
+                except Exception as e:
+                    logger.error(f"Erro ao replicar backup para FTP '{target.name}': {e}")
+
         # Cabeçalho Location e links HATEOAS
         response.headers["Location"] = f"/api/v1/olts/{olt.id}/backups/{metadata.backup_id}/download"
         metadata.links = {
@@ -297,4 +342,14 @@ def sync_olt(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao sincronizar OLT: {str(e)}",
         )
+
+
+@router.delete("/{olt_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_olt(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+    """Remove uma OLT cadastrada no inventário."""
+    deleted = repo.delete(olt_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+    return None
+
 

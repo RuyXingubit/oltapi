@@ -13,11 +13,13 @@ from app.core.security import (
     sanitize_vlan,
 )
 from app.drivers.base import BaseOLTDriver
+from app.drivers.fiberhome.telnet_client import TelnetClient
 from app.models.bootstrap import BootstrapMode, BootstrapRequest
 from app.models.olt import OLTInDB
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.models.vlan import VLANItem, VLANCreateRequest, ProfileItem
+from app.services.ftp_service import FTPService
 
 logger = logging.getLogger(__name__)
 
@@ -414,8 +416,110 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         ]
         return self._execute_tl1_commands(olt, commands)
 
-    def backup_config(self, olt: OLTInDB) -> str:
+    def backup_config(self, olt: OLTInDB, ftp_servers: Optional[List[object]] = None) -> str:
+        """
+        Gera o backup da configuração da OLT Fiberhome.
+        Se servidores FTP forem fornecidos e a OLT estiver configurada para Telnet ou porta 23,
+        dispara 'upload ftp showrun' no concentrador e baixa o arquivo do servidor FTP.
+        """
+        if ftp_servers:
+            primary_ftp = ftp_servers[0]
+            ftp_host = getattr(primary_ftp, "host", None)
+            ftp_port = getattr(primary_ftp, "port", 21)
+            ftp_user = getattr(primary_ftp, "username", None)
+            ftp_pass = getattr(primary_ftp, "password", None)
+            base_path = getattr(primary_ftp, "base_path", "/") or "/"
+
+            if ftp_host and ftp_user and ftp_pass:
+                return self._backup_via_ftp_telnet(
+                    olt=olt,
+                    ftp_host=ftp_host,
+                    ftp_port=ftp_port,
+                    ftp_user=ftp_user,
+                    ftp_pass=ftp_pass,
+                    base_path=base_path,
+                )
+
         return self.get_running_config(olt)
+
+    def _backup_via_ftp_telnet(
+        self,
+        olt: OLTInDB,
+        ftp_host: str,
+        ftp_user: str,
+        ftp_pass: str,
+        ftp_port: int = 21,
+        base_path: str = "/",
+    ) -> str:
+        logger.info(f"Iniciando backup da OLT Fiberhome '{olt.name}' via FTP {ftp_host}...")
+        temp_filename = f"oltbkp_{int(time.time()) % 100000}"
+
+        client = TelnetClient(host=olt.host, port=olt.port, timeout=self.timeout)
+        try:
+            client.connect()
+            client.read_until([b"Login:", b"login:", b"Username:", b"username:"], timeout=8)
+            client.write(f"{olt.username}\r\n")
+
+            client.read_until([b"Password:", b"password:"], timeout=8)
+            client.write(f"{olt.password}\r\n")
+
+            prompt = client.read_until([b">", b"#"], timeout=10)
+            if b">" in prompt:
+                client.write("enable\r\n")
+                client.read_until([b"Password:", b"password:"], timeout=8)
+                client.write(f"{olt.password}\r\n")
+                client.read_until([b"#"], timeout=8)
+
+            cmd = f"upload ftp showrun {ftp_host} {ftp_user} {ftp_pass} {temp_filename}\r\n"
+            client.write(cmd)
+
+            # Aguarda a OLT compilar as placas e enviar o arquivo (timeout de até 150s)
+            resp = client.read_until(
+                [
+                    b"Finished. You've successfully upload config file.",
+                    b"successfully",
+                    b"failed",
+                    b"Failed",
+                ],
+                timeout=150,
+            )
+            resp_text = resp.decode("ascii", errors="ignore")
+
+            try:
+                client.write("exit\r\n")
+            except Exception:
+                pass
+
+            if "fail" in resp_text.lower():
+                raise ConnectionError(f"Falha ao executar upload FTP na OLT {olt.name}: {resp_text}")
+
+            logger.info(f"Upload pela OLT '{olt.name}' concluído com sucesso. Baixando '{temp_filename}' do servidor FTP...")
+            content = FTPService.download_file(
+                host=ftp_host,
+                port=ftp_port,
+                username=ftp_user,
+                password=ftp_pass,
+                remote_filename=temp_filename,
+                base_path=base_path,
+                timeout=30,
+            )
+
+            # Limpeza defensiva do arquivo temporário no FTP
+            FTPService.delete_file(
+                host=ftp_host,
+                port=ftp_port,
+                username=ftp_user,
+                password=ftp_pass,
+                remote_filename=temp_filename,
+                base_path=base_path,
+            )
+
+            return content
+        except Exception as e:
+            logger.error(f"Erro no fluxo de backup via Telnet/FTP para OLT {olt.name}: {e}")
+            raise ConnectionError(f"Erro ao realizar backup via FTP da OLT Fiberhome {olt.name}: {str(e)}")
+        finally:
+            client.close()
 
     def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
         commands = [

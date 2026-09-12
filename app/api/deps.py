@@ -13,11 +13,14 @@ from app.storage.sql.backup_storage import SQLBackupStorage
 from app.services.webhook_dispatcher import WebhookDispatcher
 from app.services.onu_reconciliation_service import ONUReconciliationService
 
+from app.storage.sql.ftp_repository import SQLFTPRepository
+
 # Instâncias singleton padrão (persistência relacional via SQLAlchemy)
 _olt_repo = SQLOLTRepository()
 _backup_storage = SQLBackupStorage()
 _onu_repo = SQLONUInventoryRepository()
 _webhook_repo = SQLWebhookRepository()
+_ftp_repo = SQLFTPRepository()
 
 
 def get_olt_repo() -> Union[SQLOLTRepository, OLTRepository]:
@@ -30,6 +33,10 @@ def get_onu_repo() -> Union[SQLONUInventoryRepository, ONUInventoryRepository]:
 
 def get_webhook_repo() -> Union[SQLWebhookRepository, WebhookRepository]:
     return _webhook_repo
+
+
+def get_ftp_repo() -> SQLFTPRepository:
+    return _ftp_repo
 
 
 def get_webhook_dispatcher(
@@ -45,8 +52,9 @@ def get_backup_storage() -> Union[SQLBackupStorage, BackupStorage]:
 def get_backup_service(
     repo: Union[SQLOLTRepository, OLTRepository] = Depends(get_olt_repo),
     storage: Union[SQLBackupStorage, BackupStorage] = Depends(get_backup_storage),
+    ftp_repo: SQLFTPRepository = Depends(get_ftp_repo),
 ) -> BackupService:
-    return BackupService(olt_repo=repo, storage=storage)
+    return BackupService(olt_repo=repo, storage=storage, ftp_repo=ftp_repo)
 
 
 # Instâncias dos serviços compartilhados

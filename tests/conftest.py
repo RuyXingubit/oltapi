@@ -16,6 +16,7 @@ from app.storage.sql.olt_repository import SQLOLTRepository
 from app.storage.sql.onu_repository import SQLONUInventoryRepository
 from app.storage.sql.webhook_repository import SQLWebhookRepository
 from app.storage.sql.backup_storage import SQLBackupStorage
+from app.storage.sql.ftp_repository import SQLFTPRepository
 from app.services.webhook_dispatcher import WebhookDispatcher
 from app.services.onu_reconciliation_service import ONUReconciliationService
 from app.services.autofind_scanner import AutofindScannerService
@@ -88,6 +89,7 @@ def setup_test_env(postgres_container):
     test_backup_storage = SQLBackupStorage(session_factory=session_factory, base_dir=test_backup_dir)
     test_onu_repo = SQLONUInventoryRepository(session_factory=session_factory)
     test_webhook_repo = SQLWebhookRepository(session_factory=session_factory)
+    test_ftp_repo = SQLFTPRepository(session_factory=session_factory)
     test_webhook_dispatcher = WebhookDispatcher(repo=test_webhook_repo)
 
     test_reconciliation_service = ONUReconciliationService(
@@ -107,6 +109,7 @@ def setup_test_env(postgres_container):
     app.dependency_overrides[deps.get_backup_storage] = lambda: test_backup_storage
     app.dependency_overrides[deps.get_onu_repo] = lambda: test_onu_repo
     app.dependency_overrides[deps.get_webhook_repo] = lambda: test_webhook_repo
+    app.dependency_overrides[deps.get_ftp_repo] = lambda: test_ftp_repo
     app.dependency_overrides[deps.get_webhook_dispatcher] = lambda: test_webhook_dispatcher
     app.dependency_overrides[deps.get_reconciliation_service] = lambda: test_reconciliation_service
     app.dependency_overrides[deps.get_scanner_service] = lambda: test_scanner_service
@@ -116,6 +119,7 @@ def setup_test_env(postgres_container):
         "storage": test_backup_storage,
         "onu_repo": test_onu_repo,
         "webhook_repo": test_webhook_repo,
+        "ftp_repo": test_ftp_repo,
         "webhook_dispatcher": test_webhook_dispatcher,
         "reconciliation_service": test_reconciliation_service,
         "scanner_service": test_scanner_service,

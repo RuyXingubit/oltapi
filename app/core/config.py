@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from typing import Optional
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,9 +20,28 @@ class Settings(BaseSettings):
     BACKUP_DIR: Path = BASE_DIR / "backups"
     DATA_DIR: Path = BASE_DIR / "data"
 
-    # Banco de Dados Relacional (SQLite WAL por padrão, PostgreSQL via DATABASE_URL)
-    DATABASE_URL: str = "sqlite:///./data/oltapi.db"
+    # Configurações do Banco de Dados Relacional
+    POSTGRES_USER: Optional[str] = None
+    POSTGRES_PASSWORD: Optional[str] = None
+    POSTGRES_HOST: Optional[str] = None
+    POSTGRES_PORT: Optional[int] = 5432
+    POSTGRES_DB: Optional[str] = None
+
+    DATABASE_URL: Optional[str] = None
     DATABASE_ECHO: bool = False
+
+    @model_validator(mode="after")
+    def assemble_database_url(self) -> "Settings":
+        if not self.DATABASE_URL or self.DATABASE_URL.strip() == "":
+            if self.POSTGRES_USER and self.POSTGRES_PASSWORD and self.POSTGRES_HOST and self.POSTGRES_DB:
+                port = self.POSTGRES_PORT or 5432
+                self.DATABASE_URL = (
+                    f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
+                    f"{self.POSTGRES_HOST}:{port}/{self.POSTGRES_DB}"
+                )
+            else:
+                self.DATABASE_URL = "sqlite:///./data/oltapi.db"
+        return self
 
     # Configuração de Conexão com OLTs
     DEFAULT_SSH_TIMEOUT: int = 15  # segundos
@@ -36,6 +57,25 @@ class Settings(BaseSettings):
 
     # Nível de Log
     LOG_LEVEL: str = "INFO"
+
+    # Configurações Padrão de Bancada / Homologação (lidas do .env)
+    OLT_DEFAULT_NAME: Optional[str] = None
+    OLT_DEFAULT_VENDOR: Optional[str] = None
+    OLT_DEFAULT_MODEL: Optional[str] = None
+    OLT_DEFAULT_HOST: Optional[str] = None
+    OLT_DEFAULT_PORT: int = 23
+    OLT_DEFAULT_PROTOCOL: str = "telnet"
+    OLT_DEFAULT_USER: Optional[str] = None
+    OLT_DEFAULT_PASS: Optional[str] = None
+
+    # Servidor FTP Central de Backup (lido do .env)
+    FTP_DEFAULT_NAME: Optional[str] = None
+    FTP_DEFAULT_HOST: Optional[str] = None
+    FTP_DEFAULT_PORT: int = 21
+    FTP_DEFAULT_USER: Optional[str] = None
+    FTP_DEFAULT_PASS: Optional[str] = None
+    FTP_DEFAULT_BASE_PATH: str = "/"
+    FTP_DEFAULT_IS_GLOBAL: bool = True
 
 
 settings = Settings()
