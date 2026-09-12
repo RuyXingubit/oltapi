@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-89%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-101%20passed%20(100%25)-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/HATEOAS-RFC%209110%20Ready-blueviolet.svg" alt="HATEOAS">
   <img src="https://img.shields.io/badge/UUIDv7-RFC%209562-orange.svg" alt="UUIDv7">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
@@ -29,10 +29,15 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 2. **Backups com Integridade Criptográfica:** Geração de backups em disco com identificador **UUIDv7**, hash SHA-256 e download seguro via streaming.
 3. **Módulo de Disaster Recovery & Detecção de Drift:** Auditoria de integridade via SHA-256, unified diff linha a linha e rotinas de retenção/expurgo seguro de backups obsoletos.
 4. **Fluxos Guiados por HATEOAS & RFC 9110:** Respostas com cabeçalho padrão `Location` em criações (201) e links contextuais (`_links`) enxutos baseados no status da OLT (`online` vs `unreachable`).
-5. **Consulta de Portas e Diagnóstico de ONUs:** Leitura de status operacional e potências ópticas (sinal Rx/Tx em dBm) direto da fibra.
+5. **Consulta de Portas e Diagnóstico de ONUs:** Leitura de status operacional e potências ópticas (sinal Rx/Tx em dBm) direto da fibra com links diretos de ação rápida.
 6. **Descoberta de ONUs Não Autorizadas (*Autofind*):** Varredura em tempo real de equipamentos conectados na rede óptica aguardando autorização, acompanhados de link direto para ativação.
 7. **Provisionamento Padronizado de ONUs:** Ativação imediata de ONU com VLAN, profile e descrição através de um único payload JSON agnóstico de marca.
-8. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras, Huawei, Fiberhome, V-SOL e ZTE).
+8. **Desprovisionamento & Cancelamento de Contrato:** Exclusão da ONU da memória permanente da OLT e liberação instantânea de porta PON e ONU ID (`DELETE`).
+9. **Ações Remotas de Assinante:**
+   - **Reboot Remoto OMCI:** Reinício do equipamento do cliente via protocolo de controle da OLT.
+   - **Suspensão Administrativa (Inadimplência):** Desativação do tráfego GPON mantendo configurações intactas para fácil religamento.
+   - **Reativação / Desbloqueio Financeiro:** Restabelecimento instantâneo do sinal após confirmação de pagamento.
+10. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras, Huawei, Fiberhome, V-SOL e ZTE).
 
 ---
 
@@ -151,10 +156,14 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 | `POST` | `/api/v1/backups/run-all` | Execução em lote de backup de todas as OLTs |
 | `GET` | `/api/v1/backups/audit-all` | Auditoria consolidada de todo o parque de OLTs |
 | `POST` | `/api/v1/backups/purge-all` | Expurgo global de backups em todas as OLTs |
-| `GET` | `/api/v1/olts/{id}/ports/{port}/onus` | Listar ONUs conectadas em uma porta PON |
-| `GET` | `/api/v1/olts/{id}/onus/{serial}` | Consultar potência óptica (Rx/Tx dBm) e status da ONU |
+| `GET` | `/api/v1/olts/{id}/ports/{port}/onus` | Listar ONUs conectadas em uma porta PON com links rápidos |
+| `GET` | `/api/v1/olts/{id}/onus/{serial}` | Consultar potência óptica (Rx/Tx dBm) e atalhos de controle |
 | `GET` | `/api/v1/olts/{id}/unauthorized` | Varredura de ONUs pendentes de ativação com link de provision |
 | `POST` | `/api/v1/olts/{id}/onus` | Provisionar ONU com VLAN, profile e Location header |
+| `DELETE` | `/api/v1/olts/{id}/onus/{serial}` | Desprovisionar ONU e liberar recursos da porta PON |
+| `POST` | `/api/v1/olts/{id}/onus/{serial}/reboot` | Reiniciar remotamente a ONU do cliente via OMCI |
+| `POST` | `/api/v1/olts/{id}/onus/{serial}/suspend` | Bloquear administrativamente a ONU por inadimplência |
+| `POST` | `/api/v1/olts/{id}/onus/{serial}/resume` | Reativar / desbloquear financeiramente a ONU |
 | `POST` | `/api/v1/bootstrap/preview` | Pré-visualizar comandos CLI de inicialização zero-touch |
 | `POST` | `/api/v1/bootstrap/apply` | Aplicar comandos de inicialização na OLT |
 
@@ -162,7 +171,7 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 
 ## 🧪 Testes Unitários
 
-A integridade do projeto é garantida por 89 testes automatizados com cobertura completa de segurança, parsers regex, fluxos HATEOAS e drivers:
+A integridade do projeto é garantida por **101 testes automatizados** com cobertura completa de segurança, parsers regex, fluxos HATEOAS, ações remotas e drivers multi-fabricante:
 
 ```bash
 # Executar a suite de testes

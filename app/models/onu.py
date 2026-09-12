@@ -10,6 +10,9 @@ class ONUSummary(BaseModel):
     serial: str
     status: str = Field(description="Ex: online, offline, los, dying-gasp")
     name: Optional[str] = None
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
 
 
 class ONUDetails(BaseModel):
@@ -21,6 +24,10 @@ class ONUDetails(BaseModel):
     rx_power_dbm: Optional[float] = Field(default=None, description="Potência óptica recebida na OLT em dBm")
     tx_power_dbm: Optional[float] = Field(default=None, description="Potência óptica transmitida pela ONU em dBm")
     vlan: Optional[int] = None
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+
 
 
 class UnauthorizedONU(BaseModel):

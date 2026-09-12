@@ -9,7 +9,7 @@ from app.drivers.base import BaseOLTDriver
 from app.models.bootstrap import BootstrapMode, BootstrapRequest, DefaultONUMode
 from app.models.olt import OLTInDB
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
-from app.models.provision import ProvisionRequest, ProvisionResponse
+from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +281,130 @@ class Intelbras8820Driver(BaseOLTDriver):
             onu_id=onu_id,
             serial=safe_serial,
             message="ONU provisionada e salva com sucesso na memória da OLT Intelbras 8820.",
+        )
+
+    def deprovision_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        safe_port = sanitize_port(port or "1/1")
+        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        onu_idx = onu_id if onu_id is not None else 1
+
+        commands = [
+            "enable",
+            "config",
+            f"interface gpon-olt_{safe_port}",
+            f"no onu {onu_idx}",
+            "exit",
+            "write memory",
+        ]
+        self._execute_cli_commands(olt, commands)
+        logger.info(f"ONU {safe_serial} (porta {safe_port}, id {onu_idx}) desprovisionada na OLT {olt.name}.")
+
+        return ONUActionResponse(
+            success=True,
+            action="deprovision",
+            olt_id=str(olt.id),
+            serial=safe_serial,
+            port=safe_port,
+            onu_id=onu_idx,
+            message=f"ONU {safe_serial} desprovisionada e removida com sucesso da porta {safe_port} na Intelbras 8820.",
+        )
+
+    def reboot_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        safe_port = sanitize_port(port or "1/1")
+        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        onu_idx = onu_id if onu_id is not None else 1
+
+        commands = [
+            "enable",
+            f"reset gpon onu gpon-onu_{safe_port}:{onu_idx}",
+        ]
+        self._execute_cli_commands(olt, commands)
+        logger.info(f"Comando reboot enviado para ONU {safe_serial} ({safe_port}:{onu_idx}) na OLT {olt.name}.")
+
+        return ONUActionResponse(
+            success=True,
+            action="reboot",
+            olt_id=str(olt.id),
+            serial=safe_serial,
+            port=safe_port,
+            onu_id=onu_idx,
+            message=f"Comando de reinicialização remota enviado com sucesso para a ONU {safe_serial} (Porta {safe_port}, ID {onu_idx}).",
+        )
+
+    def suspend_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        safe_port = sanitize_port(port or "1/1")
+        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        onu_idx = onu_id if onu_id is not None else 1
+
+        commands = [
+            "enable",
+            "config",
+            f"interface gpon-olt_{safe_port}",
+            f"onu {onu_idx} deactivate",
+            "exit",
+            "write memory",
+        ]
+        self._execute_cli_commands(olt, commands)
+        logger.info(f"ONU {safe_serial} ({safe_port}:{onu_idx}) suspensa administrativamente na OLT {olt.name}.")
+
+        return ONUActionResponse(
+            success=True,
+            action="suspend",
+            olt_id=str(olt.id),
+            serial=safe_serial,
+            port=safe_port,
+            onu_id=onu_idx,
+            message=f"ONU {safe_serial} suspensa administrativamente (bloqueada) com sucesso na Intelbras 8820.",
+        )
+
+    def resume_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        safe_port = sanitize_port(port or "1/1")
+        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        onu_idx = onu_id if onu_id is not None else 1
+
+        commands = [
+            "enable",
+            "config",
+            f"interface gpon-olt_{safe_port}",
+            f"onu {onu_idx} activate",
+            "exit",
+            "write memory",
+        ]
+        self._execute_cli_commands(olt, commands)
+        logger.info(f"ONU {safe_serial} ({safe_port}:{onu_idx}) reativada na OLT {olt.name}.")
+
+        return ONUActionResponse(
+            success=True,
+            action="resume",
+            olt_id=str(olt.id),
+            serial=safe_serial,
+            port=safe_port,
+            onu_id=onu_idx,
+            message=f"ONU {safe_serial} reativada (desbloqueada) com sucesso na Intelbras 8820.",
         )
 
     def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:

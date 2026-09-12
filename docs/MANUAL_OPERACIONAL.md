@@ -10,7 +10,13 @@ Este manual destina-se a **engenheiros de rede**, **administradores de provedore
 2. [Cadastrando OLTs na API](#2-cadastrando-olts-na-api)
 3. [Coletando Running-Config e Gerenciando Backups](#3-coletando-running-config-e-gerenciando-backups)
 4. [Diagnóstico Óptico e Consulta de ONUs](#4-diagnóstico-óptico-e-consulta-de-onus)
-5. [Descoberta (Autofind) e Provisionamento de ONUs](#5-descoberta-autofind-e-provisionamento-de-onus)
+5. [Ciclo de Vida Completo de ONUs (Provisionamento e Ações Remotas)](#5-ciclo-de-vida-completo-de-onus-provisionamento-e-ações-remotas)
+   - 5.1 [Descoberta (Autofind)](#51-listar-onus-não-autorizadas-no-bairro)
+   - 5.2 [Provisionamento](#52-provisionar-a-onu-ativação-imediata)
+   - 5.3 [Reboot Remoto OMCI](#53-reinicialização-remota-reboot-omci)
+   - 5.4 [Bloqueio por Inadimplência](#54-suspensão-administrativa-bloqueio-por-inadimplência)
+   - 5.5 [Desbloqueio Financeiro](#55-reativação--desbloqueio-financeiro)
+   - 5.6 [Desprovisionamento / Cancelamento](#56-desprovisionamento-e-cancelamento-de-contrato)
 6. [Assistente de Bootstrap Zero-Touch (OLT Virgem)](#6-assistente-de-bootstrap-zero-touch-olt-virgem)
 7. [Exemplos Práticos de Integração (cURL, Python, PHP, Node.js)](#7-exemplos-práticos-de-integração)
 
@@ -198,44 +204,84 @@ Payload opcional: `{"max_backups_per_olt": 30, "max_age_days": 60}`.
 
 ### 4.1 Listar ONUs em uma Porta PON
 `GET /api/v1/olts/{olt_id}/ports/{port}/onus`
-*(Exemplo: `/api/v1/olts/{id}/ports/1/onus` ou `/api/v1/olts/{id}/ports/0-1/onus`)*
+*(Exemplo: `/api/v1/olts/{id}/ports/1/1/onus` ou `/api/v1/olts/{id}/ports/0/1/onus`)*
+
+Cada item da listagem conta com links rápidos (`_links`) para diagnóstico detalhado, reinicialização ou bloqueio imediato:
 
 ```json
 [
   {
+    "port": "1/1",
     "onu_id": 1,
     "serial": "ITBS12345678",
     "status": "online",
-    "distance": "1.2 km",
-    "description": "Cliente_Joao_Silva"
-  },
-  {
-    "onu_id": 2,
-    "serial": "ITBS87654321",
-    "status": "offline",
-    "distance": null,
-    "description": "Cliente_Maria_Santos"
+    "name": "Cliente_Joao_Silva",
+    "_links": {
+      "details": {
+        "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS12345678",
+        "method": "GET",
+        "description": "Consultar níveis de potência óptica e detalhes"
+      },
+      "reboot": {
+        "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS12345678/reboot?port=1/1&onu_id=1",
+        "method": "POST",
+        "description": "Reiniciar remotamente esta ONU"
+      },
+      "suspend": {
+        "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS12345678/suspend?port=1/1&onu_id=1",
+        "method": "POST",
+        "description": "Bloquear administrativamente por inadimplência"
+      }
+    }
   }
 ]
 ```
 
-### 4.2 Consultar Potência Óptica (Sinal RX/TX em dBm)
-`GET /api/v1/olts/{olt_id}/onus/{serial_or_id}/details`
+### 4.2 Consultar Detalhes e Potência Óptica (Sinal RX/TX em dBm)
+`GET /api/v1/olts/{olt_id}/onus/{serial_or_id}`
 
 ```json
 {
+  "port": "1/1",
+  "onu_id": 1,
   "serial": "ITBS12345678",
   "status": "online",
+  "name": "Cliente_Joao_Silva",
   "rx_power_dbm": -19.45,
   "tx_power_dbm": 2.15,
-  "olt_rx_power_dbm": -20.10,
-  "distance_meters": 1240
+  "_links": {
+    "reboot": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS12345678/reboot?port=1/1&onu_id=1",
+      "method": "POST",
+      "description": "Reiniciar remotamente esta ONU"
+    },
+    "suspend": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS12345678/suspend?port=1/1&onu_id=1",
+      "method": "POST",
+      "description": "Suspender administrativamente o serviço da ONU"
+    },
+    "resume": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS12345678/resume?port=1/1&onu_id=1",
+      "method": "POST",
+      "description": "Reativar serviço da ONU"
+    },
+    "deprovision": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS12345678?port=1/1&onu_id=1",
+      "method": "DELETE",
+      "description": "Desprovisionar e liberar porta"
+    },
+    "port_onus": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/ports/1/1/onus",
+      "method": "GET",
+      "description": "Listar ONUs da mesma porta"
+    }
+  }
 }
 ```
 
 ---
 
-## 5. Descoberta (Autofind) e Provisionamento de ONUs
+## 5. Ciclo de Vida Completo de ONUs (Provisionamento e Ações Remotas)
 
 ### 5.1 Listar ONUs Não Autorizadas no Bairro
 `GET /api/v1/olts/{olt_id}/unauthorized`
@@ -290,6 +336,137 @@ Cada ONU descoberta vem acompanhada de um hiperlink HATEOAS que aponta diretamen
     "port_onus": {
       "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/ports/1/1/onus",
       "method": "GET"
+    }
+  }
+}
+```
+
+### 5.3 Reinicialização Remota (Reboot OMCI)
+`POST /api/v1/olts/{olt_id}/onus/{serial_or_id}/reboot?port=1/1&onu_id=3`
+
+Permite ao suporte N1 reiniciar o equipamento da casa do assinante sem visita técnica e sem derrubar a porta PON inteira.
+
+```json
+{
+  "success": true,
+  "action": "reboot",
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "serial": "ITBS99887766",
+  "port": "1/1",
+  "onu_id": 3,
+  "message": "Comando de reinicialização remota enviado com sucesso para a ONU ITBS99887766.",
+  "_links": {
+    "details": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766",
+      "method": "GET",
+      "description": "Verificar status e potências ópticas da ONU pós-reinicialização"
+    },
+    "olt": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde",
+      "method": "GET",
+      "description": "Consultar status da OLT"
+    }
+  }
+}
+```
+
+### 5.4 Suspensão Administrativa (Bloqueio por Inadimplência)
+`POST /api/v1/olts/{olt_id}/onus/{serial_or_id}/suspend?port=1/1&onu_id=3`
+
+Utilizado por rotinas automáticas de ERP (como IXC, MK-Auth) quando uma fatura vence há mais de N dias. Desativa o tráfego da ONU na OLT mantendo as configurações gravadas.
+
+```json
+{
+  "success": true,
+  "action": "suspend",
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "serial": "ITBS99887766",
+  "port": "1/1",
+  "onu_id": 3,
+  "message": "ONU ITBS99887766 suspensa administrativamente (bloqueada) com sucesso.",
+  "_links": {
+    "resume": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766/resume?port=1/1&onu_id=3",
+      "method": "POST",
+      "description": "Reativar / desbloquear serviço da ONU"
+    },
+    "details": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766",
+      "method": "GET",
+      "description": "Verificar status da ONU"
+    },
+    "deprovision": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766?port=1/1&onu_id=3",
+      "method": "DELETE",
+      "description": "Desprovisionar e liberar porta se cancelado"
+    }
+  }
+}
+```
+
+### 5.5 Reativação / Desbloqueio Financeiro
+`POST /api/v1/olts/{olt_id}/onus/{serial_or_id}/resume?port=1/1&onu_id=3`
+
+Ao receber a confirmação de baixa do boleto ou PIX no ERP, a ONU é reativada instantaneamente no hardware da OLT.
+
+```json
+{
+  "success": true,
+  "action": "resume",
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "serial": "ITBS99887766",
+  "port": "1/1",
+  "onu_id": 3,
+  "message": "ONU ITBS99887766 reativada (desbloqueada) com sucesso.",
+  "_links": {
+    "details": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766",
+      "method": "GET",
+      "description": "Verificar sinal óptico da ONU reativada"
+    },
+    "suspend": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766/suspend?port=1/1&onu_id=3",
+      "method": "POST",
+      "description": "Suspender administrativamente a ONU"
+    },
+    "reboot": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/ITBS99887766/reboot?port=1/1&onu_id=3",
+      "method": "POST",
+      "description": "Reiniciar remotamente a ONU"
+    }
+  }
+}
+```
+
+### 5.6 Desprovisionamento e Cancelamento de Contrato
+`DELETE /api/v1/olts/{olt_id}/onus/{serial_or_id}?port=1/1&onu_id=3`
+
+Em caso de cancelamento de plano ou mudança de endereço, a ONU é excluída da memória permanente da OLT, liberando o índice ONU ID e os recursos da porta PON:
+
+```json
+{
+  "success": true,
+  "action": "deprovision",
+  "olt_id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
+  "serial": "ITBS99887766",
+  "port": "1/1",
+  "onu_id": 3,
+  "message": "ONU ITBS99887766 desprovisionada e removida com sucesso da porta 1/1.",
+  "_links": {
+    "unauthorized_onus": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/unauthorized",
+      "method": "GET",
+      "description": "Verificar ONUs não autorizadas para reprovisionamento"
+    },
+    "port_onus": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/ports/1/1/onus",
+      "method": "GET",
+      "description": "Listar ONUs ativas na porta"
+    },
+    "olt": {
+      "href": "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde",
+      "method": "GET",
+      "description": "Consultar dados da OLT"
     }
   }
 }

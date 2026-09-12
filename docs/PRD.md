@@ -25,15 +25,23 @@ Isso gera:
 
 ---
 
-## 3. Limites do MVP (Foco Estrito)
-O MVP cobre estritamente as 5 operações fundamentais:
-1. **Visualizar Configurações:** Obter a configuração corrente (`running-config`) das OLTs cadastradas.
-2. **Backup de Configurações:** Disparar rotina de backup, salvar localmente com integridade SHA-256 e ID **UUIDv7**, e permitir download via API.
-3. **Diagnóstico de Porta e ONU:** Listar ONUs de uma porta PON e consultar sinal óptico e status operacional de uma ONU específica.
-4. **Varredura de Descoberta:** Listar ONUs pendentes de autorização (*unconfigured / autofind*).
+## 3. Escopo Funcional e Operações Suportadas
+A plataforma cobre as operações vitais para o ciclo de vida operacional de rede PON:
+1. **Visualizar Configurações:** Obter a configuração corrente (`running-config` / TL1) das OLTs cadastradas.
+2. **Backup & Disaster Recovery:** Disparar rotinas sob demanda ou periódicas, salvar com integridade SHA-256 e ID **UUIDv7**, auditoria e expurgo automático.
+3. **Diagnóstico de Porta e ONU:** Listar ONUs de uma porta PON e consultar sinal óptico e status operacional de uma ONU específica, com links HATEOAS de navegação.
+4. **Varredura de Descoberta (Autofind):** Listar ONUs pendentes de autorização (*unconfigured / autofind*).
 5. **Provisionamento:** Autorizar ONU na porta com perfil e VLAN.
+6. **Desprovisionamento & Cancelamento:** Excluir ONU da OLT e liberar recursos da porta PON (`DELETE`).
+7. **Ações Remotas de Assinante:** Reboot remoto OMCI, Suspensão Administrativa (bloqueio por inadimplência) e Reativação / Desbloqueio financeiro (`suspend` / `resume`).
+8. **Assistente Zero-Touch Bootstrap:** Geração de scripts oficiais para OLTs novas de fábrica.
 
-*Piloto Inicial do MVP:* OLT **Intelbras 8820** (GPON).
+*Parque de Fabricantes Suportados:*
+- **Intelbras:** 8820i / 8820 (Broadcom CLI) e Linha G-Series (G08 / G16).
+- **Huawei:** SmartAX MA5800 / MA5608T (VRP CLI).
+- **Fiberhome:** AN5516-01 / AN5516-04 / AN5516-06 (TL1 Protocol).
+- **V-SOL:** V1600GT / V1600G (CLI).
+- **ZTE:** ZXA10 C300 / C320 (ZXROS CLI).
 
 ---
 
@@ -42,6 +50,8 @@ O MVP cobre estritamente as 5 operações fundamentais:
 - [x] Toda entidade e backup identificado por **UUIDv7** (RFC 9562).
 - [x] Proteção ativa contra injeção de comandos CLI em todos os parâmetros de entrada.
 - [x] Autenticação por token/chave de API em todos os endpoints sensíveis.
-- [x] Driver da Intelbras 8820 implementado com parser de CLI realistas e desacoplado.
-- [x] 100% de cobertura de testes unitários para gerador UUIDv7, sanitizadores de segurança, parsers e endpoints da API.
+- [x] 6 Drivers de fabricantes implementados com parsers e geração de comandos realistas.
+- [x] Ciclo de vida completo de ONUs: Descoberta, Provisionamento, Reboot, Suspensão, Reativação e Desprovisionamento.
+- [x] Suporte a HATEOAS em todos os endpoints fornecendo transições de estado navegáveis.
+- [x] 100% de cobertura de testes unitários automatizados (101 testes passando).
 - [x] Pipeline CI/CD GitHub Actions otimizado, sem avisos de depreciação e com limite de tempo e controle de concorrência.

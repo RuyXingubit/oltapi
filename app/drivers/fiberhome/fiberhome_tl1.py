@@ -16,7 +16,7 @@ from app.drivers.base import BaseOLTDriver
 from app.models.bootstrap import BootstrapMode, BootstrapRequest
 from app.models.olt import OLTInDB
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
-from app.models.provision import ProvisionRequest, ProvisionResponse
+from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 
 logger = logging.getLogger(__name__)
 
@@ -339,6 +339,118 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             onu_id=1,
             serial=safe_serial,
             message=f"ONU provisionada com sucesso na OLT Fiberhome TL1 (Slot {slot}, PON {pon}, VLAN {safe_vlan}).",
+        )
+
+    def deprovision_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        safe_port = sanitize_port(port or "1/1")
+        slot, pon = self.parse_port_components(safe_port)
+        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        onu_idx = onu_id if onu_id is not None else 1
+
+        commands = [
+            f"DEL-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::;",
+        ]
+        self._execute_tl1_commands(olt, commands)
+        logger.info(f"ONU {safe_serial} (slot {slot}, pon {pon}, id {onu_idx}) desprovisionada via TL1 na OLT {olt.name}.")
+
+        return ONUActionResponse(
+            success=True,
+            action="deprovision",
+            olt_id=str(olt.id),
+            serial=safe_serial,
+            port=f"{slot}/{pon}",
+            onu_id=onu_idx,
+            message=f"ONU {safe_serial} removida com sucesso via TL1 (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
+        )
+
+    def reboot_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        safe_port = sanitize_port(port or "1/1")
+        slot, pon = self.parse_port_components(safe_port)
+        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        onu_idx = onu_id if onu_id is not None else 1
+
+        commands = [
+            f"RESET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::;",
+        ]
+        self._execute_tl1_commands(olt, commands)
+        logger.info(f"Comando reboot enviado via TL1 para ONU {safe_serial} ({slot}/{pon}:{onu_idx}) na OLT {olt.name}.")
+
+        return ONUActionResponse(
+            success=True,
+            action="reboot",
+            olt_id=str(olt.id),
+            serial=safe_serial,
+            port=f"{slot}/{pon}",
+            onu_id=onu_idx,
+            message=f"Comando de reinicialização remota enviado via TL1 para a ONU {safe_serial}.",
+        )
+
+    def suspend_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        safe_port = sanitize_port(port or "1/1")
+        slot, pon = self.parse_port_components(safe_port)
+        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        onu_idx = onu_id if onu_id is not None else 1
+
+        commands = [
+            f"SET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::ADMINSTATUS=DOWN;",
+        ]
+        self._execute_tl1_commands(olt, commands)
+        logger.info(f"ONU {safe_serial} ({slot}/{pon}:{onu_idx}) suspensa via TL1 na OLT {olt.name}.")
+
+        return ONUActionResponse(
+            success=True,
+            action="suspend",
+            olt_id=str(olt.id),
+            serial=safe_serial,
+            port=f"{slot}/{pon}",
+            onu_id=onu_idx,
+            message=f"ONU {safe_serial} suspensa administrativamente via TL1.",
+        )
+
+    def resume_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        safe_port = sanitize_port(port or "1/1")
+        slot, pon = self.parse_port_components(safe_port)
+        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        onu_idx = onu_id if onu_id is not None else 1
+
+        commands = [
+            f"SET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::ADMINSTATUS=UP;",
+        ]
+        self._execute_tl1_commands(olt, commands)
+        logger.info(f"ONU {safe_serial} ({slot}/{pon}:{onu_idx}) reativada via TL1 na OLT {olt.name}.")
+
+        return ONUActionResponse(
+            success=True,
+            action="resume",
+            olt_id=str(olt.id),
+            serial=safe_serial,
+            port=f"{slot}/{pon}",
+            onu_id=onu_idx,
+            message=f"ONU {safe_serial} reativada com sucesso via TL1.",
         )
 
     def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:

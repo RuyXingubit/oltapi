@@ -1,11 +1,12 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.api.deps import get_olt_repo, require_api_key
+from app.core.security import sanitize_port, sanitize_safe_string
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
 from app.models.onu import UnauthorizedONU
-from app.models.provision import ProvisionRequest, ProvisionResponse
+from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.storage.olt_repository import OLTRepository
 
 router = APIRouter(prefix="/olts", tags=["Provisionamento & Descoberta"], dependencies=[Depends(require_api_key)])
@@ -73,4 +74,175 @@ def provision_onu(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao provisionar ONU: {str(e)}")
+
+
+@router.delete("/{olt_id}/onus/{serial_or_id}", response_model=ONUActionResponse)
+def deprovision_onu(
+    olt_id: str,
+    serial_or_id: str,
+    port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
+    onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
+    repo: OLTRepository = Depends(get_olt_repo),
+):
+    """Desprovisiona uma ONU e libera a porta PON e recursos alocados na OLT."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    try:
+        clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        clean_port = sanitize_port(port) if port else None
+        driver = DriverFactory.get_driver(olt)
+        result = driver.deprovision_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
+        result.links = {
+            "unauthorized_onus": Link(
+                href=f"/api/v1/olts/{olt_id}/unauthorized",
+                method="GET",
+                description="Verificar ONUs não autorizadas para reprovisionamento",
+            ),
+            "port_onus": Link(
+                href=f"/api/v1/olts/{olt_id}/ports/{result.port}/onus" if result.port else f"/api/v1/olts/{olt_id}/unauthorized",
+                method="GET",
+                description="Listar ONUs ativas na porta",
+            ),
+            "olt": Link(
+                href=f"/api/v1/olts/{olt_id}",
+                method="GET",
+                description="Consultar dados da OLT",
+            ),
+        }
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao desprovisionar ONU: {str(e)}")
+
+
+@router.post("/{olt_id}/onus/{serial_or_id}/reboot", response_model=ONUActionResponse)
+def reboot_onu(
+    olt_id: str,
+    serial_or_id: str,
+    port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
+    onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
+    repo: OLTRepository = Depends(get_olt_repo),
+):
+    """Reinicia remotamente a ONU do cliente através de comando de gerenciamento OMCI da OLT."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    try:
+        clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        clean_port = sanitize_port(port) if port else None
+        driver = DriverFactory.get_driver(olt)
+        result = driver.reboot_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
+        result.links = {
+            "details": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}",
+                method="GET",
+                description="Verificar status e potências ópticas da ONU pós-reinicialização",
+            ),
+            "olt": Link(
+                href=f"/api/v1/olts/{olt_id}",
+                method="GET",
+                description="Consultar status da OLT",
+            ),
+        }
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao reiniciar ONU: {str(e)}")
+
+
+@router.post("/{olt_id}/onus/{serial_or_id}/suspend", response_model=ONUActionResponse)
+def suspend_onu(
+    olt_id: str,
+    serial_or_id: str,
+    port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
+    onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
+    repo: OLTRepository = Depends(get_olt_repo),
+):
+    """Suspende administrativamente a ONU (bloqueio por inadimplência/financeiro) desativando o tráfego GPON sem perder o cadastro."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    try:
+        clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        clean_port = sanitize_port(port) if port else None
+        driver = DriverFactory.get_driver(olt)
+        result = driver.suspend_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
+        result.links = {
+            "resume": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}/resume" + (f"?port={result.port}&onu_id={result.onu_id}" if result.port else ""),
+                method="POST",
+                description="Reativar / desbloquear serviço da ONU",
+            ),
+            "details": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}",
+                method="GET",
+                description="Verificar status da ONU",
+            ),
+            "deprovision": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}" + (f"?port={result.port}&onu_id={result.onu_id}" if result.port else ""),
+                method="DELETE",
+                description="Desprovisionar e liberar porta se cancelado",
+            ),
+        }
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao suspender ONU: {str(e)}")
+
+
+@router.post("/{olt_id}/onus/{serial_or_id}/resume", response_model=ONUActionResponse)
+def resume_onu(
+    olt_id: str,
+    serial_or_id: str,
+    port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
+    onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
+    repo: OLTRepository = Depends(get_olt_repo),
+):
+    """Reativa a ONU suspensa (desbloqueio após confirmação de pagamento), restabelecendo o tráfego GPON."""
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    try:
+        clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        clean_port = sanitize_port(port) if port else None
+        driver = DriverFactory.get_driver(olt)
+        result = driver.resume_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
+        result.links = {
+            "details": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}",
+                method="GET",
+                description="Verificar sinal óptico da ONU reativada",
+            ),
+            "suspend": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}/suspend" + (f"?port={result.port}&onu_id={result.onu_id}" if result.port else ""),
+                method="POST",
+                description="Suspender administrativamente a ONU",
+            ),
+            "reboot": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}/reboot" + (f"?port={result.port}&onu_id={result.onu_id}" if result.port else ""),
+                method="POST",
+                description="Reiniciar remotamente a ONU",
+            ),
+        }
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao reativar ONU: {str(e)}")
 

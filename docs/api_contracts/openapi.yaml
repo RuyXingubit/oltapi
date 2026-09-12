@@ -391,6 +391,211 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+    delete:
+      summary: Desprovisionar e remover ONU da OLT
+      description: Remove o registro da ONU na OLT liberando a porta PON e recursos alocados.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: serial_or_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "INCL12345678"
+        - name: port
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "1/1"
+          description: Porta PON da ONU (opcional)
+        - name: onu_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+          description: ID numérico da ONU (opcional)
+      responses:
+        '200':
+          description: ONU desprovisionada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUActionResponse'
+        '404':
+          description: OLT ou ONU não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Falha na comunicação com a OLT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}/reboot:
+    post:
+      summary: Reiniciar remotamente a ONU (Reboot OMCI)
+      description: Envia comando de reinicialização remota via protocolo de controle OMCI através da OLT.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: serial_or_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "INCL12345678"
+        - name: port
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "1/1"
+        - name: onu_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Comando de reinicialização enviado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUActionResponse'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Falha na comunicação com a OLT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}/suspend:
+    post:
+      summary: Suspender administrativamente a ONU (Bloqueio por inadimplência)
+      description: Desativa administrativamente o tráfego GPON da ONU mantendo os dados cadastrais intactos.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: serial_or_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "INCL12345678"
+        - name: port
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "1/1"
+        - name: onu_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: ONU suspensa administrativamente com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUActionResponse'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Falha na comunicação com a OLT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}/resume:
+    post:
+      summary: Reativar ONU suspensa (Desbloqueio financeiro)
+      description: Restabelece o tráfego GPON da ONU suspensa após confirmação de pagamento.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: serial_or_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "INCL12345678"
+        - name: port
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "1/1"
+        - name: onu_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: ONU reativada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUActionResponse'
+        '404':
+          description: OLT não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Falha na comunicação com a OLT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/olts/{olt_id}/unauthorized:
     get:
       summary: Listar ONUs não autorizadas (descobertas)
@@ -969,6 +1174,37 @@ components:
         message:
           type: string
           example: "ONU provisionada e salva com sucesso na memória da OLT."
+        _links:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+
+    ONUActionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        action:
+          type: string
+          example: "deprovision"
+          enum: [deprovision, reboot, suspend, resume]
+        olt_id:
+          type: string
+          format: uuid
+          example: "0191e4f2-51a8-7d84-a12b-3456789abcde"
+        serial:
+          type: string
+          example: "INCL12345678"
+        port:
+          type: string
+          example: "1/1"
+        onu_id:
+          type: integer
+          example: 1
+        message:
+          type: string
+          example: "ONU desprovisionada com sucesso."
         _links:
           type: object
           additionalProperties:

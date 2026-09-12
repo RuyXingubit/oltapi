@@ -22,3 +22,17 @@ class ProvisionResponse(BaseModel):
 
     model_config = {"populate_by_name": True}
 
+
+class ONUActionResponse(BaseModel):
+    success: bool = True
+    action: str = Field(description="Tipo de ação: deprovision, reboot, suspend, resume")
+    olt_id: str
+    serial: str
+    port: Optional[str] = None
+    onu_id: Optional[int] = None
+    message: str
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+
+
