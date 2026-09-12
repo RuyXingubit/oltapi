@@ -299,12 +299,16 @@ pytest tests/ -v
 
 ## 9. Executando o Ambiente Local
 
-### Via Docker:
+### Via Docker Compose (Recomendado - Stack com PostgreSQL 16):
+Garante paridade de 100% com produção, executando tanto o banco relacional PostgreSQL 16 oficial quanto a API:
 ```bash
 docker compose up -d --build
 ```
+- **OLTAPI (FastAPI):** `http://localhost:8000` (Swagger em `/api/v1/docs`).
+- **PostgreSQL 16:** Porta `5432` exposta no host, volume `postgres_data`, credenciais padrão `oltuser` / `oltpassword` e database `oltapi`.
+- **Inspecionar Banco via terminal:** `docker exec -it oltapi_postgres psql -U oltuser -d oltapi`.
 
-### Via Python venv:
+### Via Python venv (Modo Standalone com SQLite WAL):
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate

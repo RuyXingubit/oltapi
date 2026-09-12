@@ -882,16 +882,68 @@ graph LR
 
 O OLTAPI adota uma camada de persistência relacional com **SQLAlchemy 2.0** e versionamento canônico de esquema via **Alembic**, garantindo transações ACID, isolamento concorrente e integridade referencial com chaves primárias **UUIDv7**.
 
-### 11.1 Configuração da Base de Dados
+### 11.1 Arquitetura Docker Compose com PostgreSQL 16 (Paridade Absoluta Dev/Prod)
+
+Para assegurar que o ambiente de desenvolvimento, homologação e produção comportem-se de maneira **100% idêntica** (mesmos drivers, tipos de dados, concorrência e transações DDL nas migrações), o `docker-compose.yml` provisiona a stack oficial com dois serviços coordenados:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: oltapi_postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oltuser -d oltapi"]
+
+  oltapi:
+    build: .
+    container_name: oltapi
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://oltuser:oltpassword@postgres:5432/oltapi
+```
+
+#### Inicialização da Stack:
+```bash
+docker compose up -d --build
+```
+
+Ao iniciar, a API aguarda o PostgreSQL atingir o estado saudável (`service_healthy`) e executa automaticamente as migrações do Alembic:
+```text
+oltapi  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+oltapi  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
+oltapi  | INFO  [alembic.runtime.migration] Running upgrade  -> cf1f56210add, initial_schema
+```
+
+#### Acesso Direto ao Banco PostgreSQL via Terminal:
+Para inspecionar as tabelas, índices e registros diretamente pelo terminal do container:
+```bash
+docker exec -it oltapi_postgres psql -U oltuser -d oltapi
+```
+Comandos úteis no `psql`:
+- `\dt`: Lista todas as 7 tabelas gerenciadas pelo Alembic (`olts`, `onus_inventory`, `onus_history`, `backups_metadata`, `webhook_subscriptions`, `webhook_deliveries`, `alembic_version`).
+- `SELECT * FROM olts;`: Consulta OLTs cadastradas.
+- `SELECT * FROM onus_inventory;`: Consulta ONUs catalogadas.
+
+---
+
+### 11.2 Configuração da Base de Dados
 
 A persistência é configurada via variável de ambiente `DATABASE_URL` no arquivo `.env`:
 
 ```bash
-# Modo Padrão / Embarcado: SQLite com Write-Ahead Logging (WAL)
-DATABASE_URL="sqlite:///./data/oltapi.db"
+# Modo Oficial / Produção / Docker Compose: PostgreSQL 16
+DATABASE_URL="postgresql+psycopg2://oltuser:oltpassword@postgres:5432/oltapi"
 
-# Modo Corporativo / Alta Disponibilidade: PostgreSQL
-DATABASE_URL="postgresql+psycopg2://oltapi:senha_forte@postgres.infra.local:5432/oltapi_prod"
+# Modo Embarcado / Testes Locais Leves: SQLite WAL
+DATABASE_URL="sqlite:///./data/oltapi.db"
 
 # Ativar logs SQL de depuração (opcional, padrão: false)
 DATABASE_ECHO=false
@@ -899,19 +951,21 @@ DATABASE_ECHO=false
 
 > [!TIP]
 > **Performance no SQLite (WAL Mode):**
-> Em conexões SQLite, o OLTAPI ativa automaticamente no evento de conexão:
+> Caso seja necessário rodar sem Docker diretamente em SQLite, o OLTAPI ativa automaticamente no evento de conexão:
 > - `PRAGMA journal_mode=WAL;` (permite múltiplas leituras concorrentes sem bloquear escritas).
 > - `PRAGMA foreign_keys=ON;` (garante integridade referencial rígida).
 > - `PRAGMA synchronous=NORMAL;` (excelente throughput sem risco de corrupção).
 
-### 11.2 Migração Transparente de Dados Legados (Zero Downtime)
+---
+
+### 11.3 Migração Transparente de Dados Legados (Zero Downtime)
 
 Caso seu ambiente possua arquivos JSON legados (`olts.json`, `onus_inventory.json`, `onus_history.json`, `webhooks.json`, `backups_metadata.json`), o OLTAPI na inicialização:
 1. Executa o comando canônico `alembic upgrade head` para certificar que todas as tabelas e índices estão atualizados.
 2. Identifica os arquivos JSON legados e importa todos os registros para as tabelas relacionais de forma **idempotente** (sem duplicatas).
 3. Renomeia os arquivos antigos com sufixo `.migrated` para manter histórico seguro.
 
-### 11.3 Operação com o CLI do Alembic
+### 11.4 Operação com o CLI do Alembic
 
 Para administradores e engenheiros de DevOps que desejam manipular migrações via terminal:
 
@@ -935,7 +989,7 @@ alembic downgrade -1
 > [!NOTE]
 > Para compatibilidade total entre SQLite e PostgreSQL, o arquivo `alembic/env.py` está configurado com `render_as_batch=True`, permitindo alterações de tabelas com constraints sem limitações de engine.
 
-### 11.4 Ambiente de Testes Fidedigno com Testcontainers (PostgreSQL 16)
+### 11.5 Ambiente de Testes Fidedigno com Testcontainers (PostgreSQL 16)
 
 Para garantir paridade absoluta com a infraestrutura de produção, o OLTAPI integra **Testcontainers** (`testcontainers[postgres]`). 
 

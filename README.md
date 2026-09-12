@@ -105,7 +105,9 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 ### Pré-requisitos
 - Docker e Docker Compose **OU** Python 3.11+ instalado.
 
-### Opção 1: Via Docker Compose (Recomendado para Produção)
+### Opção 1: Via Docker Compose (Stack Completa com PostgreSQL 16)
+
+Esta é a opção recomendada tanto para desenvolvimento quanto para produção, garantindo **paridade absoluta** com o banco de dados oficial:
 
 ```bash
 # 1. Clone o repositório
@@ -115,8 +117,17 @@ cd oltapi
 # 2. Configure as variáveis de ambiente (opcional, defaults seguros inclusos)
 cp .env.example .env
 
-# 3. Inicie o container em background com healthcheck nativo
+# 3. Inicie a stack (PostgreSQL 16 oficial + OLTAPI com migrações automáticas)
 docker compose up -d --build
+```
+
+A stack inicializa automaticamente:
+- **`oltapi_postgres` (PostgreSQL 16 Alpine):** Porta `5432`, com volume persistente `postgres_data` e healthcheck `pg_isready`.
+- **`oltapi` (FastAPI Core):** Porta `8000`, aguarda o banco estar saudável, aplica as migrações do **Alembic** (`Context impl PostgresqlImpl`) e inicia o serviço.
+
+Verifique os serviços ativos:
+```bash
+docker compose ps
 ```
 
 A API estará disponível imediatamente em: `http://localhost:8000`
