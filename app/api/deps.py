@@ -28,6 +28,8 @@ from app.storage.sql.webhook_repository import SQLWebhookRepository
 from app.storage.sql.backup_storage import SQLBackupStorage
 from app.services.webhook_dispatcher import WebhookDispatcher
 from app.services.onu_reconciliation_service import ONUReconciliationService
+from app.services.autofind_scanner import AutofindScannerService
+from app.services.olt_sync_service import OLTSyncService
 from app.storage.sql.ftp_repository import SQLFTPRepository
 
 # Instâncias singleton padrão (persistência relacional via SQLAlchemy)
@@ -86,10 +88,9 @@ def get_reconciliation_service() -> ONUReconciliationService:
     return _reconciliation_service
 
 
-def get_scanner_service() -> "AutofindScannerService":
+def get_scanner_service() -> AutofindScannerService:
     global _scanner_service
     if _scanner_service is None:
-        from app.services.autofind_scanner import AutofindScannerService
         _scanner_service = AutofindScannerService(
             olt_repo=_olt_repo,
             onu_repo=_onu_repo,
@@ -275,8 +276,7 @@ def get_sync_service(
     olt_repo: Union[SQLOLTRepository, OLTRepository] = Depends(get_olt_repo),
     onu_repo: Union[SQLONUInventoryRepository, ONUInventoryRepository] = Depends(get_onu_repo),
     backup_service: BackupService = Depends(get_backup_service),
-) -> "OLTSyncService":
-    from app.services.olt_sync_service import OLTSyncService
+) -> OLTSyncService:
     return OLTSyncService(olt_repo=olt_repo, onu_repo=onu_repo, backup_service=backup_service)
 
 

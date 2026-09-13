@@ -147,11 +147,17 @@ pytest tests/ -v
    ```bash
    pytest tests/ -v
    ```
-4. Faça o commit com mensagens claras seguindo o padrão de commits semânticos:
+4. **Sincronização Obrigatória do OpenAPI (Mandatório antes de Commit & Push):**
+   ```bash
+   python -m scripts.export_openapi
+   git add docs/api_contracts/
+   ```
+   *(Dica: execute `python scripts/install_git_hooks.py` para instalar os hooks locais que automatizam essa etapa no `pre-commit` e `pre-push`).*
+5. Faça o commit com mensagens claras seguindo o padrão de commits semânticos:
    ```bash
    git commit -m "feat(driver): add Huawei MA5800 driver and optical diagnostic parser"
    ```
-5. Envie para o seu Fork e abra um **Pull Request** detalhando:
+6. Envie para o seu Fork e abra um **Pull Request** detalhando:
    - Modelo da OLT testada e versão de firmware.
    - Exemplos de saídas de CLI utilizadas nos testes.
    - Casos cobertos.

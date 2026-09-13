@@ -1,11 +1,18 @@
 import hashlib
 import json
 import logging
+from datetime import datetime, timezone
+import difflib
 from pathlib import Path
 from typing import Dict, List, Optional
 from app.core.config import settings
 from app.core.uuid import generate_uuid7, is_valid_uuid7
-from app.models.backup import BackupMetadata
+from app.models.backup import (
+    BackupAuditReport,
+    BackupDiffResult,
+    BackupMetadata,
+    PurgeResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,10 +116,8 @@ class BackupStorage:
         olt_id: str,
         base_backup_id: Optional[str] = None,
         target_backup_id: Optional[str] = None,
-    ) -> Optional["BackupDiffResult"]:
+    ) -> Optional[BackupDiffResult]:
         """Compara dois backups por hash SHA-256 e gera diff unificado linha a linha."""
-        from app.models.backup import BackupDiffResult
-        import difflib
 
         all_backups = self.list_by_olt(olt_id)
         if not all_backups:
@@ -184,9 +189,8 @@ class BackupStorage:
             deletions_count=deletions,
         )
 
-    def audit_olt(self, olt_id: str, olt_name: str) -> "BackupAuditReport":
+    def audit_olt(self, olt_id: str, olt_name: str) -> BackupAuditReport:
         """Gera relatório de integridade e auditoria de backups para a OLT."""
-        from app.models.backup import BackupAuditReport
 
         backups = self.list_by_olt(olt_id)
         total_backups = len(backups)
@@ -229,10 +233,8 @@ class BackupStorage:
         olt_id: Optional[str] = None,
         max_backups_per_olt: int = 30,
         max_age_days: Optional[int] = None,
-    ) -> "PurgeResult":
+    ) -> PurgeResult:
         """Aplica política de retenção e expurgo de backups obsoletos por quantidade ou idade."""
-        from datetime import datetime, timezone
-        from app.models.backup import PurgeResult
 
         target_olt_ids = [olt_id] if olt_id else list({b.olt_id for b in self._backups.values()})
         deleted_count = 0

@@ -1,637 +1,1183 @@
 openapi: 3.1.0
 info:
-  title: OLT Provisioning & Diagnostics Unified API
-  description: API REST padronizada para provisionamento multi-fabricante de OLTs, coleta de configurações, gestão de backups e diagnóstico óptico.
+  title: OLT Provisioning & Diagnostics API
+  description: API REST padronizada para provisionamento multi-fabricante de OLTs,
+    coleta de configurações, gestão de backups e diagnóstico óptico.
   version: 1.0.0
-servers:
-  - url: http://localhost:8000
-    description: Servidor Local de Desenvolvimento
 paths:
-  /api/v1/olts:
+  /api/v1/setup/status:
     get:
-      summary: Listar OLTs cadastradas
-      description: Retorna a lista de todas as OLTs disponíveis para provisionamento e gerência.
-      security:
-        - ApiKeyAuth: []
+      tags:
+      - Setup Inicial
+      summary: Verifica status de inicialização do sistema
+      description: 'Retorna se o sistema já foi configurado com a empresa matriz (Provider
+        Owner) e admin.
+
+        Endpoint público para orientar a interface web / clientes API.'
+      operationId: get_setup_status_api_v1_setup_status_get
       responses:
         '200':
-          description: Lista de OLTs
+          description: Successful Response
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/OLTResponse'
+                $ref: '#/components/schemas/SetupStatusResponse'
+  /api/v1/setup/init:
     post:
-      summary: Cadastrar nova OLT
-      description: Adiciona uma nova OLT ao inventário da API.
+      tags:
+      - Setup Inicial
+      summary: Executa o setup inicial do sistema (First-Run Wizard)
+      description: 'Inicializa o sistema com a empresa matriz e a conta de Super Administrador
+        real.
+
+        - Exige a Master API Key configurada no .env via header ''X-API-Key''.
+
+        - Bloqueia permanentemente após o primeiro uso (retorna 403 Forbidden).
+
+        - Não utiliza nenhum dado falso ou senha padrão hardcoded.'
+      operationId: initialize_system_api_v1_setup_init_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetupInitRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupInitResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+  /api/v1/auth/login:
+    post:
+      tags:
+      - Autenticação & Sessões Web
+      summary: Login
+      description: Autentica usuário e senha para acesso à futura interface Web gerando
+        token JWT.
+      operationId: login_api_v1_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/me:
+    get:
+      tags:
+      - Autenticação & Sessões Web
+      summary: Get Current User Profile
+      description: Retorna dados do usuário autenticado, suas permissões de OLT e
+        VLANs autorizadas.
+      operationId: get_current_user_profile_api_v1_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/tenants:
+    get:
+      tags:
+      - Gestão de Inquilinos & Rede Neutra
+      summary: List Tenants
+      description: Lista todos os inquilinos cadastrados (apenas SUPER_ADMIN).
+      operationId: list_tenants_api_v1_tenants_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TenantResponse'
+                type: array
+                title: Response List Tenants Api V1 Tenants Get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+    post:
+      tags:
+      - Gestão de Inquilinos & Rede Neutra
+      summary: Create Tenant
+      description: Cadastra um novo Inquilino / Operadora de Rede Neutra (apenas SUPER_ADMIN).
+      operationId: create_tenant_api_v1_tenants_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/tenants/{tenant_id}:
+    get:
+      tags:
+      - Gestão de Inquilinos & Rede Neutra
+      summary: Get Tenant By Id
+      description: Consulta detalhes de um inquilino e suas VLANs alocadas.
+      operationId: get_tenant_by_id_api_v1_tenants__tenant_id__get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tenants/{tenant_id}/vlans:
+    post:
+      tags:
+      - Gestão de Inquilinos & Rede Neutra
+      summary: Allocate Vlan
+      description: Aloca uma VLAN para a operadora de rede neutra em uma OLT específica
+        (apenas SUPER_ADMIN).
+      operationId: allocate_vlan_api_v1_tenants__tenant_id__vlans_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OLTCreateRequest'
+              $ref: '#/components/schemas/TenantVLANAllocationCreate'
       responses:
         '201':
-          description: OLT cadastrada com sucesso com teste de conectividade e links guiados
-          headers:
-            Location:
-              description: URI canônica da OLT recém-cadastrada
+          description: Successful Response
+          content:
+            application/json:
               schema:
-                type: string
-                example: "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde"
+                $ref: '#/components/schemas/TenantVLANAllocationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tenants/{tenant_id}/vlans/{allocation_id}:
+    delete:
+      tags:
+      - Gestão de Inquilinos & Rede Neutra
+      summary: Deallocate Vlan
+      description: Remove a alocação de VLAN de uma operadora (apenas SUPER_ADMIN).
+      operationId: deallocate_vlan_api_v1_tenants__tenant_id__vlans__allocation_id__delete
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      - name: allocation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Allocation Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users:
+    get:
+      tags:
+      - Gestão de Usuários & Técnicos
+      summary: List Users
+      description: Lista usuários cadastrados no inquilino do chamador ou todos se
+        SUPER_ADMIN.
+      operationId: list_users_api_v1_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/UserResponse'
+                type: array
+                title: Response List Users Api V1 Users Get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+    post:
+      tags:
+      - Gestão de Usuários & Técnicos
+      summary: Create User
+      description: Cria um novo usuário ou técnico com suas respectivas permissões
+        de OLT.
+      operationId: create_user_api_v1_users_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/users/{user_id}:
+    get:
+      tags:
+      - Gestão de Usuários & Técnicos
+      summary: Get User By Id
+      description: Consulta detalhes de um usuário.
+      operationId: get_user_by_id_api_v1_users__user_id__get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Gestão de Usuários & Técnicos
+      summary: Update User
+      description: Atualiza dados, senha, perfil ou permissões de OLT de um usuário.
+      operationId: update_user_api_v1_users__user_id__patch
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Gestão de Usuários & Técnicos
+      summary: Delete User
+      description: Exclui um usuário (apenas SUPER_ADMIN ou TENANT_ADMIN dentro do
+        seu inquilino).
+      operationId: delete_user_api_v1_users__user_id__delete
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/api-keys:
+    get:
+      tags:
+      - Gestão de Chaves de API Secundárias
+      summary: List Api Keys
+      description: Lista as chaves de API dinâmicas ativas/revogadas do inquilino
+        do chamador.
+      operationId: list_api_keys_api_v1_api_keys_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/APIKeyResponse'
+                type: array
+                title: Response List Api Keys Api V1 Api Keys Get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+    post:
+      tags:
+      - Gestão de Chaves de API Secundárias
+      summary: Create Dynamic Api Key
+      description: 'Gera uma nova chave de API com escopos granulares.
+
+        ATENÇÃO: A chave secreta em texto puro é retornada apenas uma única vez na
+        criação.'
+      operationId: create_dynamic_api_key_api_v1_api_keys_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIKeyCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyCreatedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/api-keys/{api_key_id}:
+    delete:
+      tags:
+      - Gestão de Chaves de API Secundárias
+      summary: Revoke Api Key
+      description: Revoga imediatamente uma chave de API dinâmica.
+      operationId: revoke_api_key_api_v1_api_keys__api_key_id__delete
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: api_key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Api Key Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts:
+    get:
+      tags:
+      - OLTs & Backups
+      summary: List Olts
+      description: Lista todas as OLTs cadastradas permitidas para o usuário.
+      operationId: list_olts_api_v1_olts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/OLTResponse'
+                type: array
+                title: Response List Olts Api V1 Olts Get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Create Olt
+      description: Cadastra uma nova OLT no inventário (apenas usuários com permissão
+        administrativa).
+      operationId: create_olt_api_v1_olts_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OLTCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OLTResponse'
-        '400':
-          description: Dados inválidos
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/olts/{olt_id}:
     get:
-      summary: Consultar detalhes da OLT com links HATEOAS
-      description: Retorna os dados cadastrais da OLT e links de navegação para config, ONUs e backups.
+      tags:
+      - OLTs & Backups
+      summary: Get Olt
+      description: Consulta os detalhes cadastrais de uma OLT específica com seus
+        links de ação.
+      operationId: get_olt_api_v1_olts__olt_id__get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: ID da OLT (UUIDv7)
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       responses:
         '200':
-          description: Detalhes da OLT com links contextuais
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OLTResponse'
-        '404':
-          description: OLT não encontrada
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - OLTs & Backups
+      summary: Delete Olt
+      description: Remove uma OLT cadastrada no inventário.
+      operationId: delete_olt_api_v1_olts__olt_id__delete
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/test-connection:
     post:
-      summary: Testar conectividade TCP com a OLT
-      description: Executa checagem rápida de conectividade na porta da OLT, medindo latência e retornando links de ação.
+      tags:
+      - OLTs & Backups
+      summary: Test Connection
+      description: Executa teste de conectividade sob demanda e retorna diagnóstico
+        e links de fluxo.
+      operationId: test_connection_api_v1_olts__olt_id__test_connection_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: ID da OLT (UUIDv7)
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       responses:
         '200':
-          description: Resultado do teste de conectividade
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConnectionTestResult'
-        '404':
-          description: OLT não encontrada
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/config:
     get:
-      summary: Visualizar configurações da OLT (running-config)
-      description: Executa a leitura direta do running-config da OLT e entrega o texto consolidado.
+      tags:
+      - OLTs & Backups
+      summary: Get Olt Config
+      description: Coleta e visualiza o running-config completo da OLT.
+      operationId: get_olt_config_api_v1_olts__olt_id__config_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: ID da OLT (UUIDv7)
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       responses:
         '200':
-          description: Configuração coletada com sucesso
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OLTConfigResponse'
-        '404':
-          description: OLT não encontrada
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '502':
-          description: Falha na comunicação com a OLT
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/backups:
     get:
-      summary: Listar histórico de backups da OLT
+      tags:
+      - OLTs & Backups
+      summary: List Backups
+      description: Lista o histórico de backups realizados para a OLT com links de
+        download e comparação.
+      operationId: list_backups_api_v1_olts__olt_id__backups_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       responses:
         '200':
-          description: Histórico de backups
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/BackupMetadata'
+                title: Response List Backups Api V1 Olts  Olt Id  Backups Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
-      summary: Disparar e salvar novo backup da OLT
-      description: Conecta na OLT, gera a cópia de segurança, armazena no disco local protegido com identificador UUIDv7 e calcula hash SHA-256.
+      tags:
+      - OLTs & Backups
+      summary: Trigger Backup
+      description: Dispara a rotina de backup na OLT, salva em disco e retorna Location
+        header e links de download e diff.
+      operationId: trigger_backup_api_v1_olts__olt_id__backups_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       responses:
         '201':
-          description: Backup gerado e salvo com sucesso
-          headers:
-            Location:
-              description: URI para download direto do arquivo de backup gerado
-              schema:
-                type: string
-                example: "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/backups/0191e512-3456-789a-bcde-f0123456789a/download"
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BackupMetadata'
-        '502':
-          description: Erro ao coletar backup da OLT
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/backups/{backup_id}/download:
     get:
-      summary: Download do arquivo de backup
-      description: Entrega o arquivo binário/texto bruto do backup para o ERP ou técnico.
+      tags:
+      - OLTs & Backups
+      summary: Download Backup
+      description: Entrega o arquivo bruto de backup para download seguro pelo ERP
+        ou técnico.
+      operationId: download_backup_api_v1_olts__olt_id__backups__backup_id__download_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: backup_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: backup_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Backup Id
       responses:
         '200':
-          description: Arquivo de backup para download
+          description: Successful Response
           content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '404':
-          description: Arquivo de backup não encontrado
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/backups/audit:
     get:
-      summary: Relatório de integridade e auditoria de backups da OLT
-      description: Retorna contadores, espaço em disco e se houve alteração (drift) entre os últimos backups.
+      tags:
+      - OLTs & Backups
+      summary: Audit Olt Backups
+      description: Retorna relatório de integridade, contagem e detecção de alteração
+        de configuração da OLT.
+      operationId: audit_olt_backups_api_v1_olts__olt_id__backups_audit_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       responses:
         '200':
-          description: Relatório de auditoria de backups
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BackupAuditReport'
-        '404':
-          description: OLT não encontrada
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/backups/compare:
     get:
-      summary: Comparar dois backups da OLT (Integridade SHA-256 e Unified Diff)
-      description: Compara os hashes SHA-256 e gera unified diff entre dois backups específicos ou os dois mais recentes.
+      tags:
+      - OLTs & Backups
+      summary: Compare Olt Backups
+      description: Compara dois backups da OLT calculando status de integridade SHA-256
+        e unified diff.
+      operationId: compare_olt_backups_api_v1_olts__olt_id__backups_compare_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: base_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-        - name: target_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: base_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base Id
+      - name: target_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Id
       responses:
         '200':
-          description: Resultado da comparação e diff
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BackupDiffResult'
-        '404':
-          description: Backups insuficientes ou não encontrados
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/backups/purge:
     post:
-      summary: Expurgo e retenção de backups da OLT
-      description: Executa a política de retenção liberando espaço físico em disco.
+      tags:
+      - OLTs & Backups
+      summary: Purge Olt Backups
+      description: Aplica política de expurgo e retenção de backups para a OLT especificada.
+      operationId: purge_olt_backups_api_v1_olts__olt_id__backups_purge_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       requestBody:
-        required: false
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PurgePolicy'
+              anyOf:
+              - $ref: '#/components/schemas/PurgePolicy'
+              - type: 'null'
+              title: Policy
       responses:
         '200':
-          description: Resultado do expurgo
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PurgeResult'
-        '404':
-          description: OLT não encontrada
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/sync:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Sync Olt
+      description: 'Onboarding e Ingestão Reversa de OLT Brownfield:
 
-  /api/v1/olts/{olt_id}/ports/{port}/onus:
-    get:
-      summary: Listar ONUs de uma porta PON
-      description: Retorna as ONUs ativas na porta informada.
+        1. Realiza Snapshot v0 preventivo e obrigatório da configuração da OLT.
+
+        2. Descobre todas as ONUs ativas no chassi via hardware.
+
+        3. Cadastra/atualiza ONUs no inventário com cálculo de Circuit ID (TR-101).
+
+        4. Descobre VLANs configuradas.'
+      operationId: sync_olt_api_v1_olts__olt_id__sync_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: port
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "1/1"
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       responses:
         '200':
-          description: Lista de ONUs na porta
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncOLTResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/backups/run-all:
+    post:
+      tags:
+      - Backups & Disaster Recovery
+      summary: Run All Backups
+      description: Dispara a rotina de backup em lote para todas as OLTs cadastradas
+        com expurgo automático.
+      operationId: run_all_backups_api_v1_backups_run_all_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: purge_after
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Purge After
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/PurgePolicy'
+              - type: 'null'
+              title: Policy
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchBackupResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/backups/audit-all:
+    get:
+      tags:
+      - Backups & Disaster Recovery
+      summary: Audit All Backups
+      description: Retorna relatório consolidado de integridade, contagem e status
+        de drift de todas as OLTs.
+      operationId: audit_all_backups_api_v1_backups_audit_all_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/BackupAuditReport'
+                type: array
+                title: Response Audit All Backups Api V1 Backups Audit All Get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/backups/purge-all:
+    post:
+      tags:
+      - Backups & Disaster Recovery
+      summary: Purge All Backups
+      description: Executa a política de expurgo e retenção de backups para todo o
+        inventário de OLTs.
+      operationId: purge_all_backups_api_v1_backups_purge_all_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/PurgePolicy'
+              - type: 'null'
+              title: Policy
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurgeResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/olts/{olt_id}/ports/{port}/onus:
+    get:
+      tags:
+      - Diagnóstico de Portas & ONUs
+      summary: List Port Onus
+      description: 'Lista as ONUs cadastradas/ativas em uma porta PON específica (ex:
+        ''1/1'' ou ''0/1/1'').'
+      operationId: list_port_onus_api_v1_olts__olt_id__ports__port__onus_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: port
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Port
+      responses:
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ONUSummary'
-
+                title: Response List Port Onus Api V1 Olts  Olt Id  Ports  Port  Onus
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/onus/{serial_or_id}:
     get:
-      summary: Consultar detalhes e sinal óptico de uma ONU
-      description: Obtém status de conexão, potência óptica (Rx/Tx em dBm) e informações de cadastro.
+      tags:
+      - Diagnóstico de Portas & ONUs
+      summary: Get Onu Details
+      description: Consulta detalhes operacionais e níveis de potência óptica (Rx/Tx
+        em dBm) de uma ONU.
+      operationId: get_onu_details_api_v1_olts__olt_id__onus__serial_or_id__get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: serial_or_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "INCL12345678"
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: serial_or_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial Or Id
       responses:
         '200':
-          description: Detalhes e diagnóstico da ONU
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ONUDetails'
-        '404':
-          description: ONU não encontrada na OLT
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
     delete:
-      summary: Desprovisionar e remover ONU da OLT
-      description: Remove o registro da ONU na OLT liberando a porta PON e recursos alocados.
+      tags:
+      - Provisionamento & Descoberta
+      summary: Deprovision Onu
+      description: Desprovisiona uma ONU e libera a porta PON e recursos alocados
+        na OLT.
+      operationId: deprovision_onu_api_v1_olts__olt_id__onus__serial_or_id__delete
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: serial_or_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "INCL12345678"
-        - name: port
-          in: query
-          required: false
-          schema:
-            type: string
-            example: "1/1"
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: serial_or_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial Or Id
+      - name: port
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
           description: Porta PON da ONU (opcional)
-        - name: onu_id
-          in: query
-          required: false
-          schema:
-            type: integer
-            example: 1
-          description: ID numérico da ONU (opcional)
+          title: Port
+        description: Porta PON da ONU (opcional)
+      - name: onu_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Índice numérico da ONU (opcional)
+          title: Onu Id
+        description: Índice numérico da ONU (opcional)
       responses:
         '200':
-          description: ONU desprovisionada com sucesso
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ONUActionResponse'
-        '404':
-          description: OLT ou ONU não encontrada
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '502':
-          description: Falha na comunicação com a OLT
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/olts/{olt_id}/onus/{serial_or_id}/reboot:
-    post:
-      summary: Reiniciar remotamente a ONU (Reboot OMCI)
-      description: Envia comando de reinicialização remota via protocolo de controle OMCI através da OLT.
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: serial_or_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "INCL12345678"
-        - name: port
-          in: query
-          required: false
-          schema:
-            type: string
-            example: "1/1"
-        - name: onu_id
-          in: query
-          required: false
-          schema:
-            type: integer
-            example: 1
-      responses:
-        '200':
-          description: Comando de reinicialização enviado com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ONUActionResponse'
-        '404':
-          description: OLT não encontrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '502':
-          description: Falha na comunicação com a OLT
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/olts/{olt_id}/onus/{serial_or_id}/suspend:
-    post:
-      summary: Suspender administrativamente a ONU (Bloqueio por inadimplência)
-      description: Desativa administrativamente o tráfego GPON da ONU mantendo os dados cadastrais intactos.
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: serial_or_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "INCL12345678"
-        - name: port
-          in: query
-          required: false
-          schema:
-            type: string
-            example: "1/1"
-        - name: onu_id
-          in: query
-          required: false
-          schema:
-            type: integer
-            example: 1
-      responses:
-        '200':
-          description: ONU suspensa administrativamente com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ONUActionResponse'
-        '404':
-          description: OLT não encontrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '502':
-          description: Falha na comunicação com a OLT
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/olts/{olt_id}/onus/{serial_or_id}/resume:
-    post:
-      summary: Reativar ONU suspensa (Desbloqueio financeiro)
-      description: Restabelece o tráfego GPON da ONU suspensa após confirmação de pagamento.
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: serial_or_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "INCL12345678"
-        - name: port
-          in: query
-          required: false
-          schema:
-            type: string
-            example: "1/1"
-        - name: onu_id
-          in: query
-          required: false
-          schema:
-            type: integer
-            example: 1
-      responses:
-        '200':
-          description: ONU reativada com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ONUActionResponse'
-        '404':
-          description: OLT não encontrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '502':
-          description: Falha na comunicação com a OLT
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/unauthorized:
     get:
-      summary: Listar ONUs não autorizadas (descobertas)
-      description: Retorna a lista de ONUs conectadas fisicamente que aguardam autorização (autofind/unassigned).
+      tags:
+      - Provisionamento & Descoberta
+      summary: List Unauthorized Onus
+      description: Lista as ONUs conectadas fisicamente que aguardam autorização (autofind
+        / unconfigured).
+      operationId: list_unauthorized_onus_api_v1_olts__olt_id__unauthorized_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: serial
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por serial específico da ONU
+          title: Serial
+        description: Filtrar por serial específico da ONU
       responses:
         '200':
-          description: Lista de ONUs descobertas
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/UnauthorizedONU'
-
+                title: Response List Unauthorized Onus Api V1 Olts  Olt Id  Unauthorized
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/onus:
     post:
-      summary: Provisionar nova ONU
-      description: Autoriza a ONU na porta PON associando VLAN, perfil e descrição.
+      tags:
+      - Provisionamento & Descoberta
+      summary: Provision Onu
+      description: Provisiona e autoriza uma ONU na porta informada aplicando VLAN,
+        perfil e descrição.
+      operationId: provision_onu_api_v1_olts__olt_id__onus_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       requestBody:
         required: true
         content:
@@ -640,43 +1186,208 @@ paths:
               $ref: '#/components/schemas/ProvisionRequest'
       responses:
         '201':
-          description: ONU provisionada com sucesso
-          headers:
-            Location:
-              description: URI canônica para consulta dos detalhes e potência óptica da ONU provisionada
-              schema:
-                type: string
-                example: "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde/onus/INCL12345678"
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProvisionResponse'
-        '400':
-          description: Parâmetros inválidos ou violação de validação de segurança
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: ONU já cadastrada ou porta cheia
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}/reboot:
+    post:
+      tags:
+      - Provisionamento & Descoberta
+      summary: Reboot Onu
+      description: Reinicia remotamente a ONU do cliente através de comando de gerenciamento
+        OMCI da OLT.
+      operationId: reboot_onu_api_v1_olts__olt_id__onus__serial_or_id__reboot_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: serial_or_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial Or Id
+      - name: port
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Porta PON da ONU (opcional)
+          title: Port
+        description: Porta PON da ONU (opcional)
+      - name: onu_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Índice numérico da ONU (opcional)
+          title: Onu Id
+        description: Índice numérico da ONU (opcional)
+      responses:
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/ONUActionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}/suspend:
+    post:
+      tags:
+      - Provisionamento & Descoberta
+      summary: Suspend Onu
+      description: Suspende administrativamente a ONU (bloqueio por inadimplência/financeiro)
+        desativando o tráfego GPON sem perder o cadastro.
+      operationId: suspend_onu_api_v1_olts__olt_id__onus__serial_or_id__suspend_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: serial_or_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial Or Id
+      - name: port
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Porta PON da ONU (opcional)
+          title: Port
+        description: Porta PON da ONU (opcional)
+      - name: onu_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Índice numérico da ONU (opcional)
+          title: Onu Id
+        description: Índice numérico da ONU (opcional)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUActionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}/resume:
+    post:
+      tags:
+      - Provisionamento & Descoberta
+      summary: Resume Onu
+      description: Reativa a ONU suspensa (desbloqueio após confirmação de pagamento),
+        restabelecendo o tráfego GPON.
+      operationId: resume_onu_api_v1_olts__olt_id__onus__serial_or_id__resume_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: serial_or_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial Or Id
+      - name: port
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Porta PON da ONU (opcional)
+          title: Port
+        description: Porta PON da ONU (opcional)
+      - name: onu_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Índice numérico da ONU (opcional)
+          title: Onu Id
+        description: Índice numérico da ONU (opcional)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUActionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/bootstrap/preview:
     post:
-      summary: Gerar preview do script de configuração inicial da OLT (Dry-Run)
-      description: Retorna os comandos CLI que serão aplicados para configurar a OLT virgem (Uplink, VLANs, bridges, binds de ONUs e auto-service).
+      tags:
+      - Bootstrap & Autoconfig Inicial
+      summary: Preview Bootstrap
+      description: 'Gera o script CLI de inicialização (Dry-Run / Simulação) para
+        conferência antes de aplicar na OLT.
+
+        Baseado nas diretrizes oficiais da ferramenta de auto-configuração da Intelbras.'
+      operationId: preview_bootstrap_api_v1_olts__olt_id__bootstrap_preview_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       requestBody:
         required: true
         content:
@@ -685,37 +1396,43 @@ paths:
               $ref: '#/components/schemas/BootstrapRequest'
       responses:
         '200':
-          description: Script de comandos gerado com sucesso
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BootstrapPreviewResponse'
-        '400':
-          description: Parâmetros inválidos
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: OLT não encontrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/bootstrap/apply:
     post:
-      summary: Aplicar configuração inicial na OLT física (Zero-Touch Provisioning)
-      description: Conecta na OLT, executa a sequência completa de configuração, ativa o auto-service, grava na memória e gera um backup de segurança inicial.
+      tags:
+      - Bootstrap & Autoconfig Inicial
+      summary: Apply Bootstrap
+      description: 'Aplica a configuração inicial na OLT física (Zero-Touch Provisioning):
+
+        1. Executa a sequência de comandos CLI na OLT via SSH.
+
+        2. Habilita o auto-service para provisionamento automático das ONUs.
+
+        3. Grava as alterações na memória não-volátil da OLT (''write'').
+
+        4. Gera e salva automaticamente um backup inicial com UUIDv7 e hash SHA-256
+        para restauração.'
+      operationId: apply_bootstrap_api_v1_olts__olt_id__bootstrap_apply_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       requestBody:
         required: true
         content:
@@ -724,135 +1441,97 @@ paths:
               $ref: '#/components/schemas/BootstrapRequest'
       responses:
         '200':
-          description: Configuração inicial aplicada com sucesso
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BootstrapApplyResponse'
-        '400':
-          description: Erro nos parâmetros
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: OLT não encontrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '502':
-          description: Erro de conexão com a OLT
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/backups/run-all:
-    post:
-      summary: Disparar rotina de backup em lote para todas as OLTs
-      description: Executa coleta paralela/sequencial de backup em todo o parque de OLTs com expurgo automático.
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: purge_after
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: true
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PurgePolicy'
-      responses:
-        '200':
-          description: Resultado da execução do lote de backups
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BatchBackupResult'
-
-  /api/v1/backups/audit-all:
-    get:
-      summary: Auditoria consolidada de integridade de todo o parque de OLTs
-      description: Retorna o status de integridade, contagem e drifts de cada OLT.
-      security:
-        - ApiKeyAuth: []
-      responses:
-        '200':
-          description: Lista de relatórios de auditoria
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/BackupAuditReport'
-
-  /api/v1/backups/purge-all:
-    post:
-      summary: Expurgo global de backups em todas as OLTs
-      description: Aplica a política de retenção liberando espaço em disco para todas as OLTs.
-      security:
-        - ApiKeyAuth: []
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PurgePolicy'
-      responses:
-        '200':
-          description: Resultado do expurgo global
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PurgeResult'
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/onus:
     get:
-      summary: Listar ONUs do inventário global
-      description: Retorna todas as ONUs com dados de contrato ERP, Circuit ID TR-101 e coordenadas GPS.
+      tags:
+      - Inventário Global & Auto-Recuperação de ONUs
+      summary: List Onus
+      description: Lista todas as ONUs do inventário global com dados de contrato,
+        Circuit ID (TR-101) e coordenadas.
+      operationId: list_onus_api_v1_onus_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: olt_id
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: port
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: contract_status
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [ACTIVE, SUSPENDED, CANCELLED, IN_STOCK]
-        - name: contract_id
-          in: query
-          required: false
-          schema:
-            type: string
+      - name: olt_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por OLT
+          title: Olt Id
+        description: Filtrar por OLT
+      - name: port
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por porta PON
+          title: Port
+        description: Filtrar por porta PON
+      - name: contract_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Filtrar por status do contrato: ACTIVE, SUSPENDED, CANCELLED,
+            IN_STOCK'
+          title: Contract Status
+        description: 'Filtrar por status do contrato: ACTIVE, SUSPENDED, CANCELLED,
+          IN_STOCK'
+      - name: contract_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por código de contrato
+          title: Contract Id
+        description: Filtrar por código de contrato
       responses:
         '200':
-          description: Lista de equipamentos no inventário
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ONUInventoryItem'
+                title: Response List Onus Api V1 Onus Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
-      summary: Cadastrar ou vincular ONU no inventário
-      description: Registra uma ONU ancorando seu serial de hardware ao contrato do assinante e topologia física.
+      tags:
+      - Inventário Global & Auto-Recuperação de ONUs
+      summary: Register Onu
+      description: Cadastra ou vincula uma ONU ao inventário associando a contrato,
+        OLT, VLAN e coordenadas geográficas.
+      operationId: register_onu_api_v1_onus_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       requestBody:
         required: true
         content:
@@ -861,152 +1540,243 @@ paths:
               $ref: '#/components/schemas/RegisterONUInventoryRequest'
       responses:
         '201':
-          description: ONU cadastrada com sucesso com Location header e links HATEOAS
-          headers:
-            Location:
-              description: URI canônica da ONU
-              schema:
-                type: string
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ONUInventoryItem'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/onus/history:
     get:
-      summary: Linha do Tempo Global de Movimentações (NOC Timeline)
-      description: Auditoria completa e reversa de todas as manobras físicas, trocas de POP e correções automáticas de fusão.
+      tags:
+      - Inventário Global & Auto-Recuperação de ONUs
+      summary: List Global History
+      description: 'Linha do Tempo Global de Movimentações (NOC Timeline): relatório
+        de manobras, inversões e auto-recuperações.'
+      operationId: list_global_history_api_v1_onus_history_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: serial
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: from_olt_id
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: to_olt_id
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 100
+      - name: serial
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por serial
+          title: Serial
+        description: Filtrar por serial
+      - name: from_olt_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por OLT de origem
+          title: From Olt Id
+        description: Filtrar por OLT de origem
+      - name: to_olt_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por OLT de destino
+          title: To Olt Id
+        description: Filtrar por OLT de destino
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          description: Limite de eventos retornados
+          default: 100
+          title: Limit
+        description: Limite de eventos retornados
       responses:
         '200':
-          description: Eventos cronológicos da linha do tempo do NOC
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ONUMigrationEvent'
-
+                title: Response List Global History Api V1 Onus History Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/onus/reconcile-field-event:
     post:
-      summary: Motor de Auto-Recuperação e Conciliação Reativa de Campo
-      description: Processa evento de autofind em campo. Se contrato ativo, provisiona nova posição, limpa a antiga fantasma e recalcula Circuit ID TR-101.
-      security:
-        - ApiKeyAuth: []
+      tags:
+      - Inventário Global & Auto-Recuperação de ONUs
+      summary: Reconcile Field Event
+      description: 'Motor de Auto-Recuperação Reativa de Campo.
+
+        Detecta inversões de fusão, trocas de porta ou mudanças físicas de bastidor:
+
+        - Se o contrato está ATIVO: provisiona na nova PON, desprovisiona na antiga,
+        recalcula o Circuit ID TR-101 e audita a movimentação.
+
+        - Se o contrato está INATIVO/ESTOQUE: bloqueia a herança indevida de dados
+        do titular anterior.'
+      operationId: reconcile_field_event_api_v1_onus_reconcile_field_event_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ReconcileFieldEventRequest'
+        required: true
       responses:
         '200':
-          description: Resultado da conciliação e manobra executada
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReconcileFieldEventResponse'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/onus/{serial}:
     get:
-      summary: Consultar dados cadastrais, topologia e status de uma ONU
-      description: Retorna visão 360º da ONU incluindo coordenadas geográficas e identificador Broadband Forum TR-101.
+      tags:
+      - Inventário Global & Auto-Recuperação de ONUs
+      summary: Get Onu By Serial
+      description: Consulta os dados de inventário, coordenadas e Circuit ID atual
+        de uma ONU pelo serial imutável.
+      operationId: get_onu_by_serial_api_v1_onus__serial__get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: serial
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: serial
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial
       responses:
         '200':
-          description: Dados detalhados do inventário da ONU
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ONUInventoryItem'
-        '404':
-          description: ONU não encontrada
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/onus/{serial}/history:
     get:
-      summary: Histórico individual de movimentações de uma ONU
-      description: Retorna todas as migrações entre portas e OLTs sofridas por este hardware específico.
+      tags:
+      - Inventário Global & Auto-Recuperação de ONUs
+      summary: Get Onu History
+      description: Histórico de vida e movimentações de um equipamento específico
+        através de portas e OLTs.
+      operationId: get_onu_history_api_v1_onus__serial__history_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: serial
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 50
+      - name: serial
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
       responses:
         '200':
-          description: Histórico cronológico desta ONU
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ONUMigrationEvent'
-
+                title: Response Get Onu History Api V1 Onus  Serial  History Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/webhooks:
     get:
-      summary: Listar assinaturas de Webhook
-      description: Retorna todos os endpoints de ERPs cadastrados para recebimento de eventos push em tempo real.
+      tags:
+      - Webhooks & Notificações ERP
+      summary: List Webhooks
+      description: Lista todas as assinaturas de webhook cadastradas no OLTAPI.
+      operationId: list_webhooks_api_v1_webhooks_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: active_only
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
+      - name: active_only
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Listar apenas webhooks ativos
+          default: false
+          title: Active Only
+        description: Listar apenas webhooks ativos
       responses:
         '200':
-          description: Lista de assinaturas de webhook
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/WebhookSubscription'
+                title: Response List Webhooks Api V1 Webhooks Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
-      summary: Cadastrar webhook para o ERP
-      description: Registra uma URL para envio de eventos com assinatura digital HMAC SHA-256 no cabeçalho X-OLTAPI-Signature.
+      tags:
+      - Webhooks & Notificações ERP
+      summary: Create Webhook
+      description: Cadastra um novo webhook para o ERP receber notificações em tempo
+        real assinadas com HMAC SHA-256.
+      operationId: create_webhook_api_v1_webhooks_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       requestBody:
         required: true
         content:
@@ -1015,1125 +1785,3034 @@ paths:
               $ref: '#/components/schemas/WebhookCreateRequest'
       responses:
         '201':
-          description: Webhook cadastrado com sucesso
-          headers:
-            Location:
-              description: URI canônica da assinatura
-              schema:
-                type: string
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/WebhookSubscription'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/webhooks/deliveries:
     get:
-      summary: Consultar histórico de entregas de webhooks
-      description: Logs de auditoria das tentativas de envio de eventos push aos ERPs com status HTTP e latência.
+      tags:
+      - Webhooks & Notificações ERP
+      summary: List Deliveries
+      description: Consulta o histórico e logs de auditoria das tentativas de entrega
+        de webhooks.
+      operationId: list_deliveries_api_v1_webhooks_deliveries_get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: subscription_id
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 50
+      - name: subscription_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por ID de assinatura
+          title: Subscription Id
+        description: Filtrar por ID de assinatura
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          description: Limite de registros retornados
+          default: 50
+          title: Limit
+        description: Limite de registros retornados
       responses:
         '200':
-          description: Logs de auditoria de entregas
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/WebhookDeliveryLog'
-
+                title: Response List Deliveries Api V1 Webhooks Deliveries Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/webhooks/{subscription_id}:
     get:
-      summary: Consultar assinatura de webhook
-      description: Retorna dados cadastrais, eventos monitorados e secret da assinatura.
+      tags:
+      - Webhooks & Notificações ERP
+      summary: Get Webhook
+      description: Consulta uma assinatura de webhook pelo ID.
+      operationId: get_webhook_api_v1_webhooks__subscription_id__get
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: subscription_id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: subscription_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Subscription Id
       responses:
         '200':
-          description: Dados da assinatura
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/WebhookSubscription'
-        '404':
-          description: Webhook não encontrado
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     delete:
-      summary: Remover assinatura de webhook
-      description: Cancela o envio de eventos push para a URL especificada.
+      tags:
+      - Webhooks & Notificações ERP
+      summary: Delete Webhook
+      description: Remove uma assinatura de webhook.
+      operationId: delete_webhook_api_v1_webhooks__subscription_id__delete
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: subscription_id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: subscription_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Subscription Id
       responses:
         '204':
-          description: Assinatura removida com sucesso
-        '404':
-          description: Webhook não encontrado
-
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/webhooks/{subscription_id}/ping:
     post:
-      summary: Disparar ping de teste HMAC para o ERP
-      description: Envia uma requisição HTTP POST assinado com HMAC SHA-256 para validar a integridade da comunicação com o ERP.
+      tags:
+      - Webhooks & Notificações ERP
+      summary: Ping Webhook
+      description: Dispara uma mensagem de teste (ping) com assinatura HMAC SHA-256
+        para validar o endpoint do ERP.
+      operationId: ping_webhook_api_v1_webhooks__subscription_id__ping_post
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
       parameters:
-        - name: subscription_id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: subscription_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Subscription Id
       responses:
         '200':
-          description: Relatório imediato da tentativa de entrega
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/WebhookDeliveryLog'
-        '404':
-          description: Webhook não encontrado
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/scanner/status:
     get:
+      tags:
+      - Autofind Scanner
       summary: Consultar status do Autofind Scanner
-      description: Retorna o estado operacional do worker (ativo/inativo), intervalo atual e métricas acumuladas com links HATEOAS.
-      security:
-        - ApiKeyAuth: []
+      description: Retorna o estado operacional do worker (ativo/inativo), intervalo
+        atual e métricas acumuladas.
+      operationId: get_scanner_status_api_v1_scanner_status_get
       responses:
         '200':
-          description: Status atual do scanner
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScannerStatus'
-
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/scanner/start:
     post:
-      summary: Iniciar worker do Autofind Scanner
-      description: Inicia o loop assíncrono periódico de varredura em segundo plano.
-      security:
-        - ApiKeyAuth: []
+      tags:
+      - Autofind Scanner
+      summary: Iniciar o worker do Autofind Scanner
+      description: Inicia o loop assíncrono periódico em background caso esteja parado.
+      operationId: start_scanner_api_v1_scanner_start_post
       responses:
         '200':
-          description: Scanner iniciado com sucesso
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScannerStatus'
-
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/scanner/stop:
     post:
-      summary: Parar worker do Autofind Scanner
+      tags:
+      - Autofind Scanner
+      summary: Parar o worker do Autofind Scanner
       description: Interrompe graciosamente o loop de varredura periódica.
-      security:
-        - ApiKeyAuth: []
+      operationId: stop_scanner_api_v1_scanner_stop_post
       responses:
         '200':
-          description: Scanner parado com sucesso
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScannerStatus'
-
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/scanner/run-now:
     post:
+      tags:
+      - Autofind Scanner
       summary: Forçar varredura de autofind sob demanda
-      description: Executa imediatamente um ciclo de varredura em todas as OLTs cadastradas e retorna o resultado detalhado.
-      security:
-        - ApiKeyAuth: []
+      description: Executa imediatamente um ciclo de varredura completo em todas as
+        OLTs cadastradas.
+      operationId: run_scanner_now_api_v1_scanner_run_now_post
       responses:
         '200':
-          description: Resultado detalhado do ciclo de varredura
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScannerRunResult'
-
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/scanner/interval:
     patch:
-      summary: Atualizar intervalo de varredura
-      description: Modifica a cadência periódica em segundos (mínimo defensivo: 10s).
+      tags:
+      - Autofind Scanner
+      summary: Atualizar intervalo de varredura periódica
+      description: 'Modifica o tempo entre ciclos de varredura (mínimo defensivo:
+        10 segundos).'
+      operationId: update_scanner_interval_api_v1_scanner_interval_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScannerIntervalUpdateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScannerStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
       security:
-        - ApiKeyAuth: []
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/olts/{olt_id}/vlans:
+    get:
+      tags:
+      - VLANs & Serviços de Rede
+      summary: List Olt Vlans
+      description: Lista todas as VLANs configuradas na OLT com links HATEOAS contextuais.
+      operationId: list_olt_vlans_api_v1_olts__olt_id__vlans_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VLANItem'
+                title: Response List Olt Vlans Api V1 Olts  Olt Id  Vlans Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - VLANs & Serviços de Rede
+      summary: Create Olt Vlan
+      description: Cria uma nova VLAN de serviço na OLT física e comita na memória
+        permanente.
+      operationId: create_olt_vlan_api_v1_olts__olt_id__vlans_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ScannerIntervalUpdateRequest'
+              $ref: '#/components/schemas/VLANCreateRequest'
       responses:
-        '200':
-          description: Intervalo atualizado
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ScannerStatus'
-
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/profiles:
+    get:
+      tags:
+      - VLANs & Serviços de Rede
+      summary: List Olt Profiles
+      description: Lista os perfis de tráfego, linha e DBA configurados na OLT.
+      operationId: list_olt_profiles_api_v1_olts__olt_id__profiles_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProfileItem'
+                title: Response List Olt Profiles Api V1 Olts  Olt Id  Profiles Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/ftp-servers:
+    get:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: List Ftp Servers
+      description: Lista todos os servidores FTP cadastrados no OLTAPI.
+      operationId: list_ftp_servers_api_v1_ftp_servers_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: active_only
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Listar apenas servidores ativos
+          default: false
+          title: Active Only
+        description: Listar apenas servidores ativos
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FTPServerResponse'
+                title: Response List Ftp Servers Api V1 Ftp Servers Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: Create Ftp Server
+      description: Cadastra um novo servidor FTP para recebimento de backups de OLTs.
+      operationId: create_ftp_server_api_v1_ftp_servers_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FTPServerCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FTPServerResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/ftp-servers/{ftp_id}:
+    get:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: Get Ftp Server
+      description: Consulta detalhes de um servidor FTP cadastrado.
+      operationId: get_ftp_server_api_v1_ftp_servers__ftp_id__get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: ftp_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ftp Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FTPServerResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: Update Ftp Server
+      description: Atualiza configurações de um servidor FTP.
+      operationId: update_ftp_server_api_v1_ftp_servers__ftp_id__put
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: ftp_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ftp Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FTPServerUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FTPServerResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: Delete Ftp Server
+      description: Remove um servidor FTP do sistema.
+      operationId: delete_ftp_server_api_v1_ftp_servers__ftp_id__delete
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: ftp_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ftp Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/ftp-servers/{ftp_id}/test:
+    post:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: Test Ftp Server Connection
+      description: Testa a conectividade e autenticação com o servidor FTP.
+      operationId: test_ftp_server_connection_api_v1_ftp_servers__ftp_id__test_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: ftp_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ftp Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/ftp-servers:
+    post:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: Bind Olt To Ftp Servers
+      description: Vincula servidores FTP específicos a uma OLT.
+      operationId: bind_olt_to_ftp_servers_api_v1_olts__olt_id__ftp_servers_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OLTFTPBindingRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTFTPDestinationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: Get Olt Ftp Destinations
+      description: Consulta os servidores FTP de destino para uma OLT (específicos
+        + globais).
+      operationId: get_olt_ftp_destinations_api_v1_olts__olt_id__ftp_servers_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTFTPDestinationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /health:
+    get:
+      tags:
+      - Healthcheck
+      summary: Healthcheck
+      description: Endpoint público de verificação de integridade da API.
+      operationId: healthcheck_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
 components:
-  securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-      description: Chave de API secreta para autenticação de clientes externos.
-
   schemas:
-    OLTCreateRequest:
-      type: object
-      required:
-        - name
-        - vendor
-        - model
-        - host
-        - username
-        - password
+    APIKeyCreateRequest:
       properties:
         name:
           type: string
-          example: "OLT-POP-CENTRO"
-        vendor:
-          type: string
-          enum: [intelbras, huawei, fiberhome, vsol, zte, parks]
-          example: "intelbras"
-        model:
-          type: string
-          example: "8820"
-        host:
-          type: string
-          example: "192.168.10.2"
-        port:
-          type: integer
-          default: 22
-          example: 22
-        protocol:
-          type: string
-          enum: [ssh, telnet]
-          default: ssh
-        username:
-          type: string
-          example: "admin"
-        password:
-          type: string
-          example: "admin123"
-
-    Link:
+          maxLength: 64
+          minLength: 2
+          title: Name
+          description: 'Nome identificador da chave (ex: ERP IXC)'
+        scopes:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Scopes
+          description: Lista de escopos granulares permitidos
+        expires_in_days:
+          anyOf:
+          - type: integer
+            maximum: 3650.0
+            minimum: 1.0
+          - type: 'null'
+          title: Expires In Days
+          description: Validade em dias (opcional)
       type: object
       required:
-        - href
-        - method
-      properties:
-        href:
-          type: string
-          example: "/api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde"
-        method:
-          type: string
-          example: "GET"
-        description:
-          type: string
-          example: "Ver detalhes da OLT"
-
-    ConnectionTestResult:
-      type: object
-      properties:
-        olt_id:
-          type: string
-          format: uuid
-        host:
-          type: string
-        port:
-          type: integer
-        reachable:
-          type: boolean
-        latency_ms:
-          type: number
-          format: float
-          nullable: true
-        message:
-          type: string
-        _links:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/Link'
-
-    OLTResponse:
-      type: object
+      - name
+      - scopes
+      title: APIKeyCreateRequest
+    APIKeyCreatedResponse:
       properties:
         id:
           type: string
-          format: uuid
-          example: "0191e4f2-51a8-7d84-a12b-3456789abcde"
+          title: Id
         name:
           type: string
-        vendor:
+          title: Name
+        key:
           type: string
-        model:
+          title: Key
+          description: 'Chave de API em texto puro. ATENÇÃO: exibida apenas uma vez!'
+        key_prefix:
           type: string
-        host:
-          type: string
-        port:
-          type: integer
-        protocol:
-          type: string
-        status:
-          type: string
-          example: "online"
-        connection_message:
-          type: string
-          nullable: true
+          title: Key Prefix
+        scopes:
+          items:
+            type: string
+          type: array
+          title: Scopes
         created_at:
           type: string
           format: date-time
-        _links:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/Link'
-
-    OLTConfigResponse:
+          title: Created At
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
       type: object
+      required:
+      - id
+      - name
+      - key
+      - key_prefix
+      - scopes
+      - created_at
+      title: APIKeyCreatedResponse
+    APIKeyResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        user_id:
+          type: string
+          title: User Id
+        name:
+          type: string
+          title: Name
+        key_prefix:
+          type: string
+          title: Key Prefix
+        scopes:
+          items:
+            type: string
+          type: array
+          title: Scopes
+        is_active:
+          type: boolean
+          title: Is Active
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        last_used_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Used At
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - user_id
+      - name
+      - key_prefix
+      - scopes
+      - is_active
+      - created_at
+      title: APIKeyResponse
+    BackupAuditReport:
       properties:
         olt_id:
           type: string
-          format: uuid
-        collected_at:
+          title: Olt Id
+        olt_name:
           type: string
-          format: date-time
-        config_text:
-          type: string
-          description: Conteúdo textual completo do running-config.
-        _links:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/Link'
-
-    BackupMetadata:
+          title: Olt Name
+        total_backups:
+          type: integer
+          title: Total Backups
+        total_bytes:
+          type: integer
+          title: Total Bytes
+        latest_backup:
+          anyOf:
+          - $ref: '#/components/schemas/BackupMetadata'
+          - type: 'null'
+        previous_backup:
+          anyOf:
+          - $ref: '#/components/schemas/BackupMetadata'
+          - type: 'null'
+        has_changed:
+          type: boolean
+          title: Has Changed
+          description: Verdadeiro se o último backup divergir do penúltimo
+        last_backup_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Backup At
       type: object
+      required:
+      - olt_id
+      - olt_name
+      - total_backups
+      - total_bytes
+      - has_changed
+      title: BackupAuditReport
+    BackupDiffResult:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+        base_backup_id:
+          type: string
+          title: Base Backup Id
+        target_backup_id:
+          type: string
+          title: Target Backup Id
+        identical:
+          type: boolean
+          title: Identical
+          description: Verdadeiro se os hashes SHA-256 forem idênticos (sem config
+            drift)
+        base_sha256:
+          type: string
+          title: Base Sha256
+        target_sha256:
+          type: string
+          title: Target Sha256
+        diff_lines:
+          items:
+            type: string
+          type: array
+          title: Diff Lines
+          description: Linhas no formato unified_diff
+        additions_count:
+          type: integer
+          title: Additions Count
+          default: 0
+        deletions_count:
+          type: integer
+          title: Deletions Count
+          default: 0
+      type: object
+      required:
+      - olt_id
+      - base_backup_id
+      - target_backup_id
+      - identical
+      - base_sha256
+      - target_sha256
+      title: BackupDiffResult
+    BackupMetadata:
       properties:
         backup_id:
           type: string
-          format: uuid
-          description: Identificador único no padrão UUIDv7.
+          title: Backup Id
+          description: UUIDv7 identificador único
         olt_id:
           type: string
-          format: uuid
+          title: Olt Id
         created_at:
           type: string
           format: date-time
+          title: Created At
         size_bytes:
           type: integer
+          title: Size Bytes
         sha256_hash:
           type: string
+          title: Sha256 Hash
         filename:
           type: string
+          title: Filename
         _links:
-          type: object
           additionalProperties:
             $ref: '#/components/schemas/Link'
-
-    BackupDiffResult:
+          type: object
+          title: Links
       type: object
-      properties:
-        olt_id:
-          type: string
-          format: uuid
-        base_backup_id:
-          type: string
-          format: uuid
-        target_backup_id:
-          type: string
-          format: uuid
-        identical:
-          type: boolean
-          description: Indica se os backups possuem hash SHA-256 idêntico.
-        base_sha256:
-          type: string
-        target_sha256:
-          type: string
-        diff_lines:
-          type: array
-          items:
-            type: string
-        additions_count:
-          type: integer
-        deletions_count:
-          type: integer
-
-    BackupAuditReport:
-      type: object
-      properties:
-        olt_id:
-          type: string
-          format: uuid
-        olt_name:
-          type: string
-        total_backups:
-          type: integer
-        total_bytes:
-          type: integer
-        latest_backup:
-          $ref: '#/components/schemas/BackupMetadata'
-        previous_backup:
-          $ref: '#/components/schemas/BackupMetadata'
-        has_changed:
-          type: boolean
-        last_backup_at:
-          type: string
-          format: date-time
-
-    PurgePolicy:
-      type: object
-      properties:
-        max_backups_per_olt:
-          type: integer
-          default: 30
-          minimum: 1
-        max_age_days:
-          type: integer
-          minimum: 1
-
-    PurgeResult:
-      type: object
-      properties:
-        olt_id:
-          type: string
-          nullable: true
-        deleted_count:
-          type: integer
-        freed_bytes:
-          type: integer
-        remaining_count:
-          type: integer
-
+      required:
+      - olt_id
+      - size_bytes
+      - sha256_hash
+      - filename
+      title: BackupMetadata
     BatchBackupResult:
-      type: object
       properties:
         total_olts:
           type: integer
+          title: Total Olts
         successful:
           type: integer
+          title: Successful
         failed:
           type: integer
+          title: Failed
         backups:
-          type: array
           items:
             $ref: '#/components/schemas/BackupMetadata'
-        errors:
           type: array
+          title: Backups
+        errors:
           items:
+            additionalProperties: true
             type: object
-
-    ONUSummary:
-      type: object
-      properties:
-        port:
-          type: string
-          example: "1/1"
-        onu_id:
-          type: integer
-          example: 1
-        serial:
-          type: string
-          example: "INCL12345678"
-        status:
-          type: string
-          example: "online"
-        name:
-          type: string
-          example: "Cliente_Joao"
-
-    ONUDetails:
-      type: object
-      properties:
-        port:
-          type: string
-        onu_id:
-          type: integer
-        serial:
-          type: string
-        status:
-          type: string
-          example: "online"
-        name:
-          type: string
-        rx_power_dbm:
-          type: number
-          format: float
-          example: -19.45
-        tx_power_dbm:
-          type: number
-          format: float
-          example: 2.10
-        vlan:
-          type: integer
-          example: 100
-
-    UnauthorizedONU:
-      type: object
-      properties:
-        port:
-          type: string
-          example: "1/1"
-        serial:
-          type: string
-          example: "INCL12345678"
-        model:
-          type: string
-          example: "110B"
-        detected_at:
-          type: string
-          format: date-time
-        _links:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/Link'
-
-    ProvisionRequest:
+          type: array
+          title: Errors
       type: object
       required:
-        - port
-        - serial
-        - vlan
-      properties:
-        port:
-          type: string
-          example: "1/1"
-        serial:
-          type: string
-          example: "INCL12345678"
-        vlan:
-          type: integer
-          minimum: 1
-          maximum: 4094
-          example: 100
-        profile:
-          type: string
-          example: "PLAN_100M"
-        description:
-          type: string
-          example: "Cliente_Joao_Silva"
-        onu_model:
-          type: string
-          example: "auto"
-
-    ProvisionResponse:
-      type: object
+      - total_olts
+      - successful
+      - failed
+      title: BatchBackupResult
+    BootstrapApplyResponse:
       properties:
         success:
           type: boolean
-          example: true
-        port:
-          type: string
-          example: "1/1"
-        onu_id:
-          type: integer
-          example: 3
-        serial:
-          type: string
-          example: "INCL12345678"
-        message:
-          type: string
-          example: "ONU provisionada e salva com sucesso na memória da OLT."
-        _links:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/Link'
-
-    ONUActionResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        action:
-          type: string
-          example: "deprovision"
-          enum: [deprovision, reboot, suspend, resume]
+          title: Success
+          default: true
         olt_id:
           type: string
-          format: uuid
-          example: "0191e4f2-51a8-7d84-a12b-3456789abcde"
-        serial:
+          title: Olt Id
+        backup_id:
           type: string
-          example: "INCL12345678"
-        port:
-          type: string
-          example: "1/1"
-        onu_id:
+          title: Backup Id
+        total_commands_executed:
           type: integer
-          example: 1
+          title: Total Commands Executed
         message:
           type: string
-          example: "ONU desprovisionada com sucesso."
-        _links:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/Link'
-
-    ErrorResponse:
+          title: Message
       type: object
+      required:
+      - olt_id
+      - backup_id
+      - total_commands_executed
+      - message
+      title: BootstrapApplyResponse
+    BootstrapMode:
+      type: string
+      enum:
+      - single_vlan
+      - vlan_per_pon
+      title: BootstrapMode
+    BootstrapPreviewResponse:
       properties:
-        detail:
+        olt_id:
           type: string
-          example: "Descrição detalhada do erro."
-        code:
+          title: Olt Id
+        mode:
+          $ref: '#/components/schemas/BootstrapMode'
+        commands:
+          items:
+            type: string
+          type: array
+          title: Commands
+        script_text:
           type: string
-          example: "CLI_COMMAND_FAILED"
-
-    BootstrapRequest:
+          title: Script Text
+        total_commands:
+          type: integer
+          title: Total Commands
       type: object
+      required:
+      - olt_id
+      - mode
+      - commands
+      - script_text
+      - total_commands
+      title: BootstrapPreviewResponse
+    BootstrapRequest:
       properties:
         mode:
-          type: string
-          enum: [single_vlan, vlan_per_pon]
+          $ref: '#/components/schemas/BootstrapMode'
+          description: 'Modo de configuração: ''single_vlan'' (mesma VLAN para todas
+            as PONs) ou ''vlan_per_pon'' (uma VLAN por porta PON)'
           default: single_vlan
         uplink_port:
           type: string
-          default: "1"
-          example: "1"
+          title: Uplink Port
+          description: 'Porta física do Uplink (ex: ''1'', ''2'' ou ''uplink 1'')'
+          default: '1'
+          example: '1'
         vlan:
-          type: integer
-          minimum: 1
-          maximum: 4094
+          anyOf:
+          - type: integer
+            maximum: 4094.0
+            minimum: 1.0
+          - type: 'null'
+          title: Vlan
+          description: VLAN dos clientes para modo 'single_vlan'
           default: 100
           example: 100
         vlan_per_pon:
-          type: object
-          additionalProperties:
-            type: integer
-          example: {"1": 101, "2": 102}
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Vlan Per Pon
+          description: 'Mapeamento de VLANs por porta PON para modo ''vlan_per_pon''
+            (ex: {''1'': 101, ''2'': 102, ...})'
+          example:
+            '1': 101
+            '2': 102
+            '3': 103
+            '4': 104
+            '5': 105
+            '6': 106
+            '7': 107
+            '8': 108
         default_onu_mode:
-          type: string
-          enum: [router, bridge]
+          $ref: '#/components/schemas/DefaultONUMode'
+          description: Modo padrão de operação das ONUs do cliente ('router' ou 'bridge')
           default: router
         force:
           type: boolean
+          title: Force
+          description: 'Trava de segurança: confirma a aplicação em OLT mesmo que
+            já existam configurações ativas'
           default: false
-
-    BootstrapPreviewResponse:
       type: object
+      title: BootstrapRequest
+    ConnectionTestResult:
       properties:
         olt_id:
           type: string
-          format: uuid
-        mode:
+          title: Olt Id
+        host:
           type: string
-        commands:
-          type: array
-          items:
-            type: string
-        script_text:
-          type: string
-        total_commands:
+          title: Host
+        port:
           type: integer
-
-    BootstrapApplyResponse:
-      type: object
-      properties:
-        success:
+          title: Port
+        reachable:
           type: boolean
-        olt_id:
-          type: string
-          format: uuid
-        backup_id:
-          type: string
-          format: uuid
-        total_commands_executed:
-          type: integer
+          title: Reachable
+        latency_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latency Ms
         message:
           type: string
-
-    ONUInventoryItem:
+          title: Message
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
       type: object
+      required:
+      - olt_id
+      - host
+      - port
+      - reachable
+      - message
+      title: ConnectionTestResult
+    DefaultONUMode:
+      type: string
+      enum:
+      - router
+      - bridge
+      title: DefaultONUMode
+    FTPServerCreate:
       properties:
+        name:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Name
+          description: Nome identificador do servidor FTP
+        host:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Host
+          description: IP ou Hostname do servidor FTP
+        port:
+          type: integer
+          maximum: 65535.0
+          minimum: 1.0
+          title: Port
+          description: Porta de conexão FTP
+          default: 21
+        username:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Username
+          description: Usuário de autenticação FTP
+        base_path:
+          type: string
+          maxLength: 128
+          title: Base Path
+          description: Caminho base no servidor FTP
+          default: /
+        is_global_default:
+          type: boolean
+          title: Is Global Default
+          description: Se True, todas as OLTs salvarão uma cópia aqui por padrão
+          default: false
+        is_active:
+          type: boolean
+          title: Is Active
+          description: Status de ativação do servidor
+          default: true
+        password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Password
+          description: Senha do servidor FTP
+      type: object
+      required:
+      - name
+      - host
+      - username
+      - password
+      title: FTPServerCreate
+    FTPServerResponse:
+      properties:
+        name:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Name
+          description: Nome identificador do servidor FTP
+        host:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Host
+          description: IP ou Hostname do servidor FTP
+        port:
+          type: integer
+          maximum: 65535.0
+          minimum: 1.0
+          title: Port
+          description: Porta de conexão FTP
+          default: 21
+        username:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Username
+          description: Usuário de autenticação FTP
+        base_path:
+          type: string
+          maxLength: 128
+          title: Base Path
+          description: Caminho base no servidor FTP
+          default: /
+        is_global_default:
+          type: boolean
+          title: Is Global Default
+          description: Se True, todas as OLTs salvarão uma cópia aqui por padrão
+          default: false
+        is_active:
+          type: boolean
+          title: Is Active
+          description: Status de ativação do servidor
+          default: true
         id:
           type: string
-          format: uuid
-          example: "0191e4f2-51a8-7d84-a12b-3456789abcde"
-        serial:
-          type: string
-          example: "INCL12345678"
-        contract_id:
-          type: string
-          nullable: true
-          example: "CTR-100200"
-        subscriber_name:
-          type: string
-          nullable: true
-          example: "Empresa XPTO Fibra"
-        contract_status:
-          type: string
-          enum: [ACTIVE, SUSPENDED, CANCELLED, IN_STOCK]
-          example: "ACTIVE"
-        vlan:
-          type: integer
-          nullable: true
-          example: 100
-        profile:
-          type: string
-          example: "DEFAULT"
-        description:
-          type: string
-          nullable: true
-        latitude:
-          type: number
-          format: float
-          nullable: true
-          example: -23.55052
-        longitude:
-          type: number
-          format: float
-          nullable: true
-          example: -46.633308
-        current_olt_id:
-          type: string
-          format: uuid
-          nullable: true
-        current_port:
-          type: string
-          nullable: true
-          example: "1/1"
-        current_onu_id:
-          type: integer
-          nullable: true
-          example: 4
-        circuit_id:
-          type: string
-          nullable: true
-          example: "OLT-CENTRAL-01 eth 1/1:4:100"
+          title: Id
+          description: UUIDv7 identificador único
         created_at:
           type: string
           format: date-time
-        updated_at:
-          type: string
-          format: date-time
+          title: Created At
         _links:
-          type: object
           additionalProperties:
-            $ref: '#/components/schemas/HateoasLink'
-
-    RegisterONUInventoryRequest:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
       type: object
       required:
-        - serial
+      - name
+      - host
+      - username
+      title: FTPServerResponse
+    FTPServerUpdate:
       properties:
-        serial:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Name
+        host:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+          - type: 'null'
+          title: Host
+        port:
+          anyOf:
+          - type: integer
+            maximum: 65535.0
+            minimum: 1.0
+          - type: 'null'
+          title: Port
+        username:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Username
+        password:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Password
+        base_path:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Base Path
+        is_global_default:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Global Default
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+      type: object
+      title: FTPServerUpdate
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    Link:
+      properties:
+        href:
           type: string
-          example: "INCL12345678"
+          title: Href
+          description: Caminho relativo da API para a ação ou recurso
+        method:
+          type: string
+          title: Method
+          description: Método HTTP requerido para a ação
+          default: GET
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Descrição amigável da ação
+      type: object
+      required:
+      - href
+      title: Link
+      description: Representação de um hiperlink HATEOAS / HAL enxuto.
+    OLTConfigResponse:
+      properties:
         olt_id:
           type: string
-          nullable: true
+          title: Olt Id
+        collected_at:
+          type: string
+          format: date-time
+          title: Collected At
+        config_text:
+          type: string
+          title: Config Text
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - olt_id
+      - config_text
+      title: OLTConfigResponse
+    OLTCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 64
+          minLength: 2
+          title: Name
+          description: Nome de identificação da OLT
+        vendor:
+          $ref: '#/components/schemas/OLTVendor'
+        model:
+          type: string
+          maxLength: 32
+          minLength: 1
+          title: Model
+          description: 'Ex: 8820, G16, MA5800-X7'
+        host:
+          type: string
+          title: Host
+          description: Endereço IP ou hostname de gerência da OLT
+        port:
+          type: integer
+          maximum: 65535.0
+          minimum: 1.0
+          title: Port
+          default: 22
+        protocol:
+          $ref: '#/components/schemas/OLTProtocol'
+          default: ssh
+        username:
+          type: string
+          minLength: 1
+          title: Username
+        password:
+          type: string
+          minLength: 1
+          title: Password
+      type: object
+      required:
+      - name
+      - vendor
+      - model
+      - host
+      - username
+      - password
+      title: OLTCreateRequest
+    OLTFTPBindingRequest:
+      properties:
+        ftp_server_ids:
+          items:
+            type: string
+          type: array
+          title: Ftp Server Ids
+          description: Lista de UUIDv7 dos servidores FTP a serem vinculados
+      type: object
+      required:
+      - ftp_server_ids
+      title: OLTFTPBindingRequest
+    OLTFTPDestinationResponse:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+        specific_destinations:
+          items:
+            $ref: '#/components/schemas/FTPServerResponse'
+          type: array
+          title: Specific Destinations
+        global_destinations:
+          items:
+            $ref: '#/components/schemas/FTPServerResponse'
+          type: array
+          title: Global Destinations
+        effective_destinations:
+          items:
+            $ref: '#/components/schemas/FTPServerResponse'
+          type: array
+          title: Effective Destinations
+      type: object
+      required:
+      - olt_id
+      - specific_destinations
+      - global_destinations
+      - effective_destinations
+      title: OLTFTPDestinationResponse
+    OLTProtocol:
+      type: string
+      enum:
+      - ssh
+      - telnet
+      title: OLTProtocol
+    OLTResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        vendor:
+          $ref: '#/components/schemas/OLTVendor'
+        model:
+          type: string
+          title: Model
+        host:
+          type: string
+          title: Host
+        port:
+          type: integer
+          title: Port
+        protocol:
+          $ref: '#/components/schemas/OLTProtocol'
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+          description: Status de conectividade (online, unreachable)
+          default: online
+        connection_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Connection Message
+          description: Diagnóstico de conectividade inicial
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - id
+      - name
+      - vendor
+      - model
+      - host
+      - port
+      - protocol
+      - created_at
+      title: OLTResponse
+    OLTVendor:
+      type: string
+      enum:
+      - intelbras
+      - huawei
+      - fiberhome
+      - vsol
+      - zte
+      - parks
+      title: OLTVendor
+    ONUActionResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        action:
+          type: string
+          title: Action
+          description: 'Tipo de ação: deprovision, reboot, suspend, resume'
+        olt_id:
+          type: string
+          title: Olt Id
+        serial:
+          type: string
+          title: Serial
+        port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Port
+        onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Onu Id
+        message:
+          type: string
+          title: Message
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - action
+      - olt_id
+      - serial
+      - message
+      title: ONUActionResponse
+    ONUDetails:
+      properties:
         port:
           type: string
-          nullable: true
-          example: "1/1"
+          title: Port
         onu_id:
           type: integer
-          nullable: true
-          example: 4
-        vlan:
-          type: integer
-          nullable: true
-          example: 100
-        profile:
-          type: string
-          default: "DEFAULT"
-        contract_id:
-          type: string
-          nullable: true
-          example: "CTR-100200"
-        subscriber_name:
-          type: string
-          nullable: true
-          example: "Empresa XPTO Fibra"
-        contract_status:
-          type: string
-          enum: [ACTIVE, SUSPENDED, CANCELLED, IN_STOCK]
-          default: "ACTIVE"
-        description:
-          type: string
-          nullable: true
-        latitude:
-          type: number
-          format: float
-          nullable: true
-        longitude:
-          type: number
-          format: float
-          nullable: true
-
-    ReconcileFieldEventRequest:
-      type: object
-      required:
-        - serial
-        - detected_olt_id
-        - detected_port
-      properties:
+          title: Onu Id
         serial:
           type: string
-          example: "INCL12345678"
-        detected_olt_id:
-          type: string
-          format: uuid
-        detected_port:
-          type: string
-          example: "1/2"
-        detected_onu_id:
-          type: integer
-          nullable: true
-          example: 5
-        latitude:
-          type: number
-          format: float
-          nullable: true
-        longitude:
-          type: number
-          format: float
-          nullable: true
-        reason:
-          type: string
-          default: "field_event_auto_reconciliation"
-          example: "Fusão invertida na caixa CEO-04"
-
-    ReconcileFieldEventResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        action_taken:
-          type: string
-          enum: [reconciled_intra_olt, reconciled_cross_olt, rejected_in_stock_onu, onu_not_found]
-        serial:
-          type: string
-        contract_id:
-          type: string
-          nullable: true
-        subscriber_name:
-          type: string
-          nullable: true
-        old_olt_id:
-          type: string
-          nullable: true
-        new_olt_id:
-          type: string
-          nullable: true
-        old_port:
-          type: string
-          nullable: true
-        new_port:
-          type: string
-          nullable: true
-        old_onu_id:
-          type: integer
-          nullable: true
-        new_onu_id:
-          type: integer
-          nullable: true
-        old_circuit_id:
-          type: string
-          nullable: true
-        new_circuit_id:
-          type: string
-          nullable: true
-        message:
-          type: string
-        _links:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/HateoasLink'
-
-    ONUMigrationEvent:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        serial:
-          type: string
-        contract_id:
-          type: string
-          nullable: true
-        subscriber_name:
-          type: string
-          nullable: true
-        timestamp:
-          type: string
-          format: date-time
-        reason:
-          type: string
-        from_olt_id:
-          type: string
-          nullable: true
-        from_olt_name:
-          type: string
-          nullable: true
-        from_port:
-          type: string
-          nullable: true
-        from_onu_id:
-          type: integer
-          nullable: true
-        from_circuit_id:
-          type: string
-          nullable: true
-        to_olt_id:
-          type: string
-        to_olt_name:
-          type: string
-        to_port:
-          type: string
-        to_onu_id:
-          type: integer
-        to_circuit_id:
-          type: string
+          title: Serial
         status:
           type: string
-          example: "success"
-        details:
-          type: string
-          nullable: true
+          title: Status
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        rx_power_dbm:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rx Power Dbm
+          description: Potência óptica recebida na OLT em dBm
+        tx_power_dbm:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tx Power Dbm
+          description: Potência óptica transmitida pela ONU em dBm
+        vlan:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Vlan
         _links:
-          type: object
           additionalProperties:
-            $ref: '#/components/schemas/HateoasLink'
-
-    WebhookSubscription:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
       type: object
+      required:
+      - port
+      - onu_id
+      - serial
+      - status
+      title: ONUDetails
+    ONUInventoryItem:
       properties:
         id:
           type: string
-          format: uuid
-        url:
+          title: Id
+          description: Identificador único UUIDv7
+        serial:
           type: string
-          format: uri
-        secret:
+          title: Serial
+          description: Serial alfanumérico da ONU (chave de hardware imutável)
+        contract_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contract Id
+          description: Número do contrato no ERP
+        subscriber_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Subscriber Name
+          description: Nome do assinante
+        contract_status:
           type: string
-        events:
-          type: array
-          items:
-            type: string
-        is_active:
-          type: boolean
+          title: Contract Status
+          description: 'Estado do contrato no ERP: ACTIVE, SUSPENDED, CANCELLED, IN_STOCK'
+          default: ACTIVE
+        vlan:
+          anyOf:
+          - type: integer
+            maximum: 4094.0
+            minimum: 1.0
+          - type: 'null'
+          title: Vlan
+          description: VLAN de serviço
+        profile:
+          type: string
+          title: Profile
+          description: Perfil de linha/tráfego
+          default: DEFAULT
         description:
-          type: string
-          nullable: true
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Descrição ou anotação do cliente
+        latitude:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latitude
+          description: Latitude geográfica da instalação da ONU
+        longitude:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Longitude
+          description: Longitude geográfica da instalação da ONU
+        current_olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Olt Id
+          description: ID da OLT onde a ONU está fixada
+        current_port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Port
+          description: Porta PON atual
+        current_onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Current Onu Id
+          description: Índice ONU ID na porta atual
+        circuit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Circuit Id
+          description: Identificador de circuito físico Broadband Forum TR-101
         created_at:
           type: string
           format: date-time
+          title: Created At
         updated_at:
           type: string
           format: date-time
+          title: Updated At
         _links:
-          type: object
           additionalProperties:
-            $ref: '#/components/schemas/HateoasLink'
-
-    WebhookCreateRequest:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
       type: object
       required:
-        - url
-      properties:
-        url:
-          type: string
-          format: uri
-          example: "https://erp.provedor.com.br/api/v1/webhooks/oltapi"
-        secret:
-          type: string
-          nullable: true
-          example: "whsec_custom_secret_key"
-        events:
-          type: array
-          items:
-            type: string
-          default: ["*"]
-          example: ["onu.reconciled", "onu.detected"]
-        is_active:
-          type: boolean
-          default: true
-        description:
-          type: string
-          nullable: true
-          example: "ERP IXC Soft Matriz"
-
-    WebhookDeliveryLog:
-      type: object
+      - serial
+      title: ONUInventoryItem
+    ONUMigrationEvent:
       properties:
         id:
           type: string
-          format: uuid
-        subscription_id:
+          title: Id
+          description: Identificador único do evento UUIDv7
+        serial:
           type: string
-          format: uuid
-        event:
-          type: string
-          example: "onu.reconciled"
-        url:
-          type: string
-          format: uri
-        status_code:
-          type: integer
-          nullable: true
-          example: 200
-        success:
-          type: boolean
-        duration_ms:
-          type: number
-          format: float
-          example: 45.2
-        error_message:
-          type: string
-          nullable: true
+          title: Serial
+        contract_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contract Id
+        subscriber_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Subscriber Name
         timestamp:
           type: string
           format: date-time
-
-    ScannerStatus:
+          title: Timestamp
+        reason:
+          type: string
+          title: Reason
+          description: 'Motivo da migração: field_event_auto_reconciliation, address_change,
+            fiber_swap_correction, pop_cutover'
+        from_olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Olt Id
+        from_olt_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Olt Name
+        from_port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Port
+        from_onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: From Onu Id
+        from_circuit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Circuit Id
+        to_olt_id:
+          type: string
+          title: To Olt Id
+        to_olt_name:
+          type: string
+          title: To Olt Name
+        to_port:
+          type: string
+          title: To Port
+        to_onu_id:
+          type: integer
+          title: To Onu Id
+        to_circuit_id:
+          type: string
+          title: To Circuit Id
+        status:
+          type: string
+          title: Status
+          default: success
+        details:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Details
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
       type: object
       required:
-        - is_running
-        - interval_seconds
+      - serial
+      - reason
+      - to_olt_id
+      - to_olt_name
+      - to_port
+      - to_onu_id
+      - to_circuit_id
+      title: ONUMigrationEvent
+    ONUSummary:
       properties:
-        is_running:
+        port:
+          type: string
+          title: Port
+        onu_id:
+          type: integer
+          title: Onu Id
+        serial:
+          type: string
+          title: Serial
+        status:
+          type: string
+          title: Status
+          description: 'Ex: online, offline, los, dying-gasp'
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - port
+      - onu_id
+      - serial
+      - status
+      title: ONUSummary
+    ProfileItem:
+      properties:
+        name:
+          type: string
+          title: Name
+          description: Nome do perfil
+        profile_type:
+          type: string
+          title: Profile Type
+          description: 'Tipo do perfil: line, dba, traffic'
+          default: line
+        details:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Details
+          description: Parâmetros adicionais do perfil
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - name
+      title: ProfileItem
+    ProvisionRequest:
+      properties:
+        port:
+          type: string
+          title: Port
+          description: 'Porta PON (ex: 1/1 ou 0/1/1)'
+          example: 1/1
+        serial:
+          type: string
+          title: Serial
+          description: Número de série alfanumérico da ONU
+          example: INCL12345678
+        vlan:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Vlan
+          description: VLAN de serviço
+          example: 100
+        profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Profile
+          description: Perfil de tráfego/linha
+          default: DEFAULT
+          example: PLAN_100M
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Identificação do cliente
+          default: Cliente
+          example: Cliente_Joao_Silva
+        onu_model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Onu Model
+          description: Modelo da ONU ou 'auto'
+          default: auto
+        mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mode
+          description: 'Modo de operação: ''bridge'' ou ''router'''
+          default: bridge
+        pppoe_user:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pppoe User
+          description: Usuário PPPoE para modo router
+        pppoe_password:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pppoe Password
+          description: Senha PPPoE para modo router
+        onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Onu Id
+          description: ID da ONU na porta PON (auto-calculado se omitido)
+      type: object
+      required:
+      - port
+      - serial
+      - vlan
+      title: ProvisionRequest
+    ProvisionResponse:
+      properties:
+        success:
           type: boolean
+          title: Success
+          default: true
+        port:
+          type: string
+          title: Port
+        onu_id:
+          type: integer
+          title: Onu Id
+        serial:
+          type: string
+          title: Serial
+        message:
+          type: string
+          title: Message
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - port
+      - onu_id
+      - serial
+      - message
+      title: ProvisionResponse
+    PurgePolicy:
+      properties:
+        max_backups_per_olt:
+          type: integer
+          minimum: 1.0
+          title: Max Backups Per Olt
+          description: Máximo de backups retidos por OLT
+          default: 30
+        max_age_days:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Max Age Days
+          description: Idade máxima em dias para retenção
+      type: object
+      title: PurgePolicy
+    PurgeResult:
+      properties:
+        olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Olt Id
+        deleted_count:
+          type: integer
+          title: Deleted Count
+        freed_bytes:
+          type: integer
+          title: Freed Bytes
+        remaining_count:
+          type: integer
+          title: Remaining Count
+      type: object
+      required:
+      - deleted_count
+      - freed_bytes
+      - remaining_count
+      title: PurgeResult
+    ReconcileFieldEventRequest:
+      properties:
+        serial:
+          type: string
+          title: Serial
+          description: Serial alfanumérico detectado em campo
+        detected_olt_id:
+          type: string
+          title: Detected Olt Id
+          description: ID da OLT onde a ONU acendeu no autofind
+        detected_port:
+          type: string
+          title: Detected Port
+          description: Porta PON onde a ONU acendeu
+        detected_onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Detected Onu Id
+          description: Índice numérico da ONU (opcional)
+        latitude:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latitude
+          description: Latitude geográfica atualizada se houver
+        longitude:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Longitude
+          description: Longitude geográfica atualizada se houver
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+          description: Motivo do evento
+          default: field_event_auto_reconciliation
+      type: object
+      required:
+      - serial
+      - detected_olt_id
+      - detected_port
+      title: ReconcileFieldEventRequest
+    ReconcileFieldEventResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+        action_taken:
+          type: string
+          title: Action Taken
+          description: reconciled_intra_olt, reconciled_cross_olt, rejected_in_stock_onu,
+            onu_not_found
+        serial:
+          type: string
+          title: Serial
+        contract_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contract Id
+        subscriber_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Subscriber Name
+        from_olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Olt Id
+        to_olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: To Olt Id
+        from_port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Port
+        to_port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: To Port
+        old_olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Old Olt Id
+        new_olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: New Olt Id
+        old_port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Old Port
+        new_port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: New Port
+        old_onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Old Onu Id
+        new_onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: New Onu Id
+        old_circuit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Old Circuit Id
+        new_circuit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: New Circuit Id
+        message:
+          type: string
+          title: Message
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - success
+      - action_taken
+      - serial
+      - message
+      title: ReconcileFieldEventResponse
+    RegisterONUInventoryRequest:
+      properties:
+        serial:
+          type: string
+          title: Serial
+          description: Serial alfanumérico da ONU
+        olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Olt Id
+          description: ID da OLT
+        current_olt_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Olt Id
+          description: Alias para olt_id
+        port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Port
+          description: Porta PON
+        current_port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Port
+          description: Alias para port
+        onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Onu Id
+          description: Índice ONU ID
+        current_onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Current Onu Id
+          description: Alias para onu_id
+        vlan:
+          anyOf:
+          - type: integer
+            maximum: 4094.0
+            minimum: 1.0
+          - type: 'null'
+          title: Vlan
+          description: VLAN de serviço
+        profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Profile
+          description: Perfil de tráfego
+          default: DEFAULT
+        contract_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contract Id
+          description: Código do contrato no ERP
+        subscriber_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Subscriber Name
+          description: Nome do assinante
+        contract_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contract Status
+          description: ACTIVE, SUSPENDED, CANCELLED, IN_STOCK
+          default: ACTIVE
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Descrição ou notas de campo
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+          description: Alias para description
+        latitude:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latitude
+          description: Latitude geográfica
+        longitude:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Longitude
+          description: Longitude geográfica
+      type: object
+      required:
+      - serial
+      title: RegisterONUInventoryRequest
+    ScannerIntervalUpdateRequest:
+      properties:
         interval_seconds:
           type: integer
+          maximum: 86400.0
+          minimum: 10.0
+          title: Interval Seconds
+          description: 'Novo intervalo de varredura periódica em segundos (mínimo
+            defensivo: 10s)'
           example: 60
-        last_run_at:
-          type: string
-          format: date-time
-          nullable: true
-        last_run_duration_ms:
-          type: number
-          format: float
-          nullable: true
-        last_cycle_id:
-          type: string
-          format: uuid
-          nullable: true
-        total_cycles:
-          type: integer
-          example: 15
-        total_onus_detected:
-          type: integer
-          example: 42
-        total_onus_reconciled:
-          type: integer
-          example: 3
-        total_virgin_onus:
-          type: integer
-          example: 39
-        total_errors:
-          type: integer
-          example: 0
-        _links:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/HateoasLink'
-
-    ScannerOLTSummary:
       type: object
       required:
-        - olt_id
-        - olt_name
-        - status
+      - interval_seconds
+      title: ScannerIntervalUpdateRequest
+    ScannerOLTSummary:
       properties:
         olt_id:
           type: string
-          format: uuid
+          title: Olt Id
         olt_name:
           type: string
-          example: "OLT-POP-CENTRAL"
+          title: Olt Name
         status:
           type: string
-          example: "success"
+          title: Status
+          description: 'Status da varredura na OLT: ''success'' ou ''error'''
         detected_onus_count:
           type: integer
-          example: 2
+          title: Detected Onus Count
+          default: 0
         reconciled_serials:
-          type: array
           items:
             type: string
+          type: array
+          title: Reconciled Serials
         virgin_serials:
-          type: array
           items:
             type: string
+          type: array
+          title: Virgin Serials
         error_message:
-          type: string
-          nullable: true
-
-    ScannerRunResult:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
       type: object
       required:
-        - cycle_id
-        - started_at
-        - completed_at
-        - duration_ms
-        - olts_scanned
+      - olt_id
+      - olt_name
+      - status
+      title: ScannerOLTSummary
+    ScannerRunResult:
       properties:
         cycle_id:
           type: string
-          format: uuid
-          example: "018e6a2b-871c-7f51-b753-f72535928d11"
+          title: Cycle Id
+          description: Identificador único do ciclo de varredura (UUIDv7)
         started_at:
           type: string
           format: date-time
+          title: Started At
         completed_at:
           type: string
           format: date-time
+          title: Completed At
         duration_ms:
           type: number
-          format: float
-          example: 125.4
+          title: Duration Ms
         olts_scanned:
           type: integer
-          example: 4
+          title: Olts Scanned
         detected_onus_count:
           type: integer
-          example: 3
+          title: Detected Onus Count
         reconciled_onus_count:
           type: integer
-          example: 1
+          title: Reconciled Onus Count
         virgin_onus_count:
           type: integer
-          example: 2
+          title: Virgin Onus Count
         errors_count:
           type: integer
-          example: 0
+          title: Errors Count
         olt_results:
-          type: array
           items:
             $ref: '#/components/schemas/ScannerOLTSummary'
+          type: array
+          title: Olt Results
         _links:
-          type: object
           additionalProperties:
-            $ref: '#/components/schemas/HateoasLink'
-
-    ScannerIntervalUpdateRequest:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
       type: object
       required:
-        - interval_seconds
+      - cycle_id
+      - started_at
+      - completed_at
+      - duration_ms
+      - olts_scanned
+      - detected_onus_count
+      - reconciled_onus_count
+      - virgin_onus_count
+      - errors_count
+      title: ScannerRunResult
+    ScannerStatus:
       properties:
+        is_running:
+          type: boolean
+          title: Is Running
         interval_seconds:
           type: integer
-          minimum: 10
-          maximum: 86400
-          example: 120
+          title: Interval Seconds
+        last_run_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Run At
+        last_run_duration_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Last Run Duration Ms
+        last_cycle_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Cycle Id
+        total_cycles:
+          type: integer
+          title: Total Cycles
+          default: 0
+        total_onus_detected:
+          type: integer
+          title: Total Onus Detected
+          default: 0
+        total_onus_reconciled:
+          type: integer
+          title: Total Onus Reconciled
+          default: 0
+        total_virgin_onus:
+          type: integer
+          title: Total Virgin Onus
+          default: 0
+        total_errors:
+          type: integer
+          title: Total Errors
+          default: 0
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - is_running
+      - interval_seconds
+      title: ScannerStatus
+    SetupInitRequest:
+      properties:
+        provider_name:
+          type: string
+          maxLength: 128
+          minLength: 2
+          title: Provider Name
+          description: Nome / Razão Social da Empresa ou Provedor
+        admin_name:
+          type: string
+          maxLength: 128
+          minLength: 2
+          title: Admin Name
+          description: Nome completo do Administrador Geral
+        admin_email:
+          type: string
+          maxLength: 128
+          minLength: 5
+          title: Admin Email
+          description: E-mail de acesso do Administrador
+        admin_password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: Admin Password
+          description: Senha de acesso do Administrador (mínimo 8 caracteres)
+      type: object
+      required:
+      - provider_name
+      - admin_name
+      - admin_email
+      - admin_password
+      title: SetupInitRequest
+    SetupInitResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: success
+        message:
+          type: string
+          title: Message
+        tenant_id:
+          type: string
+          title: Tenant Id
+        admin_user_id:
+          type: string
+          title: Admin User Id
+        admin_email:
+          type: string
+          title: Admin Email
+      type: object
+      required:
+      - message
+      - tenant_id
+      - admin_user_id
+      - admin_email
+      title: SetupInitResponse
+    SetupStatusResponse:
+      properties:
+        is_configured:
+          type: boolean
+          title: Is Configured
+          description: Indica se o sistema já teve seu setup inicial concluído
+        provider_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Provider Name
+          description: Nome do provedor cadastrado se já configurado
+        message:
+          type: string
+          title: Message
+          description: Mensagem de status do setup
+      type: object
+      required:
+      - is_configured
+      - message
+      title: SetupStatusResponse
+    SyncOLTResponse:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+          description: Identificador UUIDv7 da OLT
+        olt_name:
+          type: string
+          title: Olt Name
+          description: Nome da OLT
+        baseline_backup_id:
+          type: string
+          title: Baseline Backup Id
+          description: UUIDv7 do backup de baseline preventivo (Snapshot v0)
+        total_onus_discovered:
+          type: integer
+          title: Total Onus Discovered
+          description: Total de ONUs identificadas no chassi
+        new_onus_registered:
+          type: integer
+          title: New Onus Registered
+          description: ONUs novas catalogadas no inventário
+        existing_onus_updated:
+          type: integer
+          title: Existing Onus Updated
+          description: ONUs preexistentes atualizadas
+        vlans_discovered:
+          items:
+            type: integer
+          type: array
+          title: Vlans Discovered
+          description: VLANs identificadas na OLT
+        duration_ms:
+          type: number
+          title: Duration Ms
+          description: Tempo de execução do sync em milissegundos
+        message:
+          type: string
+          title: Message
+          default: Onboarding e sincronização concluídos com sucesso
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - olt_id
+      - olt_name
+      - baseline_backup_id
+      - total_onus_discovered
+      - new_onus_registered
+      - existing_onus_updated
+      - duration_ms
+      title: SyncOLTResponse
+    TenantCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 64
+          minLength: 2
+          title: Name
+          description: Nome do Inquilino / Operadora
+        type:
+          $ref: '#/components/schemas/TenantType'
+          description: Tipo da organização
+          default: NEUTRAL_OPERATOR
+        is_active:
+          type: boolean
+          title: Is Active
+          description: Status de ativação
+          default: true
+      type: object
+      required:
+      - name
+      title: TenantCreateRequest
+    TenantResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        type:
+          $ref: '#/components/schemas/TenantType'
+        is_active:
+          type: boolean
+          title: Is Active
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        vlans:
+          items:
+            $ref: '#/components/schemas/TenantVLANAllocationResponse'
+          type: array
+          title: Vlans
+          default: []
+      type: object
+      required:
+      - id
+      - name
+      - type
+      - is_active
+      - created_at
+      title: TenantResponse
+    TenantType:
+      type: string
+      enum:
+      - PROVIDER_OWNER
+      - NEUTRAL_OPERATOR
+      title: TenantType
+    TenantVLANAllocationCreate:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+          description: ID da OLT onde a VLAN está autorizada
+        vlan_id:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Vlan Id
+          description: ID numérico da VLAN IEEE 802.1Q
+        description:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Description
+          description: Identificação da VLAN
+      type: object
+      required:
+      - olt_id
+      - vlan_id
+      title: TenantVLANAllocationCreate
+    TenantVLANAllocationResponse:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+          description: ID da OLT onde a VLAN está autorizada
+        vlan_id:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Vlan Id
+          description: ID numérico da VLAN IEEE 802.1Q
+        description:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Description
+          description: Identificação da VLAN
+        id:
+          type: string
+          title: Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - olt_id
+      - vlan_id
+      - id
+      - tenant_id
+      - created_at
+      title: TenantVLANAllocationResponse
+    TokenResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        token_type:
+          type: string
+          title: Token Type
+          default: bearer
+        expires_in:
+          type: integer
+          title: Expires In
+        user_id:
+          type: string
+          title: User Id
+        role:
+          $ref: '#/components/schemas/UserRole'
+        tenant_id:
+          type: string
+          title: Tenant Id
+      type: object
+      required:
+      - access_token
+      - expires_in
+      - user_id
+      - role
+      - tenant_id
+      title: TokenResponse
+    UnauthorizedONU:
+      properties:
+        port:
+          type: string
+          title: Port
+        serial:
+          type: string
+          title: Serial
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        detected_at:
+          type: string
+          format: date-time
+          title: Detected At
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - port
+      - serial
+      title: UnauthorizedONU
+    UserCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 128
+          minLength: 2
+          title: Name
+          description: Nome do usuário ou técnico
+        email:
+          type: string
+          maxLength: 128
+          minLength: 5
+          title: Email
+          description: Email de login (único)
+        password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: Password
+          description: Senha de acesso
+        role:
+          $ref: '#/components/schemas/UserRole'
+          description: Perfil de acesso (RBAC)
+        tenant_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tenant Id
+          description: ID do Inquilino/Organização (obrigatório se não for SUPER_ADMIN)
+        allowed_olt_ids:
+          items:
+            type: string
+          type: array
+          title: Allowed Olt Ids
+          description: 'Lista de IDs de OLTs autorizadas (ex: VTX)'
+          default: []
+      type: object
+      required:
+      - name
+      - email
+      - password
+      - role
+      title: UserCreateRequest
+    UserLoginRequest:
+      properties:
+        email:
+          type: string
+          maxLength: 128
+          minLength: 5
+          title: Email
+          description: Email cadastrado
+        password:
+          type: string
+          title: Password
+          description: Senha de acesso
+      type: object
+      required:
+      - email
+      - password
+      title: UserLoginRequest
+    UserProfileResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        tenant_name:
+          type: string
+          title: Tenant Name
+        tenant_type:
+          type: string
+          title: Tenant Type
+        name:
+          type: string
+          title: Name
+        email:
+          type: string
+          title: Email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        allowed_olt_ids:
+          items:
+            type: string
+          type: array
+          title: Allowed Olt Ids
+          default: []
+        allowed_vlans:
+          additionalProperties:
+            items:
+              type: integer
+            type: array
+          type: object
+          title: Allowed Vlans
+          default: {}
+      type: object
+      required:
+      - id
+      - tenant_id
+      - tenant_name
+      - tenant_type
+      - name
+      - email
+      - role
+      title: UserProfileResponse
+    UserResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        name:
+          type: string
+          title: Name
+        email:
+          type: string
+          title: Email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        is_active:
+          type: boolean
+          title: Is Active
+        allowed_olt_ids:
+          items:
+            type: string
+          type: array
+          title: Allowed Olt Ids
+          default: []
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - name
+      - email
+      - role
+      - is_active
+      - created_at
+      title: UserResponse
+    UserRole:
+      type: string
+      enum:
+      - SUPER_ADMIN
+      - NOC
+      - FIELD_TECH
+      - TENANT_ADMIN
+      - TENANT_TECH
+      title: UserRole
+    UserUpdateRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 2
+          - type: 'null'
+          title: Name
+        password:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 8
+          - type: 'null'
+          title: Password
+        role:
+          anyOf:
+          - $ref: '#/components/schemas/UserRole'
+          - type: 'null'
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        allowed_olt_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Allowed Olt Ids
+      type: object
+      title: UserUpdateRequest
+    VLANCreateRequest:
+      properties:
+        vlan_id:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Vlan Id
+          description: ID numérico da nova VLAN (1-4094)
+        name:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Name
+          description: Nome identificador da VLAN
+        description:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Description
+          description: Descrição do propósito da VLAN
+        tagged_uplink_ports:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tagged Uplink Ports
+          description: Lista opcional de portas de uplink para taggear
+      type: object
+      required:
+      - vlan_id
+      title: VLANCreateRequest
+    VLANItem:
+      properties:
+        vlan_id:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Vlan Id
+          description: ID numérico da VLAN (1-4094)
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+          description: Nome identificador da VLAN
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Descrição ou propósito da VLAN
+        tagged_ports:
+          items:
+            type: string
+          type: array
+          title: Tagged Ports
+          description: Portas de uplink/PON marcadas (Tagged)
+        untagged_ports:
+          items:
+            type: string
+          type: array
+          title: Untagged Ports
+          description: Portas não marcadas (Untagged / Access)
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - vlan_id
+      title: VLANItem
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    WebhookCreateRequest:
+      properties:
+        url:
+          type: string
+          title: Url
+          description: 'URL de destino do webhook no ERP (ex: https://erp.provedor.com.br/api/webhooks/oltapi)'
+        secret:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Secret
+          description: Chave secreta para assinatura HMAC (opcional, gerada automaticamente
+            se omitida)
+        events:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Events
+          description: 'Eventos desejados (default: [''*''])'
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+          description: Ativar webhook imediatamente
+          default: true
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Descrição amigável do sistema receptor
+      type: object
+      required:
+      - url
+      title: WebhookCreateRequest
+    WebhookDeliveryLog:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: ID único da entrega UUIDv7
+        subscription_id:
+          type: string
+          title: Subscription Id
+        event:
+          type: string
+          title: Event
+        url:
+          type: string
+          title: Url
+        status_code:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Status Code
+        success:
+          type: boolean
+          title: Success
+        duration_ms:
+          type: number
+          title: Duration Ms
+          default: 0.0
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+        timestamp:
+          type: string
+          format: date-time
+          title: Timestamp
+      type: object
+      required:
+      - subscription_id
+      - event
+      - url
+      - success
+      title: WebhookDeliveryLog
+    WebhookSubscription:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: Identificador único da assinatura UUIDv7
+        url:
+          type: string
+          title: Url
+          description: URL de endpoint HTTP/HTTPS do ERP que receberá o evento
+        secret:
+          type: string
+          title: Secret
+          description: Chave secreta compartilhada para cálculo do HMAC SHA-256
+        events:
+          items:
+            type: string
+          type: array
+          title: Events
+          description: 'Lista de eventos inscritos (ex: [''onu.reconciled'', ''onu.detected'']
+            ou [''*''])'
+        is_active:
+          type: boolean
+          title: Is Active
+          description: Se a assinatura está ativa e recebendo despachos
+          default: true
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: 'Identificação do ERP de destino (ex: ''IXC Soft Matriz'')'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - url
+      - secret
+      title: WebhookSubscription
+  securitySchemes:
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    HTTPBearer:
+      type: http
+      scheme: bearer
