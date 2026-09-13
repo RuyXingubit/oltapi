@@ -17,4 +17,5 @@ backups/*
 data/*
 !data/.gitkeep
 .DS_Store
+docs/brainstorming/
 

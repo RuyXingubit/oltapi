@@ -178,70 +178,7 @@ def migrate_legacy_json_data(db: Optional[Session] = None):
         if close_session:
             db.close()
 
-
-def seed_default_tenant_and_admin(db: Optional[Session] = None):
-    """Gera o Tenant padrão (Provedor Matriz) e usuário Super Admin se não existirem."""
-    close_session = False
-    if db is None:
-        db = SessionLocal()
-        close_session = True
-
-    try:
-        from app.core.security import get_password_hash
-        from app.core.uuid import generate_uuid7
-        from app.db.models import TenantModel, UserModel, ONUInventoryModel
-
-        # 1. Tenant Matriz
-        matriz = db.query(TenantModel).filter(TenantModel.type == "PROVIDER_OWNER").first()
-        if not matriz:
-            matriz = TenantModel(
-                id=generate_uuid7(),
-                name="Provedor Matriz",
-                type="PROVIDER_OWNER",
-                is_active=True,
-                created_at=datetime.now(timezone.utc),
-            )
-            db.add(matriz)
-            db.commit()
-            db.refresh(matriz)
-            logger.info(f"Tenant padrão criado: {matriz.name} ({matriz.id})")
-
-        # 2. Usuário Administrador Padrão
-        admin_user = db.query(UserModel).filter(UserModel.email == "admin@oltapi.local").first()
-        if not admin_user:
-            admin_user = UserModel(
-                id=generate_uuid7(),
-                tenant_id=matriz.id,
-                name="Administrador do Sistema",
-                email="admin@oltapi.local",
-                password_hash=get_password_hash("admin123456"),
-                role="SUPER_ADMIN",
-                is_active=True,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            )
-            db.add(admin_user)
-            db.commit()
-            logger.info("Usuário Admin padrão criado: admin@oltapi.local")
-
-        # 3. Vincula ONUs sem tenant ao Provedor Matriz
-        unassigned_onus = db.query(ONUInventoryModel).filter(ONUInventoryModel.tenant_id.is_(None)).all()
-        if unassigned_onus:
-            for onu in unassigned_onus:
-                onu.tenant_id = matriz.id
-            db.commit()
-            logger.info(f"{len(unassigned_onus)} ONUs vinculadas ao Tenant Matriz.")
-
-    except Exception as e:
-        logger.warning(f"Erro ao criar seed inicial de RBAC/Tenant: {e}")
-        db.rollback()
-    finally:
-        if close_session:
-            db.close()
-
-
 def init_db():
-    """Inicialização completa: aplica migrações e migra dados legados."""
+    """Inicialização completa: aplica migrações e migra dados legados. Nenhum seed fictício é inserido."""
     run_migrations()
     migrate_legacy_json_data()
-    seed_default_tenant_and_admin()

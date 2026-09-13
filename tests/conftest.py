@@ -112,8 +112,6 @@ def setup_test_env(postgres_container):
         finally:
             db.close()
 
-    from app.db.init_db import seed_default_tenant_and_admin
-    seed_default_tenant_and_admin(session_factory())
 
     app.dependency_overrides[deps.get_db] = override_get_db
     app.dependency_overrides[deps.get_olt_repo] = lambda: test_olt_repo

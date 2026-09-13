@@ -8,6 +8,50 @@ from app.models.onu_inventory import ONUInventoryItem
 from app.models.provision import ProvisionResponse
 
 
+def test_setup_wizard_first_run_and_lockdown(client: TestClient, auth_headers):
+    """
+    Testa o fluxo completo do First-Run Setup Wizard:
+    1. Verifica status inicial (não configurado).
+    2. Bloqueia tentativas sem chave mestra (401).
+    3. Executa setup inicial com dados reais do provedor e admin.
+    4. Bloqueia tentativas subsequentes de setup (403 Forbidden).
+    5. Confirma status pós-configuração.
+    """
+    # 1. Status inicial
+    status_resp = client.get("/api/v1/setup/status")
+    assert status_resp.status_code == 200
+    assert status_resp.json()["is_configured"] is False
+
+    # 2. Bloqueio sem autenticação da Master Key
+    setup_payload = {
+        "provider_name": "Provedor Telecom Real",
+        "admin_name": "Administrador Principal",
+        "admin_email": "admin@provedor.com.br",
+        "admin_password": "senha_forte_admin_123",
+    }
+    unauth_resp = client.post("/api/v1/setup/init", json=setup_payload)
+    assert unauth_resp.status_code == 401
+
+    # 3. Execução bem sucedida com Master Key
+    init_resp = client.post("/api/v1/setup/init", json=setup_payload, headers=auth_headers)
+    assert init_resp.status_code == 201
+    init_data = init_resp.json()
+    assert init_data["status"] == "success"
+    assert init_data["admin_email"] == "admin@provedor.com.br"
+    assert "tenant_id" in init_data
+    assert "admin_user_id" in init_data
+
+    # 4. Status pós-setup
+    post_status = client.get("/api/v1/setup/status")
+    assert post_status.status_code == 200
+    assert post_status.json()["is_configured"] is True
+    assert post_status.json()["provider_name"] == "Provedor Telecom Real"
+
+    # 5. Tentativa de re-execução bloqueada com 403
+    reinit_resp = client.post("/api/v1/setup/init", json=setup_payload, headers=auth_headers)
+    assert reinit_resp.status_code == 403
+
+
 def test_master_admin_access_everything(client: TestClient, auth_headers):
     """Garante que a chave mestra do .env continua com privilégios irrestritos de SUPER_ADMIN."""
     resp = client.get("/api/v1/tenants", headers=auth_headers)
@@ -18,11 +62,11 @@ def test_master_admin_access_everything(client: TestClient, auth_headers):
     assert resp_olts.status_code == 200
 
 
-def test_login_and_get_profile(client: TestClient, setup_test_env):
-    """Valida o fluxo de autenticação JWT via email/senha e consulta do endpoint /auth/me."""
+def test_login_and_get_profile(client: TestClient):
+    """Valida o fluxo de autenticação JWT via email/senha do admin criado no Setup Wizard."""
     login_payload = {
-        "email": "admin@oltapi.local",
-        "password": "admin123456",
+        "email": "admin@provedor.com.br",
+        "password": "senha_forte_admin_123",
     }
     resp = client.post("/api/v1/auth/login", json=login_payload)
     assert resp.status_code == 200
@@ -35,7 +79,7 @@ def test_login_and_get_profile(client: TestClient, setup_test_env):
     me_resp = client.get("/api/v1/auth/me", headers=jwt_headers)
     assert me_resp.status_code == 200
     me_data = me_resp.json()
-    assert me_data["email"] == "admin@oltapi.local"
+    assert me_data["email"] == "admin@provedor.com.br"
     assert me_data["role"] == "SUPER_ADMIN"
 
 
