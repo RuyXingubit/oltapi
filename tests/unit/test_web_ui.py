@@ -3,10 +3,10 @@ from fastapi.testclient import TestClient
 
 
 def test_serve_ui_root_endpoint(client: TestClient):
-    """Garante que a rota raiz (/) serve o HTML principal da bancada."""
+    """Garante que a rota raiz (/) serve o HTML principal da aplicação."""
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "OLTAPI • Bancada de Provisionamento & Diagnóstico" in resp.text
+    assert "OLTAPI • Gestão de ONUs" in resp.text
     assert "id=\"view-setup\"" in resp.text
     assert "id=\"view-login\"" in resp.text
     assert "id=\"subview-bancada\"" in resp.text

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OLTAPI • Bancada de Provisionamento & Diagnóstico</title>
+  <title>OLTAPI • Gestão de ONUs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -82,14 +82,14 @@
         </div>
 
         <button type="submit" id="btn-submit-login" class="btn btn-primary" style="width: 100%; margin-top: 10px;">
-          Entrar na Bancada
+          Entrar no Sistema
         </button>
       </form>
     </div>
   </div>
 
   <!-- ====================================================================
-       3. VIEW: APLICAÇÃO PRINCIPAL (DASHBOARD & BANCADA)
+       3. VIEW: APLICAÇÃO PRINCIPAL (GESTÃO DE ONUS)
        ==================================================================== -->
   <div id="app" class="hidden">
     <!-- Sidebar -->
@@ -99,22 +99,22 @@
           <div class="brand-icon">⚡</div>
           <div class="brand-info">
             <h1 id="sidebar-provider-title">OLTAPI</h1>
-            <span id="sidebar-provider-subtitle">Bancada Lab</span>
+            <span id="sidebar-provider-subtitle">Gestão FTTH</span>
           </div>
         </div>
 
         <nav class="nav-menu">
           <a class="nav-item active" data-view="bancada">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            Radar de Bancada
+            ONUs Não Autorizadas
           </a>
           <a class="nav-item" data-view="inventario">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
-            Inventário de ONUs
+            ONUs Autorizadas
           </a>
           <a class="nav-item" id="nav-admin" data-view="administracao">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-            Inquilinos & RBAC
+            Inquilinos & Acessos
           </a>
         </nav>
       </div>
@@ -155,13 +155,13 @@
         </div>
       </header>
 
-      <!-- Sub-view: Radar de Bancada -->
+      <!-- Sub-view: ONUs Não Autorizadas -->
       <section id="subview-bancada" class="page-container">
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">🔍 Radar de ONUs Não Autorizadas</h2>
-              <p class="card-subtitle">Identificação automática de novas ONUs conectadas às portas PON da OLT selecionada.</p>
+              <h2 class="card-title">🔍 ONUs Não Autorizadas</h2>
+              <p class="card-subtitle">Novas ONUs detectadas nas portas PON da OLT aguardando autorização.</p>
             </div>
             <div style="display: flex; gap: 8px;">
               <input type="text" id="search-unauth-serial" class="form-control" style="width: 200px; padding: 6px 10px;" placeholder="Filtrar por serial...">
@@ -177,7 +177,7 @@
                   <th>Slot / PON</th>
                   <th>Fabricante / Modelo</th>
                   <th>Descoberta</th>
-                  <th style="text-align: right;">Ações de Bancada</th>
+                  <th style="text-align: right;">Ações</th>
                 </tr>
               </thead>
               <tbody id="tbody-unauth-onus">
@@ -191,26 +191,26 @@
           </div>
         </div>
 
-        <!-- Terminal de Execução de Comandos em Tempo Real -->
+        <!-- Log de Comandos na OLT -->
         <div class="card">
           <div class="card-header">
             <div>
-              <h3 class="card-title">💻 Terminal de Operações em Tempo Real</h3>
-              <p class="card-subtitle">Retorno dos comandos executados via SSH/Telnet diretamente na OLT.</p>
+              <h3 class="card-title">💻 Log de Comandos OLT</h3>
+              <p class="card-subtitle">Retorno dos comandos executados diretamente na OLT via SSH/Telnet.</p>
             </div>
             <button id="btn-clear-terminal" class="btn btn-secondary btn-sm">Limpar</button>
           </div>
-          <div id="terminal-output" class="terminal-box">Pronto para operação. Selecione uma ONU para provisionar ou diagnosticar.</div>
+          <div id="terminal-output" class="terminal-box">Pronto para operação. Selecione uma ONU para autorizar ou diagnosticar.</div>
         </div>
       </section>
 
-      <!-- Sub-view: Inventário de ONUs -->
+      <!-- Sub-view: ONUs Autorizadas (Inventário) -->
       <section id="subview-inventario" class="page-container hidden">
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">📋 Inventário de ONUs Ativas</h2>
-              <p class="card-subtitle">ONUs cadastradas e monitoradas na rede.</p>
+              <h2 class="card-title">📋 ONUs Autorizadas</h2>
+              <p class="card-subtitle">Base de ONUs ativas e monitoradas na rede.</p>
             </div>
             <div style="display: flex; gap: 8px;">
               <input type="text" id="search-inv-serial" class="form-control" style="width: 220px; padding: 6px 10px;" placeholder="Buscar serial ou assinante...">
@@ -277,12 +277,12 @@
   </div>
 
   <!-- ====================================================================
-       4. MODAL: ASSISTENTE DE PROVISIONAMENTO RÁPIDO DE BANCADA
+       4. MODAL: AUTORIZAÇÃO DE ONU
        ==================================================================== -->
   <div id="modal-provision" class="modal-overlay">
     <div class="modal-box">
       <div class="modal-header">
-        <h3 class="card-title" id="modal-provision-title">⚡ Provisionar ONU na Bancada</h3>
+        <h3 class="card-title" id="modal-provision-title">⚡ Autorizar ONU</h3>
         <button class="btn-logout" data-close-modal="modal-provision">&times;</button>
       </div>
       <div class="modal-body">
@@ -337,7 +337,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-close-modal="modal-provision">Cancelar</button>
-        <button type="button" id="btn-confirm-provision" class="btn btn-primary">Disparar Provisionamento</button>
+        <button type="button" id="btn-confirm-provision" class="btn btn-primary">Autorizar ONU</button>
       </div>
     </div>
   </div>

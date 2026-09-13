@@ -137,7 +137,7 @@ function logout() {
 }
 
 // ============================================================================
-// OLTs e Radar de Bancada
+// OLTs e ONUs Não Autorizadas
 // ============================================================================
 async function loadOLTs() {
   try {
@@ -162,7 +162,7 @@ async function loadOLTs() {
     await scanUnauthorizedOnus();
     await loadInventory();
 
-    // Auto-refresh do radar de bancada a cada 10s
+    // Consulta periódica de ONUs não autorizadas a cada 10s
     if (state.autoRefreshInterval) clearInterval(state.autoRefreshInterval);
     state.autoRefreshInterval = setInterval(() => {
       const currentActiveView = document.querySelector('.nav-item.active')?.getAttribute('data-view');
@@ -185,9 +185,9 @@ async function scanUnauthorizedOnus(silent = false) {
     const unauth = await apiRequest(`/olts/${state.selectedOltId}/unauthorized${queryParam}`);
     state.unauthOnus = unauth;
     renderUnauthorizedTable();
-    if (!silent) logTerminal(`Radar atualizado: ${unauth.length} ONU(s) detectada(s).`, 'success');
+    if (!silent) logTerminal(`Lista atualizada: ${unauth.length} ONU(s) não autorizada(s) detectada(s).`, 'success');
   } catch (error) {
-    if (!silent) logTerminal(`Falha ao escanear ONUs não autorizadas: ${error.message}`, 'error');
+    if (!silent) logTerminal(`Falha ao consultar ONUs não autorizadas: ${error.message}`, 'error');
   }
 }
 
@@ -218,14 +218,14 @@ function renderUnauthorizedTable() {
       <td style="color: var(--text-secondary); font-size: 12px;">${onu.discovered_at || 'Recente'}</td>
       <td style="text-align: right;">
         <button class="btn btn-primary btn-sm btn-action-provision" data-serial="${onu.serial}" data-port="${onu.port || ''}">
-          ⚡ Provisionar
+          ⚡ Autorizar ONU
         </button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 
-  // Bind dos botões de provisionamento
+  // Bind dos botões de autorização
   document.querySelectorAll('.btn-action-provision').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const serial = e.currentTarget.getAttribute('data-serial');
@@ -439,8 +439,8 @@ async function handleConfirmProvision() {
   }
 
   btnSubmit.disabled = true;
-  btnSubmit.textContent = 'Enviando comandos...';
-  logTerminal(`Iniciando provisionamento da ONU ${serial} na porta ${port} (Modo: ${mode}, VLAN: ${vlan})...`);
+  btnSubmit.textContent = 'Autorizando na OLT...';
+  logTerminal(`Iniciando autorização da ONU ${serial} na porta ${port} (Modo: ${mode}, VLAN: ${vlan})...`);
 
   try {
     const payload = {
@@ -458,18 +458,18 @@ async function handleConfirmProvision() {
       body: JSON.stringify(payload),
     });
 
-    logTerminal(`ONU ${serial} provisionada com sucesso! Resposta: ${resp.message || 'OK'}`, 'success');
+    logTerminal(`ONU ${serial} autorizada com sucesso na OLT! Resposta: ${resp.message || 'OK'}`, 'success');
     document.getElementById('modal-provision').classList.remove('active');
     await scanUnauthorizedOnus();
     await loadInventory();
-    alert(`ONU ${serial} provisionada com sucesso na OLT!`);
+    alert(`ONU ${serial} autorizada com sucesso na OLT!`);
   } catch (error) {
     alertBox.textContent = error.message;
     alertBox.classList.remove('hidden');
-    logTerminal(`Falha no provisionamento: ${error.message}`, 'error');
+    logTerminal(`Falha na autorização da ONU: ${error.message}`, 'error');
   } finally {
     btnSubmit.disabled = false;
-    btnSubmit.textContent = 'Disparar Provisionamento';
+    btnSubmit.textContent = 'Autorizar ONU';
   }
 }
 

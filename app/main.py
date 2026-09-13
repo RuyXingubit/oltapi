@@ -50,7 +50,7 @@ if static_dir.exists():
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
-@app.get("/", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def serve_ui():
     """Serve a Interface Web de Bancada & First-Run Setup Wizard."""
     index_file = settings.BASE_DIR / "app" / "static" / "index.html"
