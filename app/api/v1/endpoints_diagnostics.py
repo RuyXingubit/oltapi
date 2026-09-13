@@ -1,7 +1,8 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import get_olt_repo, require_api_key
+from app.api.deps import get_olt_repo, get_security_context, require_api_key
+from app.core.rbac import SecurityContext
 from app.core.security import sanitize_port, sanitize_safe_string
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
@@ -12,8 +13,16 @@ router = APIRouter(prefix="/olts", tags=["Diagnóstico de Portas & ONUs"], depen
 
 
 @router.get("/{olt_id}/ports/{port:path}/onus", response_model=List[ONUSummary])
-def list_port_onus(olt_id: str, port: str, repo: OLTRepository = Depends(get_olt_repo)):
+def list_port_onus(
+    olt_id: str,
+    port: str,
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
     """Lista as ONUs cadastradas/ativas em uma porta PON específica (ex: '1/1' ou '0/1/1')."""
+    ctx.enforce_scope("diagnostics:read")
+    ctx.enforce_olt(olt_id)
+
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -50,8 +59,16 @@ def list_port_onus(olt_id: str, port: str, repo: OLTRepository = Depends(get_olt
 
 
 @router.get("/{olt_id}/onus/{serial_or_id}", response_model=ONUDetails)
-def get_onu_details(olt_id: str, serial_or_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+def get_onu_details(
+    olt_id: str,
+    serial_or_id: str,
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
     """Consulta detalhes operacionais e níveis de potência óptica (Rx/Tx em dBm) de uma ONU."""
+    ctx.enforce_scope("diagnostics:read")
+    ctx.enforce_olt(olt_id)
+
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")

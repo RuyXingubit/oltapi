@@ -1,7 +1,8 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import get_olt_repo, require_api_key
+from app.api.deps import get_olt_repo, get_security_context, require_api_key
+from app.core.rbac import SecurityContext
 from app.core.security import sanitize_port, sanitize_safe_string
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
@@ -13,8 +14,16 @@ router = APIRouter(prefix="/olts", tags=["Provisionamento & Descoberta"], depend
 
 
 @router.get("/{olt_id}/unauthorized", response_model=List[UnauthorizedONU])
-def list_unauthorized_onus(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+def list_unauthorized_onus(
+    olt_id: str,
+    serial: Optional[str] = Query(default=None, description="Filtrar por serial específico da ONU"),
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
     """Lista as ONUs conectadas fisicamente que aguardam autorização (autofind / unconfigured)."""
+    ctx.enforce_scope("onus:discover")
+    ctx.enforce_olt(olt_id)
+
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -22,6 +31,10 @@ def list_unauthorized_onus(olt_id: str, repo: OLTRepository = Depends(get_olt_re
     try:
         driver = DriverFactory.get_driver(olt)
         onus = driver.list_unauthorized_onus(olt)
+        if serial:
+            clean_serial = serial.strip().upper()
+            onus = [o for o in onus if o.serial.upper() == clean_serial]
+
         for onu in onus:
             onu.links = {
                 "provision": Link(
@@ -43,8 +56,14 @@ def provision_onu(
     req: ProvisionRequest,
     response: Response,
     repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Provisiona e autoriza uma ONU na porta informada aplicando VLAN, perfil e descrição."""
+    ctx.enforce_scope("onus:provision")
+    ctx.enforce_olt(olt_id)
+    if req.vlan:
+        ctx.enforce_vlan(olt_id, req.vlan)
+
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -83,8 +102,12 @@ def deprovision_onu(
     port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
     onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
     repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Desprovisiona uma ONU e libera a porta PON e recursos alocados na OLT."""
+    ctx.enforce_scope("onus:deprovision")
+    ctx.enforce_olt(olt_id)
+
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -127,8 +150,12 @@ def reboot_onu(
     port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
     onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
     repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Reinicia remotamente a ONU do cliente através de comando de gerenciamento OMCI da OLT."""
+    ctx.enforce_scope("onus:actions")
+    ctx.enforce_olt(olt_id)
+
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -166,8 +193,12 @@ def suspend_onu(
     port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
     onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
     repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Suspende administrativamente a ONU (bloqueio por inadimplência/financeiro) desativando o tráfego GPON sem perder o cadastro."""
+    ctx.enforce_scope("onus:actions")
+    ctx.enforce_olt(olt_id)
+
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -210,8 +241,12 @@ def resume_onu(
     port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
     onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
     repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Reativa a ONU suspensa (desbloqueio após confirmação de pagamento), restabelecendo o tráfego GPON."""
+    ctx.enforce_scope("onus:actions")
+    ctx.enforce_olt(olt_id)
+
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")

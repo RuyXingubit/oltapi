@@ -9,8 +9,16 @@ from app.api.v1.endpoints_webhooks import router as webhooks_router
 from app.api.v1.endpoints_scanner import router as scanner_router
 from app.api.v1.endpoints_vlans import router as vlans_router
 from app.api.v1.endpoints_ftp import router as ftp_router
+from app.api.v1.endpoints_auth import router as auth_router
+from app.api.v1.endpoints_tenants import router as tenants_router
+from app.api.v1.endpoints_users import router as users_router
+from app.api.v1.endpoints_api_keys import router as api_keys_router
 
 api_v1_router = APIRouter()
+api_v1_router.include_router(auth_router)
+api_v1_router.include_router(tenants_router)
+api_v1_router.include_router(users_router)
+api_v1_router.include_router(api_keys_router)
 api_v1_router.include_router(olts_router)
 api_v1_router.include_router(backups_router)
 api_v1_router.include_router(diagnostics_router)

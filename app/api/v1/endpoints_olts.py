@@ -7,9 +7,11 @@ from app.api.deps import (
     get_backup_storage,
     get_ftp_repo,
     get_olt_repo,
+    get_security_context,
     get_sync_service,
     require_api_key,
 )
+from app.core.rbac import SecurityContext
 from app.drivers.factory import DriverFactory
 from app.models.vlan import SyncOLTResponse
 from app.models.backup import (
@@ -38,9 +40,16 @@ router = APIRouter(prefix="/olts", tags=["OLTs & Backups"], dependencies=[Depend
 
 
 @router.get("", response_model=List[OLTResponse])
-def list_olts(repo: OLTRepository = Depends(get_olt_repo)):
-    """Lista todas as OLTs cadastradas com links de navegação rápida."""
+def list_olts(
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Lista todas as OLTs cadastradas permitidas para o usuário."""
+    ctx.enforce_scope("olts:read")
     olts = repo.list_all()
+    if ctx.allowed_olt_ids is not None:
+        olts = [o for o in olts if o.id in ctx.allowed_olt_ids]
+
     return [
         OLTResponse(
             id=o.id,
@@ -68,11 +77,12 @@ async def create_olt(
     req: OLTCreateRequest,
     response: Response,
     repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """
-    Cadastra uma nova OLT no inventário, executa teste de conectividade rápido
-    e retorna o cabeçalho Location e links de fluxo guiados pelo status de conexão.
+    Cadastra uma nova OLT no inventário (apenas usuários com permissão administrativa).
     """
+    ctx.enforce_scope("olts:admin")
     olt = repo.create(req)
     response.headers["Location"] = f"/api/v1/olts/{olt.id}"
 
@@ -96,8 +106,14 @@ async def create_olt(
 
 
 @router.get("/{olt_id}", response_model=OLTResponse)
-def get_olt(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+def get_olt(
+    olt_id: str,
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
     """Consulta os detalhes cadastrais de uma OLT específica com seus links de ação."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")

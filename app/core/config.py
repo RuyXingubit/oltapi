@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
     PROJECT_NAME: str = "OLT Provisioning & Diagnostics API"
     VERSION: str = "1.0.0"
@@ -14,6 +14,9 @@ class Settings(BaseSettings):
 
     # Autenticação
     API_KEY: str = "oltapi_secret_default_key_change_me"
+    JWT_SECRET: str = "oltapi_jwt_secret_key_change_me_in_production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 horas por padrão
 
     # Armazenamento de Backups e Dados
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent

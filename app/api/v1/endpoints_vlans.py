@@ -2,8 +2,7 @@ import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import get_olt_repo
-from app.core.security import verify_api_key
+from app.api.deps import get_olt_repo, require_api_key
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
 from app.models.vlan import ProfileItem, VLANCreateRequest, VLANItem
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/olts/{olt_id}",
     tags=["VLANs & Serviços de Rede"],
-    dependencies=[Depends(verify_api_key)],
+    dependencies=[Depends(require_api_key)],
 )
 
 

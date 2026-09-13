@@ -1,8 +1,9 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import get_olt_repo, get_onu_repo, get_webhook_dispatcher, require_api_key
+from app.api.deps import get_olt_repo, get_onu_repo, get_security_context, get_webhook_dispatcher, require_api_key
 from app.core.circuit_id import generate_circuit_id
+from app.core.rbac import SecurityContext
 from app.core.security import sanitize_port, sanitize_safe_string, sanitize_serial, sanitize_vlan
 from app.models.hateoas import Link
 from app.models.onu_inventory import (
@@ -27,9 +28,29 @@ def list_onus(
     contract_status: Optional[str] = Query(default=None, description="Filtrar por status do contrato: ACTIVE, SUSPENDED, CANCELLED, IN_STOCK"),
     contract_id: Optional[str] = Query(default=None, description="Filtrar por código de contrato"),
     repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Lista todas as ONUs do inventário global com dados de contrato, Circuit ID (TR-101) e coordenadas."""
+    ctx.enforce_scope("onus:read")
+    if olt_id:
+        ctx.enforce_olt(olt_id)
+
     items = repo.list_all(olt_id=olt_id, port=port, contract_status=contract_status, contract_id=contract_id)
+
+    # Filtragem por OLTs permitidas para o usuário (ex: técnico de POP específico)
+    if ctx.allowed_olt_ids is not None:
+        items = [i for i in items if i.current_olt_id in ctx.allowed_olt_ids]
+
+    # Isolamento de Rede Neutra: inquilino só visualiza ONUs de suas VLANs autorizadas
+    if ctx.tenant_type == "NEUTRAL_OPERATOR" and ctx.allowed_vlans is not None:
+        filtered = []
+        for i in items:
+            if not i.current_olt_id or not i.vlan:
+                continue
+            olt_vlans = ctx.allowed_vlans.get(i.current_olt_id, set())
+            if i.vlan in olt_vlans:
+                filtered.append(i)
+        items = filtered
     for item in items:
         item.links = {
             "details": Link(
@@ -203,12 +224,22 @@ def register_onu(
 def get_onu_by_serial(
     serial: str,
     repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Consulta os dados de inventário, coordenadas e Circuit ID atual de uma ONU pelo serial imutável."""
+    ctx.enforce_scope("onus:read")
     clean_serial = sanitize_serial(serial)
     item = repo.get_by_serial(clean_serial)
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ONU '{clean_serial}' não encontrada no inventário.")
+
+    if item.current_olt_id and ctx.allowed_olt_ids is not None and item.current_olt_id not in ctx.allowed_olt_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ONU '{clean_serial}' não encontrada no inventário.")
+
+    if ctx.tenant_type == "NEUTRAL_OPERATOR" and ctx.allowed_vlans is not None:
+        olt_vlans = ctx.allowed_vlans.get(item.current_olt_id or "", set())
+        if not item.vlan or item.vlan not in olt_vlans:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ONU '{clean_serial}' não encontrada no inventário.")
 
     links = {
         "self": Link(

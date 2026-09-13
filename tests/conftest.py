@@ -105,6 +105,17 @@ def setup_test_env(postgres_container):
     )
 
     # Override das dependências FastAPI
+    def override_get_db():
+        db = session_factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    from app.db.init_db import seed_default_tenant_and_admin
+    seed_default_tenant_and_admin(session_factory())
+
+    app.dependency_overrides[deps.get_db] = override_get_db
     app.dependency_overrides[deps.get_olt_repo] = lambda: test_olt_repo
     app.dependency_overrides[deps.get_backup_storage] = lambda: test_backup_storage
     app.dependency_overrides[deps.get_onu_repo] = lambda: test_onu_repo

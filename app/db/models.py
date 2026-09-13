@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -41,6 +42,9 @@ class ONUInventoryModel(Base):
     contract_id = Column(String(64), index=True, nullable=True)
     subscriber_name = Column(String(128), nullable=True)
     contract_status = Column(String(32), index=True, nullable=False, default="ACTIVE")
+    tenant_id = Column(
+        String(36), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     current_olt_id = Column(
         String(36), ForeignKey("olts.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -212,4 +216,149 @@ class OLTFTPDestinationModel(Base):
     )
 
     ftp_server = relationship("FTPServerModel", back_populates="destinations")
+
+
+class TenantModel(Base):
+    __tablename__ = "tenants"
+
+    id = Column(String(36), primary_key=True)
+    name = Column(String(64), unique=True, index=True, nullable=False)
+    type = Column(String(32), nullable=False)  # PROVIDER_OWNER, NEUTRAL_OPERATOR
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    users = relationship("UserModel", back_populates="tenant", cascade="all, delete-orphan")
+    vlan_allocations = relationship(
+        "TenantVLANAllocationModel", back_populates="tenant", cascade="all, delete-orphan"
+    )
+    api_keys = relationship("APIKeyModel", back_populates="tenant", cascade="all, delete-orphan")
+
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True)
+    tenant_id = Column(
+        String(36),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    name = Column(String(128), nullable=False)
+    email = Column(String(128), unique=True, index=True, nullable=False)
+    password_hash = Column(String(256), nullable=False)
+    role = Column(String(32), nullable=False)  # SUPER_ADMIN, NOC, FIELD_TECH, TENANT_ADMIN, TENANT_TECH
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant = relationship("TenantModel", back_populates="users")
+    olt_permissions = relationship(
+        "UserOLTPermissionModel", back_populates="user", cascade="all, delete-orphan"
+    )
+    api_keys = relationship("APIKeyModel", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserOLTPermissionModel(Base):
+    __tablename__ = "user_olt_permissions"
+    __table_args__ = (UniqueConstraint("user_id", "olt_id", name="uq_user_olt"),)
+
+    id = Column(String(36), primary_key=True)
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    olt_id = Column(
+        String(36),
+        ForeignKey("olts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    user = relationship("UserModel", back_populates="olt_permissions")
+    olt = relationship("OLTModel")
+
+
+class TenantVLANAllocationModel(Base):
+    __tablename__ = "tenant_vlan_allocations"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "olt_id", "vlan_id", name="uq_tenant_olt_vlan"),
+    )
+
+    id = Column(String(36), primary_key=True)
+    tenant_id = Column(
+        String(36),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    olt_id = Column(
+        String(36),
+        ForeignKey("olts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    vlan_id = Column(Integer, nullable=False)
+    description = Column(String(128), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant = relationship("TenantModel", back_populates="vlan_allocations")
+    olt = relationship("OLTModel")
+
+
+class APIKeyModel(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(String(36), primary_key=True)
+    tenant_id = Column(
+        String(36),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    name = Column(String(64), nullable=False)
+    key_prefix = Column(String(16), nullable=False, index=True)
+    key_hash = Column(String(128), unique=True, nullable=False, index=True)
+    scopes = Column(Text, nullable=False)  # JSON array de escopos autorizados
+    is_active = Column(Boolean, nullable=False, default=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    tenant = relationship("TenantModel", back_populates="api_keys")
+    user = relationship("UserModel", back_populates="api_keys")
 
