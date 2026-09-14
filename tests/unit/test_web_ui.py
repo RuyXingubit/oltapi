@@ -19,7 +19,9 @@ def test_serve_ui_root_endpoint(client: TestClient):
     assert "id=\"modal-new-olt\"" in resp.text
     assert "id=\"onboarding-stepper-section\"" in resp.text
     assert "id=\"modal-new-vlan\"" in resp.text
-    assert "id=\"setup-admin-password-confirm\"" in resp.text
+    assert "id=\"modal-provision\"" in resp.text
+    assert "id=\"prov-onu-model\"" in resp.text
+    assert "setup-admin-password-confirm" in resp.text
     assert "password-toggle-btn" in resp.text
     assert "password-input-wrapper" in resp.text
 
@@ -36,6 +38,8 @@ def test_serve_static_css_and_js(client: TestClient):
     assert ".onboarding-stepper" in resp_css.text
     assert ".password-input-wrapper" in resp_css.text
     assert ".password-toggle-btn" in resp_css.text
+    assert ".btn-warning" in resp_css.text
+    assert ".btn-success" in resp_css.text
 
     resp_js = client.get("/static/js/app.js")
     assert resp_js.status_code == 200
@@ -48,3 +52,7 @@ def test_serve_static_css_and_js(client: TestClient):
     assert "handleStartOnboarding" in resp_js.text
     assert "initPasswordToggles" in resp_js.text
     assert "setup-admin-password-confirm" in resp_js.text
+    assert "btn-onu-suspend" in resp_js.text
+    assert "btn-onu-resume" in resp_js.text
+    assert "prov-onu-model" in resp_js.text
+

@@ -611,18 +611,24 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Perfil de Equipamento</label>
-            <select id="prov-profile" class="form-control">
-              <option value="default">Padrão do Fabricante</option>
-              <option value="third_party">Equipamento de Terceiro (VEIP / Terceiros)</option>
-            </select>
+          <div style="display: flex; gap: 12px;">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Modelo da ONU (Detectado / Perfil)</label>
+              <input type="text" id="prov-onu-model" class="form-control" placeholder="Ex: HG260, HG6145E, R1V2-BRIDGE" value="auto">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Perfil de Linha</label>
+              <select id="prov-profile" class="form-control">
+                <option value="default">Padrão do Fabricante</option>
+                <option value="third_party">Equipamento de Terceiro (VEIP / Terceiros)</option>
+              </select>
+            </div>
           </div>
 
           <div class="form-group">
-            <label class="form-label">VLAN de Serviço (Restrita ao seu Inquilino)</label>
+            <label class="form-label">VLAN de Serviço (Sincronizada da OLT)</label>
             <select id="prov-vlan" class="form-control" required>
-              <option value="">Carregando VLANs autorizadas...</option>
+              <option value="">Carregando VLANs ativas da OLT...</option>
             </select>
           </div>
 

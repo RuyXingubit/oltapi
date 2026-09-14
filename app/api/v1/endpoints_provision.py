@@ -1,14 +1,19 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+import logging
 
-from app.api.deps import get_olt_repo, get_security_context, require_api_key
+from app.api.deps import get_olt_repo, get_onu_repo, get_security_context, require_api_key
 from app.core.rbac import SecurityContext
 from app.core.security import sanitize_port, sanitize_safe_string
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
 from app.models.onu import UnauthorizedONU
+from app.models.onu_inventory import ONUInventoryItem
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.storage.olt_repository import OLTRepository
+from app.storage.onu_repository import ONUInventoryRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/olts", tags=["Provisionamento & Descoberta"], dependencies=[Depends(require_api_key)])
 
@@ -56,6 +61,7 @@ def provision_onu(
     req: ProvisionRequest,
     response: Response,
     repo: OLTRepository = Depends(get_olt_repo),
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """Provisiona e autoriza uma ONU na porta informada aplicando VLAN, perfil e descrição."""
@@ -71,7 +77,30 @@ def provision_onu(
     try:
         driver = DriverFactory.get_driver(olt)
         result = driver.provision_onu(olt, req)
-        
+
+        # Sincroniza inventário com status ACTIVE
+        try:
+            onu_item = onu_repo.get_by_serial(req.serial)
+            if onu_item:
+                onu_item.current_olt_id = olt_id
+                onu_item.current_port = result.port
+                onu_item.current_onu_id = result.onu_id
+                onu_item.vlan = req.vlan
+                onu_item.contract_status = "ACTIVE"
+                onu_repo.upsert(onu_item)
+            else:
+                onu_repo.upsert(ONUInventoryItem(
+                    serial=req.serial,
+                    current_olt_id=olt_id,
+                    current_port=result.port,
+                    current_onu_id=result.onu_id,
+                    vlan=req.vlan,
+                    description=req.description,
+                    contract_status="ACTIVE",
+                ))
+        except Exception as e:
+            logger.warning(f"Não foi possível sincronizar inventário para {req.serial}: {e}")
+
         # Cabeçalho Location e links de diagnóstico pós-provisionamento
         response.headers["Location"] = f"/api/v1/olts/{olt_id}/onus/{result.serial}"
         result.links = {
@@ -102,6 +131,7 @@ def deprovision_onu(
     port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
     onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
     repo: OLTRepository = Depends(get_olt_repo),
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """Desprovisiona uma ONU e libera a porta PON e recursos alocados na OLT."""
@@ -117,6 +147,16 @@ def deprovision_onu(
         clean_port = sanitize_port(port) if port else None
         driver = DriverFactory.get_driver(olt)
         result = driver.deprovision_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
+
+        # Sincroniza inventário com status CANCELLED
+        try:
+            onu_item = onu_repo.get_by_serial(clean_id)
+            if onu_item:
+                onu_item.contract_status = "CANCELLED"
+                onu_repo.upsert(onu_item)
+        except Exception as e:
+            logger.warning(f"Não foi possível atualizar status de cancelamento para {clean_id}: {e}")
+
         result.links = {
             "unauthorized_onus": Link(
                 href=f"/api/v1/olts/{olt_id}/unauthorized",
@@ -193,6 +233,7 @@ def suspend_onu(
     port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
     onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
     repo: OLTRepository = Depends(get_olt_repo),
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """Suspende administrativamente a ONU (bloqueio por inadimplência/financeiro) desativando o tráfego GPON sem perder o cadastro."""
@@ -208,6 +249,16 @@ def suspend_onu(
         clean_port = sanitize_port(port) if port else None
         driver = DriverFactory.get_driver(olt)
         result = driver.suspend_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
+
+        # Sincroniza inventário com status SUSPENDED
+        try:
+            onu_item = onu_repo.get_by_serial(clean_id)
+            if onu_item:
+                onu_item.contract_status = "SUSPENDED"
+                onu_repo.upsert(onu_item)
+        except Exception as e:
+            logger.warning(f"Não foi possível atualizar status de suspensão para {clean_id}: {e}")
+
         result.links = {
             "resume": Link(
                 href=f"/api/v1/olts/{olt_id}/onus/{result.serial}/resume" + (f"?port={result.port}&onu_id={result.onu_id}" if result.port else ""),
@@ -241,6 +292,7 @@ def resume_onu(
     port: Optional[str] = Query(default=None, description="Porta PON da ONU (opcional)"),
     onu_id: Optional[int] = Query(default=None, description="Índice numérico da ONU (opcional)"),
     repo: OLTRepository = Depends(get_olt_repo),
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """Reativa a ONU suspensa (desbloqueio após confirmação de pagamento), restabelecendo o tráfego GPON."""
@@ -256,6 +308,16 @@ def resume_onu(
         clean_port = sanitize_port(port) if port else None
         driver = DriverFactory.get_driver(olt)
         result = driver.resume_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
+
+        # Sincroniza inventário com status ACTIVE
+        try:
+            onu_item = onu_repo.get_by_serial(clean_id)
+            if onu_item:
+                onu_item.contract_status = "ACTIVE"
+                onu_repo.upsert(onu_item)
+        except Exception as e:
+            logger.warning(f"Não foi possível atualizar status de reativação para {clean_id}: {e}")
+
         result.links = {
             "details": Link(
                 href=f"/api/v1/olts/{olt_id}/onus/{result.serial}",

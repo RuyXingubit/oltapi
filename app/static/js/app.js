@@ -246,7 +246,7 @@ function renderUnauthorizedTable() {
       <td>${onu.vendor || onu.model || 'Genérico / Auto'}</td>
       <td style="color: var(--text-secondary); font-size: 12px;">${onu.discovered_at || 'Recente'}</td>
       <td style="text-align: right;">
-        <button class="btn btn-primary btn-sm btn-action-provision" data-serial="${onu.serial}" data-port="${onu.port || ''}">
+        <button class="btn btn-primary btn-sm btn-action-provision" data-serial="${onu.serial}" data-port="${onu.port || ''}" data-model="${onu.model || onu.vendor || ''}">
           ⚡ Autorizar ONU
         </button>
       </td>
@@ -259,7 +259,8 @@ function renderUnauthorizedTable() {
     btn.addEventListener('click', (e) => {
       const serial = e.currentTarget.getAttribute('data-serial');
       const port = e.currentTarget.getAttribute('data-port');
-      openProvisionModal(serial, port);
+      const model = e.currentTarget.getAttribute('data-model');
+      openProvisionModal(serial, port, model);
     });
   });
 }
@@ -313,6 +314,20 @@ function renderInventoryTable() {
     `;
 
     if (role === 'SUPER_ADMIN' || role === 'NOC') {
+      const isSuspended = (onu.contract_status === 'SUSPENDED');
+      if (isSuspended) {
+        actionButtons += `
+          <button class="btn btn-success btn-sm btn-onu-resume" data-olt="${onu.current_olt_id || state.selectedOltId}" data-serial="${onu.serial}" title="Desbloquear / Reativar Cliente">
+            🔓 Desbloquear
+          </button>
+        `;
+      } else {
+        actionButtons += `
+          <button class="btn btn-warning btn-sm btn-onu-suspend" data-olt="${onu.current_olt_id || state.selectedOltId}" data-serial="${onu.serial}" title="Bloquear / Suspender Cliente">
+            🔒 Bloquear
+          </button>
+        `;
+      }
       actionButtons += `
         <button class="btn btn-secondary btn-sm btn-onu-reboot" data-olt="${onu.current_olt_id || state.selectedOltId}" data-serial="${onu.serial}" title="Reiniciar ONU">
           🔄
@@ -352,6 +367,28 @@ function renderInventoryTable() {
       const oltId = e.currentTarget.getAttribute('data-olt');
       const serial = e.currentTarget.getAttribute('data-serial');
       await checkOpticalPower(oltId, serial);
+    });
+  });
+
+  document.querySelectorAll('.btn-onu-suspend').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const oltId = e.currentTarget.getAttribute('data-olt');
+      const serial = e.currentTarget.getAttribute('data-serial');
+      if (confirm(`Deseja realmente BLOQUEAR (suspender) a ONU ${serial}? O acesso do cliente será desativado na OLT.`)) {
+        await executeLifecycleAction(oltId, serial, 'suspend');
+        await loadInventory();
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-onu-resume').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const oltId = e.currentTarget.getAttribute('data-olt');
+      const serial = e.currentTarget.getAttribute('data-serial');
+      if (confirm(`Deseja realmente DESBLOQUEAR (reativar) a ONU ${serial}? O acesso do cliente será reabilitado na OLT.`)) {
+        await executeLifecycleAction(oltId, serial, 'resume');
+        await loadInventory();
+      }
     });
   });
 
@@ -449,33 +486,63 @@ async function deprovisionONU(oltId, serial) {
 // ============================================================================
 // Modal de Provisionamento
 // ============================================================================
-async function openProvisionModal(serial, port) {
+async function openProvisionModal(serial, port, model = 'auto') {
   document.getElementById('prov-serial').value = serial;
   document.getElementById('prov-port').value = port;
+  const modelInput = document.getElementById('prov-onu-model');
+  if (modelInput) {
+    modelInput.value = (model && model !== 'null' && model !== 'undefined' && model !== 'auto') ? model : 'auto';
+  }
   document.getElementById('provision-alert').classList.add('hidden');
 
-  // Carrega VLANs autorizadas para o inquilino
+  // Sugere modo de operação com base no modelo ou histórico
+  const modeSelect = document.getElementById('prov-mode');
+  const boxPPPoE = document.getElementById('box-pppoe');
+  if (model && model.toUpperCase().includes('BRIDGE')) {
+    modeSelect.value = 'bridge';
+    boxPPPoE?.classList.add('hidden');
+  } else {
+    if (modeSelect.value === 'bridge') {
+      boxPPPoE?.classList.add('hidden');
+    } else {
+      boxPPPoE?.classList.remove('hidden');
+    }
+  }
+
+  // Carrega VLANs reais diretamente da OLT selecionada
   const selectVlan = document.getElementById('prov-vlan');
-  selectVlan.innerHTML = '<option value="">Carregando...</option>';
+  selectVlan.innerHTML = '<option value="">Consultando VLANs ativas na OLT...</option>';
 
   try {
     let vlans = [];
-    if (state.user && state.user.allowed_vlans && state.user.allowed_vlans.length > 0) {
-      vlans = state.user.allowed_vlans;
-    } else {
-      // Se for admin, busca do banco ou preenche com padrão
-      vlans = [100, 200, 300, 10, 20];
+    const oltVlans = await apiRequest(`/olts/${state.selectedOltId}/vlans`);
+    if (Array.isArray(oltVlans) && oltVlans.length > 0) {
+      vlans = oltVlans.map(v => v.vlan_id);
     }
 
+    // Se o operador tiver restrição de VLANs (Multi-Tenant), aplica o filtro
+    if (state.user && state.user.allowed_vlans && state.user.allowed_vlans.length > 0) {
+      const allowed = state.user.allowed_vlans.map(Number);
+      vlans = vlans.filter(v => allowed.includes(v));
+    }
+
+    vlans.sort((a, b) => a - b);
+
     selectVlan.innerHTML = '';
-    vlans.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v;
-      opt.textContent = `VLAN ${v}`;
-      selectVlan.appendChild(opt);
-    });
+    if (vlans.length === 0) {
+      selectVlan.innerHTML = '<option value="">Nenhuma VLAN configurada nesta OLT</option>';
+    } else {
+      vlans.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = `VLAN ${v}`;
+        if (v === 301) opt.selected = true; // Pré-seleciona VLAN 301 se presente
+        selectVlan.appendChild(opt);
+      });
+    }
   } catch (e) {
-    selectVlan.innerHTML = '<option value="100">VLAN 100 (Padrão)</option>';
+    console.error('Erro ao consultar VLANs da OLT:', e);
+    selectVlan.innerHTML = '<option value="">Falha ao carregar VLANs da OLT</option>';
   }
 
   document.getElementById('modal-provision').classList.add('active');
@@ -486,6 +553,7 @@ async function handleConfirmProvision() {
   const port = document.getElementById('prov-port').value;
   const mode = document.getElementById('prov-mode').value;
   const profile = document.getElementById('prov-profile').value;
+  const onuModel = document.getElementById('prov-onu-model')?.value.trim() || 'auto';
   const vlan = parseInt(document.getElementById('prov-vlan').value, 10);
   const pppoeUser = document.getElementById('prov-pppoe-user').value;
   const pppoePass = document.getElementById('prov-pppoe-pass').value;
@@ -494,14 +562,14 @@ async function handleConfirmProvision() {
   const btnSubmit = document.getElementById('btn-confirm-provision');
 
   if (!vlan || isNaN(vlan)) {
-    alertBox.textContent = 'Selecione uma VLAN válida.';
+    alertBox.textContent = 'Selecione uma VLAN válida obtida da OLT.';
     alertBox.classList.remove('hidden');
     return;
   }
 
   btnSubmit.disabled = true;
   btnSubmit.textContent = 'Autorizando na OLT...';
-  logTerminal(`Iniciando autorização da ONU ${serial} na porta ${port} (Modo: ${mode}, VLAN: ${vlan})...`);
+  logTerminal(`Iniciando autorização da ONU ${serial} na porta ${port} (Modelo: ${onuModel}, Modo: ${mode}, VLAN: ${vlan})...`);
 
   try {
     const payload = {
@@ -509,6 +577,7 @@ async function handleConfirmProvision() {
       port,
       mode,
       vlan,
+      onu_model: onuModel,
       profile: profile === 'third_party' ? 'third_party' : 'default',
       pppoe_user: mode === 'router' ? pppoeUser : null,
       pppoe_password: mode === 'router' ? pppoePass : null,

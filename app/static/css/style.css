@@ -401,6 +401,26 @@ html, body {
   color: white;
 }
 
+.btn-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: var(--accent-amber);
+}
+.btn-warning:hover {
+  background: var(--accent-amber);
+  color: #0f172a;
+}
+
+.btn-success {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: var(--accent-green);
+}
+.btn-success:hover {
+  background: var(--accent-green);
+  color: #0f172a;
+}
+
 .btn-sm {
   padding: 6px 10px;
   font-size: 11px;
