@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <title>OLTAPI - Referência da API REST</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%200%20100%20100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0f172a;
+    }
+    .top-bar {
+      background: #1e293b;
+      color: #f8fafc;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #334155;
+    }
+    .top-bar a {
+      color: #38bdf8;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .top-bar a:hover {
+      text-decoration: underline;
+    }
+    .badge {
+      background: #0ea5e9;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <div>
+      <strong>OLTAPI</strong> &bull; Especificação OpenAPI 3.1.0 <span class="badge">ReDoc</span>
+    </div>
+    <div>
+      <a href="../">⬅ Voltar ao Portal de Documentação</a>
+      &nbsp;|&nbsp;
+      <a href="../api_contracts/openapi.json" download="openapi.json">📥 Baixar openapi.json</a>
+    </div>
+  </div>
+  <div id="redoc-container"></div>
+  <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+  <script>
+    Redoc.init('../api_contracts/openapi.json', {
+      theme: {
+        colors: {
+          primary: {
+            main: '#0d9488'
+          },
+          success: {
+            main: '#10b981'
+          },
+          warning: {
+            main: '#f59e0b'
+          },
+          error: {
+            main: '#ef4444'
+          },
+          text: {
+            primary: '#1e293b',
+            secondary: '#64748b'
+          },
+          http: {
+            get: '#0ea5e9',
+            post: '#10b981',
+            put: '#f59e0b',
+            delete: '#ef4444',
+            patch: '#8b5cf6'
+          }
+        },
+        typography: {
+          fontFamily: "'Inter', sans-serif",
+          code: {
+            fontFamily: "'JetBrains Mono', monospace"
+          },
+          headings: {
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: '600'
+          }
+        },
+        sidebar: {
+          backgroundColor: '#f8fafc',
+          textColor: '#334155'
+        }
+      },
+      scrollYOffset: 0,
+      expandResponses: '200,201',
+      requiredPropsFirst: true,
+      sortPropsAlphabetically: true
+    }, document.getElementById('redoc-container'));
+  </script>
+</body>
+</html>

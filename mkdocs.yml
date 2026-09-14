@@ -1,0 +1,72 @@
+site_name: OLTAPI
+site_url: https://ruyxingubit.github.io/oltapi/
+site_description: API REST unificada e agnóstica para provisionamento, telemetria óptica e disaster recovery de OLTs GPON/EPON multi-fabricante.
+site_author: RuyXingubit
+repo_name: RuyXingubit/oltapi
+repo_url: https://github.com/RuyXingubit/oltapi
+edit_uri: edit/master/docs/
+
+theme:
+  name: material
+  language: pt-BR
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Mudar para modo claro
+    - scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Mudar para modo escuro
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+
+nav:
+  - 🚀 Início: index.md
+  - 🐳 Instalação & Setup: instalacao.md
+  - 📡 Manual Operacional (ERPs): MANUAL_OPERACIONAL.md
+  - 🛠️ Manual do Desenvolvedor: MANUAL_DESENVOLVEDOR.md
+  - 🏛️ Arquitetura & Padrões: ARCHITECTURE.md
+  - 🔒 Segurança & Hardening: SECURITY_BASELINE.md
+  - 📖 Referência da API (ReDoc): referencia-api.md
+  - 🗺️ Roadmap & Homologação: ROADMAP.md
+
+exclude_docs: |
+  brainstorming/**
+  planos/**
+  PRD*
+  QA_AUDIT_REPORT.md

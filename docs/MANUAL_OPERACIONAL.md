@@ -1147,4 +1147,4 @@ Para que o provisionador ou ERP consulte os perfis de velocidade e tráfego pré
 
 ---
 
-Dúvidas ou sugestões operacionais? Abra uma issue ou contribua através do nosso [Guia de Contribuição](../CONTRIBUTING.md)!
+Dúvidas ou sugestões operacionais? Abra uma issue ou contribua através do nosso [Guia de Contribuição](https://github.com/RuyXingubit/oltapi/blob/master/CONTRIBUTING.md)!

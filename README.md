@@ -1,11 +1,12 @@
 # 🌐 OLTAPI - Unified Multi-Vendor OLT Provisioning & Diagnostics REST API
 
 <p align="center">
+  <a href="https://ruyxingubit.github.io/oltapi/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blueviolet.svg" alt="Documentação Oficial"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-134%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-220%20passed%20(100%25)-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Testcontainers-PostgreSQL%2016-blue.svg" alt="Testcontainers PostgreSQL 16">
   <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg" alt="SQLAlchemy 2.0">
   <img src="https://img.shields.io/badge/Alembic-Migrations-orange.svg" alt="Alembic Migrations">
@@ -16,6 +17,9 @@
   <img src="https://img.shields.io/badge/UUIDv7-RFC%209562-orange.svg" alt="UUIDv7">
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
 </p>
+
+> 📖 **Portal Oficial de Documentação & ReDoc Interativo:** [https://ruyxingubit.github.io/oltapi/](https://ruyxingubit.github.io/oltapi/)  
+> Acesse o portal com Guia de Instalação Docker, Manual Operacional para ERPs, Guia de Criação de Drivers e Especificação OpenAPI 3.1.0 completa.
 
 ---
 
