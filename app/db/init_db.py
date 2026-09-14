@@ -9,7 +9,7 @@ from alembic.config import Config
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import encrypt_password
+from app.core.security import decrypt_password, encrypt_password, get_fernet
 from app.db.models import (
     BackupMetadataModel,
     Base,
@@ -191,26 +191,47 @@ def encrypt_existing_plain_passwords(db: Optional[Session] = None):
         close_session = True
 
     try:
-        # Cifra senhas de OLTs
+        # Cifra/migra senhas de OLTs
         olts = db.query(OLTModel).all()
         migrated_olts = 0
         for olt in olts:
-            if olt.password and not olt.password.startswith("gAAAAA"):
+            if not olt.password:
+                continue
+            if not olt.password.startswith("gAAAAA"):
                 olt.password = encrypt_password(olt.password)
                 migrated_olts += 1
+            else:
+                # Verifica se decifra com a chave ativa ou precisa de re-cifragem da chave anterior
+                try:
+                    get_fernet().decrypt(olt.password.encode("utf-8"))
+                except Exception:
+                    decrypted = decrypt_password(olt.password)
+                    if decrypted and decrypted != olt.password:
+                        olt.password = encrypt_password(decrypted)
+                        migrated_olts += 1
 
-        # Cifra senhas de Servidores FTP
+        # Cifra/migra senhas de Servidores FTP
         ftps = db.query(FTPServerModel).all()
         migrated_ftps = 0
         for ftp in ftps:
-            if ftp.password and not ftp.password.startswith("gAAAAA"):
+            if not ftp.password:
+                continue
+            if not ftp.password.startswith("gAAAAA"):
                 ftp.password = encrypt_password(ftp.password)
                 migrated_ftps += 1
+            else:
+                try:
+                    get_fernet().decrypt(ftp.password.encode("utf-8"))
+                except Exception:
+                    decrypted = decrypt_password(ftp.password)
+                    if decrypted and decrypted != ftp.password:
+                        ftp.password = encrypt_password(decrypted)
+                        migrated_ftps += 1
 
         if migrated_olts > 0 or migrated_ftps > 0:
             db.commit()
             logger.info(
-                f"[Security Hardening] Criptografadas {migrated_olts} senhas de OLTs e {migrated_ftps} de FTPs em repouso."
+                f"[Security Hardening] Criptografadas/migradas {migrated_olts} senhas de OLTs e {migrated_ftps} de FTPs para a chave ativa."
             )
     except Exception as e:
         logger.warning(f"Erro ao verificar/cifrar senhas em repouso: {e}")

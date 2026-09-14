@@ -178,4 +178,13 @@ def decrypt_password(cipher_or_plain: str) -> str:
         fernet = get_fernet()
         return fernet.decrypt(cipher_or_plain.encode("utf-8")).decode("utf-8")
     except (InvalidToken, Exception):
-        return cipher_or_plain
+        # Fallback gracioso: tentar decifrar com a chave derivada (JWT_SECRET:API_KEY)
+        # caso a base tenha sido cifrada antes da definição de uma DB_ENCRYPTION_KEY dedicada
+        try:
+            seed = f"{settings.JWT_SECRET}:{settings.API_KEY}".encode("utf-8")
+            derived = base64.urlsafe_b64encode(hashlib.sha256(seed).digest())
+            fallback_fernet = Fernet(derived)
+            return fallback_fernet.decrypt(cipher_or_plain.encode("utf-8")).decode("utf-8")
+        except Exception:
+            logger.warning("Falha ao decifrar credencial em repouso com Fernet. Retornando valor bruto.")
+            return cipher_or_plain
