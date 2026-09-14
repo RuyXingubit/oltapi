@@ -984,12 +984,15 @@ function initEventListeners() {
   // --- Listeners de FTP ---
   document.getElementById('btn-test-ftp')?.addEventListener('click', testFTPConnection);
 
-  // Fechar Modais
-  document.querySelectorAll('[data-close-modal]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      const modalId = e.currentTarget.getAttribute('data-close-modal');
-      document.getElementById(modalId)?.classList.remove('active');
-    });
+  // Fechar Modais (Event Delegation para suportar elementos estáticos e injetados dinamicamente)
+  document.addEventListener('click', (e) => {
+    const closeBtn = e.target.closest('[data-close-modal]');
+    if (closeBtn) {
+      const modalId = closeBtn.getAttribute('data-close-modal');
+      if (modalId) {
+        document.getElementById(modalId)?.classList.remove('active');
+      }
+    }
   });
 
   // Alternar Visibilidade de Senhas (Show/Hide Password)
@@ -1244,6 +1247,9 @@ function resetOnboardingModal() {
       <button class="btn btn-secondary" id="btn-cancel-new-olt" data-close-modal="modal-new-olt">Cancelar</button>
       <button type="button" id="btn-submit-new-olt" class="btn btn-primary">⚡ Iniciar Onboarding Automático</button>
     `;
+    document.getElementById('btn-cancel-new-olt')?.addEventListener('click', () => {
+      document.getElementById('modal-new-olt')?.classList.remove('active');
+    });
     document.getElementById('btn-submit-new-olt')?.addEventListener('click', handleStartOnboarding);
   }
 
@@ -1446,9 +1452,12 @@ async function handleStartOnboarding() {
     const footer = document.getElementById('onboarding-modal-footer');
     if (footer) {
       footer.innerHTML = `
-        <button type="button" class="btn btn-secondary" data-close-modal="modal-new-olt">Fechar</button>
+        <button type="button" class="btn btn-secondary" id="btn-onboarding-error-close" data-close-modal="modal-new-olt">Fechar</button>
         <button type="button" class="btn btn-primary" id="btn-onboarding-retry">Tentar Novamente</button>
       `;
+      document.getElementById('btn-onboarding-error-close')?.addEventListener('click', () => {
+        document.getElementById('modal-new-olt')?.classList.remove('active');
+      });
       document.getElementById('btn-onboarding-retry')?.addEventListener('click', resetOnboardingModal);
     }
     logTerminal(`Falha no onboarding da OLT: ${err.message}`, 'error');
