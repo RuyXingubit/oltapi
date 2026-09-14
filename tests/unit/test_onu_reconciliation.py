@@ -312,3 +312,31 @@ def test_noc_history_endpoints(client: TestClient, auth_headers):
     assert len(onu_events) >= 2
     for ev in onu_events:
         assert ev["serial"] == "INCL99887766"
+
+
+def test_update_onu_inventory(client: TestClient, auth_headers):
+    """Testa a atualização cadastral e de parâmetros (PATCH /onus/{serial})."""
+    serial = "INCL99887766"
+    patch_payload = {
+        "subscriber_name": "Maria Silva Atualizada",
+        "description": "Cliente Fibra 500M - Sala 102",
+        "circuit_id": "CTO-08-PORTA-03",
+        "vlan": 302,
+        "profile": "PLAN_500M",
+    }
+    patch_resp = client.patch(f"/api/v1/onus/{serial}", json=patch_payload, headers=auth_headers)
+    assert patch_resp.status_code == 200
+    data = patch_resp.json()
+    assert data["serial"] == serial
+    assert data["subscriber_name"] == "Maria Silva Atualizada"
+    assert data["description"] == "Cliente Fibra 500M - Sala 102"
+    assert data["circuit_id"] == "CTO-08-PORTA-03"
+    assert data["vlan"] == 302
+    assert data["profile"] == "PLAN_500M"
+
+    # Confirma persistência via GET
+    get_resp = client.get(f"/api/v1/onus/{serial}", headers=auth_headers)
+    assert get_resp.status_code == 200
+    get_data = get_resp.json()
+    assert get_data["subscriber_name"] == "Maria Silva Atualizada"
+    assert get_data["vlan"] == 302

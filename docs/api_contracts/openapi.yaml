@@ -1923,6 +1923,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Inventário Global & Auto-Recuperação de ONUs
+      summary: Update Onu
+      description: Atualiza dados cadastrais, circuito e VLAN de uma ONU no inventário.
+      operationId: update_onu_api_v1_onus__serial__patch
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: serial
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateONUInventoryRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUInventoryItem'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/onus/{serial}/history:
     get:
       tags:
@@ -5350,6 +5385,42 @@ components:
       - port
       - serial
       title: UnauthorizedONU
+    UpdateONUInventoryRequest:
+      properties:
+        subscriber_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Subscriber Name
+          description: Nome do assinante
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Descrição ou anotação do cliente
+        circuit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Circuit Id
+          description: Identificador do circuito TR-101
+        vlan:
+          anyOf:
+          - type: integer
+            maximum: 4094.0
+            minimum: 1.0
+          - type: 'null'
+          title: Vlan
+          description: VLAN de serviço
+        profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Profile
+          description: Perfil de linha/tráfego
+      type: object
+      title: UpdateONUInventoryRequest
     UserCreateRequest:
       properties:
         name:

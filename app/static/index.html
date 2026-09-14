@@ -632,21 +632,89 @@
             </select>
           </div>
 
-          <div id="box-pppoe" style="display: flex; gap: 12px;">
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">Usuário PPPoE</label>
-              <input type="text" id="prov-pppoe-user" class="form-control" placeholder="teste@provedor">
+          <div id="box-pppoe" style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 12px;">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Usuário PPPoE (Opcional)</label>
+                <input type="text" id="prov-pppoe-user" class="form-control" placeholder="Deixe vazio se usar IPoE, TR-069 ou bancada">
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Senha PPPoE (Opcional)</label>
+                <input type="text" id="prov-pppoe-pass" class="form-control" placeholder="Deixe vazio se não aplicável">
+              </div>
             </div>
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">Senha PPPoE</label>
-              <input type="text" id="prov-pppoe-pass" class="form-control" placeholder="senha123">
-            </div>
+            <small style="color: var(--text-muted); font-size: 11px; margin-top: -4px;">
+              💡 <strong>Opcional:</strong> Preencha apenas se desejar que a OLT injete a autenticação PPPoE na ONT via OMCI.
+            </small>
           </div>
         </form>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-close-modal="modal-provision">Cancelar</button>
         <button type="button" id="btn-confirm-provision" class="btn btn-primary">Autorizar ONU</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       4.1 MODAL: EDIÇÃO DE ONU
+       ==================================================================== -->
+  <div id="modal-edit-onu" class="modal-overlay">
+    <div class="modal-box" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 class="card-title" id="modal-edit-onu-title">✏️ Editar ONU • <span id="edit-onu-serial-title" style="font-family: var(--font-mono); color: var(--accent-cyan);">-</span></h3>
+        <button class="btn-logout" data-close-modal="modal-edit-onu">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="edit-onu-alert" class="badge badge-optical-bad hidden" style="width: 100%; margin-bottom: 12px; padding: 8px;"></div>
+        
+        <form id="form-edit-onu">
+          <input type="hidden" id="edit-onu-serial">
+          <input type="hidden" id="edit-onu-olt-id">
+
+          <div style="display: flex; gap: 12px;">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Porta PON Atual</label>
+              <input type="text" id="edit-onu-port" class="form-control" readonly style="background: rgba(255,255,255,0.05);">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">OLT Vinculada</label>
+              <input type="text" id="edit-onu-olt-name" class="form-control" readonly style="background: rgba(255,255,255,0.05);">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nome do Assinante / Razão Social</label>
+            <input type="text" id="edit-onu-subscriber" class="form-control" placeholder="Ex: João da Silva">
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Identificador do Circuito (TR-101 / CTO)</label>
+              <input type="text" id="edit-onu-circuit" class="form-control" placeholder="Ex: CTO-04-P02">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Perfil de Linha / Tráfego</label>
+              <input type="text" id="edit-onu-profile" class="form-control" placeholder="Ex: DEFAULT, PLAN_100M">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">VLAN de Serviço (Sincronizada da OLT)</label>
+            <select id="edit-onu-vlan" class="form-control">
+              <option value="">Carregando VLANs da OLT...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Descrição / Observações Técnicas</label>
+            <textarea id="edit-onu-description" class="form-control" rows="2" placeholder="Observações de atendimento, ponto de referência..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal="modal-edit-onu">Cancelar</button>
+        <button type="button" id="btn-confirm-edit-onu" class="btn btn-primary">Salvar Alterações</button>
       </div>
     </div>
   </div>

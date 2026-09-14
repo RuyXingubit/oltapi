@@ -12,6 +12,7 @@ from app.models.onu_inventory import (
     ReconcileFieldEventRequest,
     ReconcileFieldEventResponse,
     RegisterONUInventoryRequest,
+    UpdateONUInventoryRequest,
 )
 from app.services.onu_reconciliation_service import ONUReconciliationService
 from app.services.webhook_dispatcher import WebhookDispatcher
@@ -292,3 +293,47 @@ def get_onu_history(
             )
         }
     return events
+
+
+@router.patch("/{serial}", response_model=ONUInventoryItem)
+def update_onu(
+    serial: str,
+    req: UpdateONUInventoryRequest,
+    repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Atualiza dados cadastrais, circuito e VLAN de uma ONU no inventário."""
+    ctx.enforce_scope("onus:write")
+    clean_serial = sanitize_serial(serial)
+    item = repo.get_by_serial(clean_serial)
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ONU '{clean_serial}' não encontrada no inventário.")
+
+    if item.current_olt_id and ctx.allowed_olt_ids is not None and item.current_olt_id not in ctx.allowed_olt_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado para a OLT desta ONU.")
+
+    if req.subscriber_name is not None:
+        item.subscriber_name = req.subscriber_name.strip() if req.subscriber_name else None
+    if req.description is not None:
+        item.description = req.description.strip() if req.description else None
+    if req.circuit_id is not None:
+        item.circuit_id = req.circuit_id.strip() if req.circuit_id else None
+    if req.profile is not None:
+        item.profile = sanitize_safe_string(req.profile, "profile") if req.profile else "DEFAULT"
+    if req.vlan is not None:
+        item.vlan = sanitize_vlan(req.vlan)
+
+    updated_item = repo.upsert(item)
+    updated_item.links = {
+        "self": Link(
+            href=f"/api/v1/onus/{updated_item.serial}",
+            method="GET",
+            description="Detalhes do equipamento no inventário",
+        ),
+        "history": Link(
+            href=f"/api/v1/onus/{updated_item.serial}/history",
+            method="GET",
+            description="Histórico de manobras e correções desta ONU",
+        ),
+    }
+    return updated_item

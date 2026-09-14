@@ -106,3 +106,11 @@ class ReconcileFieldEventResponse(BaseModel):
     links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
 
     model_config = {"populate_by_name": True}
+
+
+class UpdateONUInventoryRequest(BaseModel):
+    subscriber_name: Optional[str] = Field(default=None, description="Nome do assinante")
+    description: Optional[str] = Field(default=None, description="Descrição ou anotação do cliente")
+    circuit_id: Optional[str] = Field(default=None, description="Identificador do circuito TR-101")
+    vlan: Optional[int] = Field(default=None, ge=1, le=4094, description="VLAN de serviço")
+    profile: Optional[str] = Field(default=None, description="Perfil de linha/tráfego")

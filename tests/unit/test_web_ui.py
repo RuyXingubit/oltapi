@@ -20,6 +20,7 @@ def test_serve_ui_root_endpoint(client: TestClient):
     assert "id=\"onboarding-stepper-section\"" in resp.text
     assert "id=\"modal-new-vlan\"" in resp.text
     assert "id=\"modal-provision\"" in resp.text
+    assert "id=\"modal-edit-onu\"" in resp.text
     assert "id=\"prov-onu-model\"" in resp.text
     assert "setup-admin-password-confirm" in resp.text
     assert "password-toggle-btn" in resp.text
@@ -54,5 +55,7 @@ def test_serve_static_css_and_js(client: TestClient):
     assert "setup-admin-password-confirm" in resp_js.text
     assert "btn-onu-suspend" in resp_js.text
     assert "btn-onu-resume" in resp_js.text
+    assert "btn-onu-edit" in resp_js.text
+    assert "openEditOnuModal" in resp_js.text
     assert "prov-onu-model" in resp_js.text
 

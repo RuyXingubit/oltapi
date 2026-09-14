@@ -311,6 +311,9 @@ function renderInventoryTable() {
       <button class="btn btn-secondary btn-sm btn-check-optical" data-olt="${onu.current_olt_id || state.selectedOltId}" data-serial="${onu.serial}" title="Medir Potência Óptica">
         📶 Sinal
       </button>
+      <button class="btn btn-secondary btn-sm btn-onu-edit" data-serial="${onu.serial}" title="Editar Dados da ONU">
+        ✏️ Editar
+      </button>
     `;
 
     if (role === 'SUPER_ADMIN' || role === 'NOC') {
@@ -367,6 +370,13 @@ function renderInventoryTable() {
       const oltId = e.currentTarget.getAttribute('data-olt');
       const serial = e.currentTarget.getAttribute('data-serial');
       await checkOpticalPower(oltId, serial);
+    });
+  });
+
+  document.querySelectorAll('.btn-onu-edit').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const serial = e.currentTarget.getAttribute('data-serial');
+      await openEditOnuModal(serial);
     });
   });
 
@@ -604,6 +614,123 @@ async function handleConfirmProvision() {
 }
 
 // ============================================================================
+// Modal de Edição de ONU (Inventário)
+// ============================================================================
+async function openEditOnuModal(serial) {
+  const alertBox = document.getElementById('edit-onu-alert');
+  if (alertBox) alertBox.classList.add('hidden');
+
+  let onu = state.inventoryOnus.find(o => o.serial === serial);
+  if (!onu) {
+    try {
+      onu = await apiRequest(`/onus/${serial}`);
+    } catch (e) {
+      logTerminal(`Erro ao buscar dados da ONU ${serial}: ${e.message}`, 'error');
+      alert(`Falha ao buscar ONU: ${e.message}`);
+      return;
+    }
+  }
+
+  document.getElementById('edit-onu-serial').value = onu.serial;
+  document.getElementById('edit-onu-serial-title').textContent = onu.serial;
+  document.getElementById('edit-onu-port').value = onu.current_port || 'N/A';
+
+  const oltId = onu.current_olt_id || state.selectedOltId;
+  document.getElementById('edit-onu-olt-id').value = oltId || '';
+  
+  // Nome amigável da OLT
+  const oltObj = state.olts.find(o => o.id === oltId);
+  document.getElementById('edit-onu-olt-name').value = oltObj ? oltObj.name : (oltId ? oltId.substring(0, 8) : 'N/A');
+
+  document.getElementById('edit-onu-subscriber').value = onu.subscriber_name || '';
+  document.getElementById('edit-onu-circuit').value = onu.circuit_id || '';
+  document.getElementById('edit-onu-profile').value = onu.profile || 'DEFAULT';
+  document.getElementById('edit-onu-description').value = onu.description || '';
+
+  // Carrega VLANs reais da OLT no dropdown
+  const selectVlan = document.getElementById('edit-onu-vlan');
+  selectVlan.innerHTML = '<option value="">Consultando VLANs ativas na OLT...</option>';
+
+  try {
+    let vlans = [];
+    if (oltId) {
+      const oltVlans = await apiRequest(`/olts/${oltId}/vlans`);
+      if (Array.isArray(oltVlans) && oltVlans.length > 0) {
+        vlans = oltVlans.map(v => v.vlan_id);
+      }
+    }
+
+    if (state.user && state.user.allowed_vlans && state.user.allowed_vlans.length > 0) {
+      const allowed = state.user.allowed_vlans.map(Number);
+      vlans = vlans.filter(v => allowed.includes(v));
+    }
+
+    vlans.sort((a, b) => a - b);
+
+    selectVlan.innerHTML = '<option value="">Sem VLAN definida</option>';
+    vlans.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = `VLAN ${v}`;
+      if (onu.vlan && Number(onu.vlan) === v) {
+        opt.selected = true;
+      }
+      selectVlan.appendChild(opt);
+    });
+  } catch (e) {
+    console.error('Erro ao consultar VLANs da OLT para edição:', e);
+    selectVlan.innerHTML = `<option value="${onu.vlan || ''}">VLAN ${onu.vlan || 'Atual'}</option>`;
+  }
+
+  document.getElementById('modal-edit-onu').classList.add('active');
+}
+
+async function handleConfirmEditOnu() {
+  const serial = document.getElementById('edit-onu-serial').value;
+  const subscriber = document.getElementById('edit-onu-subscriber').value.trim();
+  const circuit = document.getElementById('edit-onu-circuit').value.trim();
+  const profile = document.getElementById('edit-onu-profile').value.trim();
+  const desc = document.getElementById('edit-onu-description').value.trim();
+  const vlanVal = document.getElementById('edit-onu-vlan').value;
+  const vlan = vlanVal ? parseInt(vlanVal, 10) : null;
+
+  const btn = document.getElementById('btn-confirm-edit-onu');
+  const alertBox = document.getElementById('edit-onu-alert');
+
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  try {
+    const payload = {
+      subscriber_name: subscriber || null,
+      description: desc || null,
+      circuit_id: circuit || null,
+      profile: profile || 'DEFAULT',
+      vlan: vlan,
+    };
+
+    const updated = await apiRequest(`/onus/${serial}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+
+    logTerminal(`ONU ${serial} atualizada com sucesso! Assinante: ${updated.subscriber_name || 'N/A'}, VLAN: ${updated.vlan || 'N/A'}`, 'success');
+    document.getElementById('modal-edit-onu').classList.remove('active');
+    await loadInventory();
+    alert(`ONU ${serial} atualizada com sucesso!`);
+  } catch (error) {
+    if (alertBox) {
+      alertBox.textContent = `Erro: ${error.message}`;
+      alertBox.classList.remove('hidden');
+    }
+    logTerminal(`Falha ao atualizar ONU ${serial}: ${error.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Salvar Alterações';
+  }
+}
+
+// ============================================================================
 // Event Listeners & Navegação
 // ============================================================================
 function initEventListeners() {
@@ -772,6 +899,9 @@ function initEventListeners() {
 
   // Disparo do Provisionamento no Modal
   document.getElementById('btn-confirm-provision')?.addEventListener('click', handleConfirmProvision);
+
+  // Disparo de Edição de ONU no Modal
+  document.getElementById('btn-confirm-edit-onu')?.addEventListener('click', handleConfirmEditOnu);
 
   // --- Listeners de OLTs & Raio-X ---
   document.getElementById('btn-reload-olts')?.addEventListener('click', loadOLTsList);
