@@ -150,8 +150,8 @@ def test_build_telnet_provision_commands_bridge():
     )
     assert "cd onu" in cmds
     assert any("set whitelist  phy_addr address FHTT12345678" in c or "set whitelist phy_addr address FHTT12345678" in c for c in cmds)
-    assert any("set epon slot 1 pon 1 onu 60 port 1 service 1 vlan_mode tag 0 33024 100;" in c for c in cmds)
-    assert any("apply onu 1 1 60 vlan;" in c for c in cmds)
+    assert any("set epon slot 1 pon 1 onu 60 port 1 service 1 vlan_mode tag 0 33024 100" in c for c in cmds)
+    assert any("apply onu 1 1 60 vlan" in c for c in cmds)
 
 
 def test_build_telnet_provision_commands_router():
@@ -168,7 +168,7 @@ def test_build_telnet_provision_commands_router():
     )
     assert "cd lan" in cmds
     assert any("cliente_teste senha_secreta" in c for c in cmds)
-    assert any("apply wancfg slot 1 2 15;" in c for c in cmds)
+    assert any("apply wancfg slot 1 2 15" in c for c in cmds)
 
 
 def test_build_telnet_provision_commands_third_party_veip():
@@ -186,19 +186,19 @@ def test_build_telnet_provision_commands_third_party_veip():
     assert "cd lan" in cmds
     assert any("speed 1000m duplex full" in c for c in cmds)
     assert any("onuveip 1 33024 11" in c for c in cmds)
-    assert any("apply onu 1 16 20 vlan;" in c for c in cmds)
+    assert any("apply onu 1 16 20 vlan" in c for c in cmds)
 
 
 
 def test_build_telnet_lifecycle_commands():
     deprovision_cmds = build_telnet_deprovision_commands(1, 1, 5)
-    assert any("set whitelist action delete slot 1 pon 1 onu 5 ;" in c for c in deprovision_cmds)
+    assert any("no whitelist slot 1 pon 1 onu 5" in c for c in deprovision_cmds)
 
     suspend_cmds = build_telnet_suspend_commands(1, 1, 5)
-    assert any("set whitelist action lock slot 1 pon 1 onu 5 ;" in c for c in suspend_cmds)
+    assert any("set onu_enable_status slot 1 pon 1 onu 5 status disable" in c for c in suspend_cmds)
 
     resume_cmds = build_telnet_resume_commands(1, 1, 5)
-    assert any("set whitelist action unlock slot 1 pon 1 onu 5 ;" in c for c in resume_cmds)
+    assert any("set onu_enable_status slot 1 pon 1 onu 5 status enable" in c for c in resume_cmds)
 
     reboot_cmds = build_telnet_reboot_commands(1, 1, 5)
     assert any("reboot onu slot 1 pon 1 onu 5 ;" in c for c in reboot_cmds)

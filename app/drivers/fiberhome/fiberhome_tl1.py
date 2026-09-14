@@ -848,12 +848,12 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
         cmds = [
             "cd onu",
-            f"set whitelist phy_addr address {mac} password null action add slot {slot} pon {pon} onu {onu_id} type {onu_tipo} ;",
-            f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type iptv fix 16 assure 0 max 64;",
-            f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type data fix 16 assure 0 max 128000;",
+            f"set whitelist phy_addr address {mac} password null action add slot {slot} pon {pon} onu {onu_id} type {onu_tipo}",
+            f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type iptv fix 16 assure 0 max 64",
+            f"set service_bandwidth slot {slot} pon {pon} onu {onu_id} type data fix 16 assure 0 max 128000",
         ]
         if is_veip:
-            cmds.append(f"set epon slot {slot} pon {pon} onu {onu_id} port 1 enable mac_num_limit 30;")
+            cmds.append(f"set epon slot {slot} pon {pon} onu {onu_id} port 1 enable mac_num_limit 30")
 
         cmds.append("cd lan")
 
@@ -861,26 +861,26 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             u = pppoe_user or "user"
             p = pppoe_pass or "pass"
             cmds.extend([
-                f"set wancfg slot {slot} {pon} {onu_id} index 1 mode internet type route {vlan} 0 nat enable qos disable qinq disable 33024 65535 1 dsp pppoe proxy disable {u} {p} null auto entries 1 fe1;",
-                f"set wancfg slot {slot} {pon} {onu_id} index 1 ip-stack-mode ipv4 ipv6-src-type slaac prefix-src-type delegate pppoe-authmode chap;",
-                f"set wanbind slot {slot} {pon} {onu_id} index 1 entries 1 fe1;",
-                f"apply wancfg slot {slot} {pon} {onu_id};",
+                f"set wancfg slot {slot} {pon} {onu_id} index 1 mode internet type route {vlan} 0 nat enable qos disable qinq disable 33024 65535 1 dsp pppoe proxy disable {u} {p} null auto entries 1 fe1",
+                f"set wancfg slot {slot} {pon} {onu_id} index 1 ip-stack-mode ipv4 ipv6-src-type slaac prefix-src-type delegate pppoe-authmode chap",
+                f"set wanbind slot {slot} {pon} {onu_id} index 1 entries 1 fe1",
+                f"apply wancfg slot {slot} {pon} {onu_id}",
             ])
         elif is_veip:
             # Modo bridge VEIP para equipamentos de terceiros (Huawei, ZTE, etc.)
             cmds.extend([
-                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service number 1;",
-                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 enable speed 1000m duplex full flowcontrol disable;",
-                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service 1 vlan_m tag 0 33024 {vlan};",
-                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 onuveip 1 33024 {vlan} 65535 33024 65535 65535 33024 65535 65535 0 1 65535 servname null;",
-                f"apply onu {slot} {pon} {onu_id} vlan;",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service number 1",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 enable speed 1000m duplex full flowcontrol disable",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service 1 vlan_m tag 0 33024 {vlan}",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 onuveip 1 33024 {vlan} 65535 33024 65535 65535 33024 65535 65535 0 1 65535 servname null",
+                f"apply onu {slot} {pon} {onu_id} vlan",
             ])
         else:
             # bridge mode
             cmds.extend([
-                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service number 1;",
-                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service 1 vlan_mode tag 0 33024 {vlan};",
-                f"apply onu {slot} {pon} {onu_id} vlan;",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service number 1",
+                f"set epon slot {slot} pon {pon} onu {onu_id} port 1 service 1 vlan_mode tag 0 33024 {vlan}",
+                f"apply onu {slot} {pon} {onu_id} vlan",
             ])
         cmds.extend([
             "cd ..",
@@ -892,7 +892,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     def build_telnet_deprovision_commands(slot: int, pon: int, onu_id: int) -> List[str]:
         return [
             "cd onu",
-            f"set whitelist action delete slot {slot} pon {pon} onu {onu_id} ;",
+            f"no whitelist slot {slot} pon {pon} onu {onu_id}",
             "cd ..",
         ]
 
@@ -900,7 +900,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     def build_telnet_suspend_commands(slot: int, pon: int, onu_id: int) -> List[str]:
         return [
             "cd onu",
-            f"set whitelist action lock slot {slot} pon {pon} onu {onu_id} ;",
+            f"set onu_enable_status slot {slot} pon {pon} onu {onu_id} status disable",
             "cd ..",
         ]
 
@@ -908,7 +908,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     def build_telnet_resume_commands(slot: int, pon: int, onu_id: int) -> List[str]:
         return [
             "cd onu",
-            f"set whitelist action unlock slot {slot} pon {pon} onu {onu_id} ;",
+            f"set onu_enable_status slot {slot} pon {pon} onu {onu_id} status enable",
             "cd ..",
         ]
 
@@ -919,6 +919,13 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             f"reboot onu slot {slot} pon {pon} onu {onu_id} ;",
             "cd ..",
         ]
+
+    def _resolve_onu_location(self, client: TelnetClient, serial_or_id: str) -> Optional[Tuple[int, int, int]]:
+        out = self._exec_telnet_cmd(client, f"show onu-info by {serial_or_id}")
+        m = re.search(r"(\d+)\s+(\d+)\s+(\d+)\s+([A-Za-z]+)", out)
+        if m:
+            return int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return None
 
     def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
         safe_port = sanitize_port(req.port)
@@ -941,7 +948,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                     target_onu_id = 1
 
             if not req.onu_model or req.onu_model.lower() == "auto":
-                onu_tipo = "HG260" if safe_serial.upper().startswith("HWTC") else "HG6145E"
+                onu_tipo = "HG6145E" if safe_serial.upper().startswith("FHTT") else "HG260"
             else:
                 onu_tipo = req.onu_model
             mode = (req.mode or "bridge").lower()
@@ -999,9 +1006,13 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         onu_idx = onu_id if onu_id is not None else 1
 
         if self.is_telnet_cli(olt):
-            cmds = self.build_telnet_deprovision_commands(slot, pon, onu_idx)
             client = self._open_telnet_session(olt)
             try:
+                if port is None or onu_id is None:
+                    loc = self._resolve_onu_location(client, safe_serial)
+                    if loc:
+                        slot, pon, onu_idx = loc
+                cmds = self.build_telnet_deprovision_commands(slot, pon, onu_idx)
                 for c in cmds:
                     self._exec_telnet_cmd(client, c)
             finally:
@@ -1047,9 +1058,13 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         onu_idx = onu_id if onu_id is not None else 1
 
         if self.is_telnet_cli(olt):
-            cmds = self.build_telnet_reboot_commands(slot, pon, onu_idx)
             client = self._open_telnet_session(olt)
             try:
+                if port is None or onu_id is None:
+                    loc = self._resolve_onu_location(client, safe_serial)
+                    if loc:
+                        slot, pon, onu_idx = loc
+                cmds = self.build_telnet_reboot_commands(slot, pon, onu_idx)
                 for c in cmds:
                     self._exec_telnet_cmd(client, c)
             finally:
@@ -1095,9 +1110,13 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         onu_idx = onu_id if onu_id is not None else 1
 
         if self.is_telnet_cli(olt):
-            cmds = self.build_telnet_suspend_commands(slot, pon, onu_idx)
             client = self._open_telnet_session(olt)
             try:
+                if port is None or onu_id is None:
+                    loc = self._resolve_onu_location(client, safe_serial)
+                    if loc:
+                        slot, pon, onu_idx = loc
+                cmds = self.build_telnet_suspend_commands(slot, pon, onu_idx)
                 for c in cmds:
                     self._exec_telnet_cmd(client, c)
             finally:
@@ -1143,9 +1162,13 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         onu_idx = onu_id if onu_id is not None else 1
 
         if self.is_telnet_cli(olt):
-            cmds = self.build_telnet_resume_commands(slot, pon, onu_idx)
             client = self._open_telnet_session(olt)
             try:
+                if port is None or onu_id is None:
+                    loc = self._resolve_onu_location(client, safe_serial)
+                    if loc:
+                        slot, pon, onu_idx = loc
+                cmds = self.build_telnet_resume_commands(slot, pon, onu_idx)
                 for c in cmds:
                     self._exec_telnet_cmd(client, c)
             finally:
