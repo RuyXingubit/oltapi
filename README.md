@@ -59,7 +59,7 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 
 | Fabricante | Modelo | Portas PON | Protocolo | Status de Validação | Suporte |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Fiberhome** | AN5516-01 / 04 / 06 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟡 Em Validação de Bancada | Leitura de VLANs, perfis, ONUs ativas, running-config e backup FTP validados em hardware real. Aguardando ONU física de teste. |
+| **Fiberhome** | AN5516-01 / 04 / 06 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟢 Homologado em Campo | 100% Homologado em hardware real: Leitura de VLANs, perfis, ONUs ativas, running-config, backup FTP, telemetria óptica dupla (ONU/OLT RX), ciclo de vida e provisionamento ponta a ponta (Router PPPoE, Bridge e VEIP). |
 | **Intelbras** | 8820 / 8820i | 8 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (CLI Broadcom) - Validação unitária com mocks |
 | **Intelbras** | OLT G08 / G16 | 8 e 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (G-Series CLI) - Validação unitária com mocks |
 | **Huawei** | SmartAX MA5800 / MA5600T | 8 a 16 GPON/XGS | SSH | 🔵 Driver Implementado | Completo (VRP CLI) - Validação unitária com mocks |

@@ -30,8 +30,8 @@ Este documento consolida as metas alcançadas e os próximos passos planejados p
 ## 🎯 Próximos Passos (Backlog de Evolução)
 
 ### 1. Validação Real em Bancada (Hardware Físico)
-- [x] **Fiberhome AN5516-01 (Em Bancada):** Handshake TCP (8.6ms), leitura de 11 VLANs, perfis, 59 ONUs ativas, running-config (357 KB) e backups automáticos via FTP remoto homologados em hardware real.
-- [ ] **Provisionamento Ponta a Ponta com ONU Física:** Realizar teste físico com nova ONU conectada na porta PON (modos Router, Bridge e VEIP).
+- [x] **Fiberhome AN5516-01 (🟢 Homologado em Campo):** Handshake TCP (8.6ms), leitura de 11 VLANs, perfis, 561 ONUs ativas, running-config (357 KB), backups automáticos via FTP remoto, telemetria SNMP nativa (`cd service`) e diagnóstico óptico duplo (ONU RX e OLT RX) homologados em hardware real.
+- [x] **Provisionamento Ponta a Ponta com ONU Física:** Homologado em hardware físico com tráfego real nos modos Router (PPPoE oficial), Bridge e VEIP (para ONUs de terceiros como Huawei HWTC), além de ciclo de vida completo (reboot, suspensão administrativa, reativação e desprovisionamento).
 - [ ] **Homologação em Hardware Físico dos Demais Fabricantes:** Bancada futura com Intelbras, Huawei, V-SOL e ZTE.
 
 ### 2. Worker / Scanner Periódico em Background
