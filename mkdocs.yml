@@ -63,7 +63,9 @@ nav:
   - 🏛️ Arquitetura & Padrões: ARCHITECTURE.md
   - 🔒 Segurança & Hardening: SECURITY_BASELINE.md
   - 📖 Referência da API (ReDoc): referencia-api.md
-  - 🗺️ Roadmap & Homologação: ROADMAP.md
+  - 🗺️ Roadmap & Homologação:
+      - Visão Geral do Roadmap: ROADMAP.md
+      - Homologação V-SOL V1600GT: HOMOLOGACAO_VSOL_V1600.md
 
 exclude_docs: |
   brainstorming/**

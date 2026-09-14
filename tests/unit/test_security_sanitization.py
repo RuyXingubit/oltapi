@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.core.security import (
     sanitize_description,
+    sanitize_interface_port,
     sanitize_port,
     sanitize_safe_string,
     sanitize_serial,
@@ -32,6 +33,29 @@ def test_sanitize_port_injection_attempts():
     for payload in injection_payloads:
         with pytest.raises(ValueError):
             sanitize_port(payload)
+
+
+def test_sanitize_interface_port_valid():
+    assert sanitize_interface_port("1") == "1"
+    assert sanitize_interface_port("0/1") == "0/1"
+    assert sanitize_interface_port("ge 0/1") == "ge 0/1"
+    assert sanitize_interface_port("gigabitEthernet 0/4") == "gigabitEthernet 0/4"
+    assert sanitize_interface_port("gpon 0/2") == "gpon 0/2"
+    assert sanitize_interface_port("xe 0/1") == "xe 0/1"
+
+
+def test_sanitize_interface_port_injection_attempts():
+    injection_payloads = [
+        "ge 0/1; reboot",
+        "ge 0/1 | cat /etc/passwd",
+        "ge 0/1`reboot`",
+        "ge 0/1 && rm -rf /",
+        "invalid_port_name",
+        "",
+    ]
+    for payload in injection_payloads:
+        with pytest.raises(ValueError):
+            sanitize_interface_port(payload)
 
 
 def test_sanitize_serial_valid():

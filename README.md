@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-220%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-229%20passed%20(100%25)-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Testcontainers-PostgreSQL%2016-blue.svg" alt="Testcontainers PostgreSQL 16">
   <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg" alt="SQLAlchemy 2.0">
   <img src="https://img.shields.io/badge/Alembic-Migrations-orange.svg" alt="Alembic Migrations">
@@ -53,21 +53,22 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 13. **Webhooks com Assinatura Criptográfica HMAC SHA-256:** Notificação push assíncrona (BackgroundTasks) em tempo real para os ERPs (`onu.reconciled`, `onu.detected`, `webhook.ping`) com verificação contra ataques de temporização e log de auditoria de entregas.
 14. **Autofind Scanner em Segundo Plano (Supervisão Autônoma):** Worker assíncrono proativo com locks defensivos por OLT, auto-reconciliação de contratos ativos e notificações instantâneas de novos equipamentos na fibra.
 15. **Persistência Relacional ACID & Migrações Canônicas Alembic:** Camada de banco de dados relacional via **SQLAlchemy 2.0**, com suporte híbrido para SQLite WAL (alta concorrência sem bloqueio de leituras) e PostgreSQL empresarial, migração transparente sem perdas de bases legadas JSON e controle de versão de schema profissional via Alembic.
+16. **Onboarding Assistido via Wizard em 2 Fases (Bancada & Produção):** Pré-inspeção não-destrutiva com detecção factual de arquitetura (`interface aux` vs SVI In-Band), criação de gerência In-Band, catálogo de VLANs com propósitos (Router, Bridge, Rede Neutra, LAN-to-LAN Hairpin `p2p enable`), porta de teste untagged, compilação de perfis com submodo obrigatório `commit` e persistência na flash (`write`).
 
 ---
 
 ## 🖥️ Matriz de Equipamentos Suportados
 
 > [!NOTE]
-> **Critério Rigoroso de Homologação:** O status **🟢 Homologado em Campo** é atribuído única e exclusivamente após validação com tráfego real em bancada ou hardware físico em produção (leitura, escrita e provisionamento ponta a ponta com ONU). Drivers validados via suíte de testes unitários automatizados constam com precisão como **🔵 Driver Implementado (Aguardando Hardware Físico)**.
+> **Critério Rigoroso de Homologação:** O status **🟢 Homologado em Campo / Bancada** é atribuído única e exclusivamente após validação com tráfego real em bancada ou hardware físico em produção (leitura, escrita e provisionamento ponta a ponta com ONU). Drivers validados via suíte de testes unitários automatizados constam com precisão como **🔵 Driver Implementado (Aguardando Hardware Físico)**.
 
 | Fabricante | Modelo | Portas PON | Protocolo | Status de Validação | Suporte |
 | :--- | :--- | :---: | :---: | :---: | :--- |
 | **Fiberhome** | AN5516-01 / 04 / 06 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟢 Homologado em Campo | 100% Homologado em hardware real: Leitura de VLANs, perfis, ONUs ativas, running-config, backup FTP, telemetria óptica dupla (ONU/OLT RX), ciclo de vida e provisionamento ponta a ponta (Router PPPoE, Bridge e VEIP). |
+| **V-SOL** | V1600GT / Série V1600G | 4 a 16 GPON | SSH / Telnet | 🟢 Homologado em Bancada Física | 100% Homologado em hardware real: Onboarding Wizard em 2 fases, detecção determinística AUX vs In-Band, VLANs híbridas, comutação inter-ONU LAN-to-LAN (`p2p enable`), porta de teste untagged, compilação de perfis com submodo `commit`, persistência na flash (`write`) e provisionamento com tráfego real de ONUs Huawei Wi-Fi 6 e Intelbras Bridge. |
 | **Intelbras** | 8820 / 8820i | 8 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (CLI Broadcom) - Validação unitária com mocks |
 | **Intelbras** | OLT G08 / G16 | 8 e 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (G-Series CLI) - Validação unitária com mocks |
 | **Huawei** | SmartAX MA5800 / MA5600T | 8 a 16 GPON/XGS | SSH | 🔵 Driver Implementado | Completo (VRP CLI) - Validação unitária com mocks |
-| **V-SOL** | V1600GT / Série V1600G | 4 a 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (CLI V-SOL) - Validação unitária com mocks |
 | **ZTE** | C300 / C320 / C600 | 8 a 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (ZXROS CLI) - Validação unitária com mocks |
 | **Parks / Datacom / Nokia** | Vários | GPON | SSH | ⚪ Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
 

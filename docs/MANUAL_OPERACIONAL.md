@@ -27,6 +27,9 @@ Este manual destina-se a **engenheiros de rede**, **administradores de provedore
    - 12.1 [Sincronização com Snapshot Baseline v0 Obrigatório (`POST /olts/{id}/sync`)](#121-sincronização-com-snapshot-baseline-v0-obrigatório)
    - 12.2 [Mapeamento e Criação de VLANs com Gravação Permanente na Flash (`GET/POST /olts/{id}/vlans`)](#122-mapeamento-e-criação-de-vlans-com-gravação-permanente-na-flash)
    - 12.3 [Consulta de Profiles de Linha e DBA (`GET /olts/{id}/profiles`)](#123-consulta-de-profiles-de-linha-e-dba)
+13. [Onboarding Wizard Guiado em Duas Fases & Comissionamento Dinâmico](#13-onboarding-wizard-guiado-em-duas-fases--comissionamento-dinâmico)
+   - 13.1 [Fase 1: Pré-Inspeção Não-Destrutiva (`POST /olts/inspect`)](#131-fase-1-pré-inspeção-não-destrutiva-post-apiv1oltsinspect)
+   - 13.2 [Fase 2: Comissionamento Assistido via Wizard (`POST /olts/onboard-wizard`)](#132-fase-2-comissionamento-assistido-via-wizard-post-apiv1oltsonboard-wizard)
 
 ---
 
@@ -1147,4 +1150,140 @@ Para que o provisionador ou ERP consulte os perfis de velocidade e tráfego pré
 
 ---
 
+## 13. Onboarding Wizard Guiado em Duas Fases & Comissionamento Dinâmico
+
+O assistente de onboarding em duas fases permite comissionar OLTs em bancada (via porta física AUX com IP de fábrica, ex: `192.168.8.200`) ou em produção, com detecção factual de arquitetura sem adivinhações.
+
+### 13.1 Fase 1: Pré-Inspeção Não-Destrutiva (`POST /api/v1/olts/inspect`)
+
+Conecta na OLT via SSH/Telnet, obtém a configuração ativa sem modificar nada e classifica deterministicamente o cenário de gerência:
+- `aux_only`: OLT virgem em bancada (apenas IP físico na porta AUX, sem gerência In-Band configurada).
+- `aux_with_inband`: Acesso pela porta AUX, mas com gerência In-Band já configurada na OLT.
+- `inband_active`: Acesso direto pelo IP de gerência de produção na rede do provedor.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/olts/inspect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: oltapi-default-secret-key" \
+  -d '{
+    "host": "192.168.8.200",
+    "username": "admin",
+    "password": "Xpon@Olt9417#"
+  }'
+```
+
+**Exemplo de Resposta (Cenário `aux_with_inband`):**
+```json
+{
+  "host": "192.168.8.200",
+  "vendor": "vsol",
+  "model": "v1600",
+  "access_scenario": "aux_with_inband",
+  "aux_ip": "192.168.8.200",
+  "existing_svis": [
+    {
+      "vlan_id": 2,
+      "ip_cidr": "172.16.251.60/24"
+    }
+  ],
+  "existing_vlans": [1, 2, 100, 500],
+  "gateway": "172.16.251.1",
+  "total_onus_detected": 2,
+  "prompt_message": "Acesso via porta auxiliar (192.168.8.200). A OLT já possui gerência In-Band ativa na VLAN 2 (IP 172.16.251.60/24).",
+  "_links": {
+    "wizard": {"href": "/api/v1/olts/onboard-wizard", "method": "POST"},
+    "standard_onboard": {"href": "/api/v1/olts/onboard", "method": "POST"}
+  }
+}
+```
+
+---
+
+### 13.2 Fase 2: Comissionamento Assistido via Wizard (`POST /api/v1/olts/onboard-wizard`)
+
+Aplica de forma estruturada:
+1. Criação/ajuste de gerência In-Band (VLAN, SVI IP/Máscara e Rota Padrão).
+2. Pool de VLANs com propósitos (`pppoe_router`, `pppoe_bridge`, `ipoe`, `rede_neutra`, `lan_to_lan`).
+3. Portas híbridas no uplink e portas de teste untagged com PVID.
+4. Habilitação de Hairpin inter-ONU (`p2p enable`) para serviços LAN-to-LAN.
+5. Perfis GPON com submodo `commit` e gravação permanente na flash (`write`).
+6. Ingestão de inventário e cálculo do Broadband Forum TR-101 Circuit ID para todas as ONUs conectadas.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/olts/onboard-wizard \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: oltapi-default-secret-key" \
+  -d '{
+    "name": "OLT_BANCADA_VSOL",
+    "host": "192.168.8.200",
+    "username": "admin",
+    "password": "Xpon@Olt9417#",
+    "inband_config": {
+      "vlan_id": 2,
+      "uplink_port": "ge 0/1",
+      "ip_cidr": "172.16.251.60/24",
+      "gateway": "172.16.251.1",
+      "tagged": true,
+      "name": "VLAN2_GERENCIA"
+    },
+    "services": [
+      {
+        "vlan_id": 100,
+        "name": "INTERNET_FTTH",
+        "purpose": "pppoe_router",
+        "uplink_port": "ge 0/1",
+        "tagged": true,
+        "test_port": "ge 0/4"
+      },
+      {
+        "vlan_id": 500,
+        "name": "LAN_TO_LAN_P2P",
+        "purpose": "lan_to_lan",
+        "uplink_port": "ge 0/1",
+        "tagged": true
+      }
+    ],
+    "qos_policy": {
+      "policy_type": "transparent_1g",
+      "upstream_kbps": 1024000
+    }
+  }'
+```
+
+**Exemplo de Resposta (`201 Created`):**
+```json
+{
+  "olt_id": "0191e4f5-9a8b-7c3d-b456-112233445566",
+  "name": "OLT_BANCADA_VSOL",
+  "vendor": "vsol",
+  "model": "v1600",
+  "host": "192.168.8.200",
+  "port": 22,
+  "protocol": "ssh",
+  "baseline_backup_id": "0191e4f5-9b1a-7e2f-8899-aabbccddeeff",
+  "snmp_community": "olt_provedor",
+  "snmp_active": true,
+  "total_ports": 4,
+  "active_ports": 1,
+  "total_onus_detected": 2,
+  "new_onus_registered": 2,
+  "steps": [
+    {"step_key": "connectivity", "title": "Conectividade e Protocolo", "status": "success"},
+    {"step_key": "fingerprint", "title": "Reconhecimento do Fabricante", "status": "success"},
+    {"step_key": "baseline_backup", "title": "Backup Preventivo Baseline v0", "status": "success"},
+    {"step_key": "wizard_commissioning", "title": "Comissionamento Wizard Aplicado", "status": "success"},
+    {"step_key": "snmp_discovery", "title": "Provisionamento SNMP Dinâmico", "status": "success"},
+    {"step_key": "inventory_sync", "title": "Ingestão de Inventário & TR-101", "status": "success"},
+    {"step_key": "telemetry", "title": "Telemetria Inicial", "status": "success"}
+  ],
+  "message": "OLT 'OLT_BANCADA_VSOL' comissionada via Wizard e cadastrada com sucesso.",
+  "_links": {
+    "self": {"href": "/api/v1/olts/0191e4f5-9a8b-7c3d-b456-112233445566", "method": "GET"}
+  }
+}
+```
+
+---
+
 Dúvidas ou sugestões operacionais? Abra uma issue ou contribua através do nosso [Guia de Contribuição](https://github.com/RuyXingubit/oltapi/blob/master/CONTRIBUTING.md)!
+

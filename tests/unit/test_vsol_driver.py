@@ -211,3 +211,149 @@ def test_api_vsol_bootstrap_preview(client: TestClient, auth_headers, setup_test
     assert "profile dba 1 dba-name DBA-DEFAULT" in data["script_text"]
     assert "vlan 600" in data["script_text"]
     assert "write" in data["script_text"]
+
+
+def test_vsol_parse_management_architecture_scenarios():
+    driver = VSOLV1600Driver()
+
+    # Cenário 1: Bancada Pura (AUX_ONLY)
+    cfg_aux_only = """
+    interface aux
+    ip address 192.168.8.200 255.255.255.0
+    exit
+    vlan 1
+    exit
+    """
+    res1 = driver.parse_management_architecture(cfg_aux_only, "192.168.8.200")
+    assert res1["access_scenario"] == "aux_only"
+    assert res1["aux_ip"] == "192.168.8.200"
+    assert len(res1["existing_svis"]) == 0
+    assert "não possui gerência In-Band" in res1["prompt_message"]
+
+    # Cenário 2: Conectado na AUX, mas In-Band já configurada (AUX_WITH_INBAND)
+    cfg_aux_with_inband = """
+    interface aux
+    ip address 192.168.8.200 255.255.255.0
+    exit
+    vlan 1 - 2
+    vlan 2
+    description VLAN2_GERENCIA
+    exit
+    interface vlan 2
+    ip address 172.16.251.60/24
+    exit
+    ip route 0.0.0.0/0 172.16.251.1
+    """
+    res2 = driver.parse_management_architecture(cfg_aux_with_inband, "192.168.8.200")
+    assert res2["access_scenario"] == "aux_with_inband"
+    assert res2["aux_ip"] == "192.168.8.200"
+    assert len(res2["existing_svis"]) == 1
+    assert res2["existing_svis"][0].vlan_id == 2
+    assert res2["gateway"] == "172.16.251.1"
+    assert "já possui gerência In-Band ativa" in res2["prompt_message"]
+
+    # Cenário 3: Acesso Direto In-Band em Produção (INBAND_ACTIVE)
+    res3 = driver.parse_management_architecture(cfg_aux_with_inband, "172.16.251.60")
+    assert res3["access_scenario"] == "inband_active"
+    assert "Acesso direto via In-Band" in res3["prompt_message"]
+
+
+def test_vsol_compact_onu_state_parser():
+    driver = VSOLV1600Driver()
+    raw_state = """
+    OnuIndex    Admin State    OMCC State    Phase State    Serial Number
+    ---------------------------------------------------------------
+    2:1enableenableworkingHWTC073545b7
+    2:2enableenablesyncMibITBS5f44ca50
+    total: 2 working: 1
+    """
+    onus = driver.parse_port_onus(raw_state)
+    assert len(onus) == 2
+    assert onus[0].port == "0/2"
+    assert onus[0].onu_id == 1
+    assert onus[0].serial == "HWTC073545b7"
+    assert onus[0].status == "online"
+
+    assert onus[1].port == "0/2"
+    assert onus[1].onu_id == 2
+    assert onus[1].serial == "ITBS5f44ca50"
+    assert onus[1].status == "online"
+
+
+def test_vsol_generate_wizard_commissioning_commands():
+    from app.models.olt import (
+        BandwidthPolicyType,
+        BandwidthQoSPolicy,
+        InBandManagementConfig,
+        OLTWizardOnboardRequest,
+        VLANServiceItem,
+        VLANServicePurpose,
+    )
+    driver = VSOLV1600Driver()
+    req = OLTWizardOnboardRequest(
+        name="OLT_BANCADA_VSOL",
+        host="192.168.8.200",
+        username="admin",
+        password="pwd",
+        inband_config=InBandManagementConfig(
+            vlan_id=2,
+            uplink_port="ge 0/1",
+            ip_cidr="172.16.251.60/24",
+            gateway="172.16.251.1",
+            tagged=True,
+            name="MGMT_VLAN2",
+        ),
+        services=[
+            VLANServiceItem(
+                vlan_id=100,
+                name="INTERNET_FTTH",
+                purpose=VLANServicePurpose.PPPOE_ROUTER,
+                uplink_port="ge 0/1",
+                tagged=True,
+                test_port="ge 0/4",
+            ),
+            VLANServiceItem(
+                vlan_id=500,
+                name="LAN_TO_LAN_P2P",
+                purpose=VLANServicePurpose.LAN_TO_LAN,
+                uplink_port="ge 0/1",
+                tagged=True,
+            ),
+        ],
+        qos_policy=BandwidthQoSPolicy(
+            policy_type=BandwidthPolicyType.TRANSPARENT_1G,
+            upstream_kbps=1024000,
+        ),
+    )
+
+    cmds = driver.generate_wizard_commissioning_commands(req)
+    cmd_str = "\n".join(cmds)
+
+    # In-Band SVI
+    assert "interface vlan 2" in cmd_str
+    assert "ip address 172.16.251.60/24" in cmd_str
+    assert "ip route 0.0.0.0/0 172.16.251.1" in cmd_str
+    assert "switchport hybrid vlan 2 tagged" in cmd_str
+
+    # Test Port Untagged
+    assert "interface gigabitEthernet 0/4" in cmd_str
+    assert "switchport hybrid pvid vlan 100" in cmd_str
+    assert "switchport hybrid vlan 100 untagged" in cmd_str
+
+    # Line Profiles com commit
+    assert "profile line id 100 name line_vlan100" in cmd_str
+    assert "profile line id 500 name line_vlan500" in cmd_str
+    assert "commit" in cmd_str
+
+    # Service Profiles com commit
+    assert "profile srv id 10 name srv_hgu" in cmd_str
+    assert "portvlan veip 1 mode transparent" in cmd_str
+    assert "profile srv id 20 name srv_bridge" in cmd_str
+    assert "portvlan eth 1 mode transparent" in cmd_str
+
+    # P2P enable para LAN-to-LAN
+    assert "p2p enable" in cmd_str
+
+    # Persistência final
+    assert "write" in cmd_str
+

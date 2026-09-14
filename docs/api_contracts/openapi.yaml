@@ -517,6 +517,87 @@ paths:
       security:
       - APIKeyHeader: []
       - HTTPBearer: []
+  /api/v1/olts/inspect:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Inspect Olt Endpoint
+      description: 'Pré-inspeção não-destrutiva de OLT (Bancada vs In-Band):
+
+        Identifica o fabricante e analisa deterministicamente o running-config:
+
+        - AUX_ONLY: OLT em bancada pura, acessada pela porta auxiliar física sem gerência
+        in-band.
+
+        - AUX_WITH_INBAND: Acessada via AUX, mas já possui gerência in-band configurada.
+
+        - INBAND_ACTIVE: OLT já operando em produção via SVI in-band na rede do provedor.'
+      operationId: inspect_olt_endpoint_api_v1_olts_inspect_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OLTInspectRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTInspectResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/olts/onboard-wizard:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Onboard Olt Wizard Endpoint
+      description: 'Onboarding Assistido via Wizard (V-SOL / Multi-Vendor):
+
+        Executa o comissionamento estruturado com suporte a:
+
+        1. Criação/migração de gerência In-Band (VLAN, SVI IP/Máscara e Gateway).
+
+        2. Criação do pool de VLANs de serviço com propósitos específicos (Router
+        HGU, Bridge SFU, Rede Neutra, LAN-to-LAN).
+
+        3. Habilitação de Hairpin local (p2p enable) caso haja serviços LAN-to-LAN.
+
+        4. Compilação dos perfis GPON com commit nativo e persistência via write.
+
+        5. Ingestão de inventário e cálculo de Circuit ID TR-101 para todas as ONUs
+        detectadas.'
+      operationId: onboard_olt_wizard_endpoint_api_v1_olts_onboard_wizard_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OLTWizardOnboardRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTOnboardResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/olts/onboard:
     post:
       tags:
@@ -3072,6 +3153,31 @@ components:
       - sha256_hash
       - filename
       title: BackupMetadata
+    BandwidthPolicyType:
+      type: string
+      enum:
+      - transparent_1g
+      - custom_limits
+      title: BandwidthPolicyType
+    BandwidthQoSPolicy:
+      properties:
+        policy_type:
+          $ref: '#/components/schemas/BandwidthPolicyType'
+          default: transparent_1g
+        upstream_kbps:
+          type: integer
+          minimum: 1024.0
+          title: Upstream Kbps
+          description: Limite de upload no DBA Profile (kbps)
+          default: 1024000
+        downstream_kbps:
+          type: integer
+          minimum: 1024.0
+          title: Downstream Kbps
+          description: Limite de download no GEM Port Traffic-Limit (kbps)
+          default: 1024000
+      type: object
+      title: BandwidthQoSPolicy
     BatchBackupResult:
       properties:
         total_olts:
@@ -3251,6 +3357,35 @@ components:
       - router
       - bridge
       title: DefaultONUMode
+    ExistingSVIItem:
+      properties:
+        vlan_id:
+          type: integer
+          title: Vlan Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        ip_cidr:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ip Cidr
+        tagged_ports:
+          items:
+            type: string
+          type: array
+          title: Tagged Ports
+        untagged_ports:
+          items:
+            type: string
+          type: array
+          title: Untagged Ports
+      type: object
+      required:
+      - vlan_id
+      title: ExistingSVIItem
     FTPBoundOLTItem:
       properties:
         olt_id:
@@ -3563,6 +3698,45 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    InBandManagementConfig:
+      properties:
+        vlan_id:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Vlan Id
+          description: ID da VLAN de gerência in-band
+          default: 2
+        uplink_port:
+          type: string
+          title: Uplink Port
+          description: 'Porta física de uplink para a gerência (ex: ge 0/1)'
+          default: ge 0/1
+        ip_cidr:
+          type: string
+          title: Ip Cidr
+          description: 'Endereço IP com máscara CIDR para a SVI (ex: 172.16.251.60/24)'
+        gateway:
+          type: string
+          title: Gateway
+          description: 'Gateway padrão da rede de gerência (ex: 172.16.251.1)'
+        tagged:
+          type: boolean
+          title: Tagged
+          description: Se a VLAN deve ser tagged na porta de uplink
+          default: true
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+          description: Descrição/nome da VLAN de gerência
+          default: VLAN2_GERENCIA
+      type: object
+      required:
+      - ip_cidr
+      - gateway
+      title: InBandManagementConfig
     Link:
       properties:
         href:
@@ -3585,6 +3759,13 @@ components:
       - href
       title: Link
       description: Representação de um hiperlink HATEOAS / HAL enxuto.
+    ManagementAccessScenario:
+      type: string
+      enum:
+      - aux_only
+      - aux_with_inband
+      - inband_active
+      title: ManagementAccessScenario
     OLTConfigResponse:
       properties:
         olt_id:
@@ -3758,6 +3939,92 @@ components:
       - global_destinations
       - effective_destinations
       title: OLTFTPDestinationResponse
+    OLTInspectRequest:
+      properties:
+        host:
+          type: string
+          maxLength: 255
+          minLength: 4
+          title: Host
+          description: Endereço IP ou hostname da OLT
+        username:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Username
+          description: Usuário de acesso à CLI
+        password:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Password
+          description: Senha de acesso à CLI
+        custom_port:
+          anyOf:
+          - type: integer
+            maximum: 65535.0
+            minimum: 1.0
+          - type: 'null'
+          title: Custom Port
+          description: Porta customizada de conexão
+      type: object
+      required:
+      - host
+      - username
+      - password
+      title: OLTInspectRequest
+    OLTInspectResponse:
+      properties:
+        host:
+          type: string
+          title: Host
+        vendor:
+          $ref: '#/components/schemas/OLTVendor'
+        model:
+          type: string
+          title: Model
+        access_scenario:
+          $ref: '#/components/schemas/ManagementAccessScenario'
+        aux_ip:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Aux Ip
+        existing_svis:
+          items:
+            $ref: '#/components/schemas/ExistingSVIItem'
+          type: array
+          title: Existing Svis
+        existing_vlans:
+          items:
+            type: integer
+          type: array
+          title: Existing Vlans
+        gateway:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gateway
+        total_onus_detected:
+          type: integer
+          title: Total Onus Detected
+          default: 0
+        prompt_message:
+          type: string
+          title: Prompt Message
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - host
+      - vendor
+      - model
+      - access_scenario
+      - prompt_message
+      title: OLTInspectResponse
     OLTOnboardRequest:
       properties:
         name:
@@ -4018,6 +4285,61 @@ components:
       - zte
       - parks
       title: OLTVendor
+    OLTWizardOnboardRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 64
+          minLength: 2
+          title: Name
+          description: Nome de identificação da OLT
+        host:
+          type: string
+          maxLength: 255
+          minLength: 4
+          title: Host
+          description: Endereço IP ou hostname de acesso
+        username:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Username
+          description: Usuário de acesso à CLI
+        password:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Password
+          description: Senha de acesso à CLI
+        custom_port:
+          anyOf:
+          - type: integer
+            maximum: 65535.0
+            minimum: 1.0
+          - type: 'null'
+          title: Custom Port
+          description: Porta customizada de conexão
+        inband_config:
+          anyOf:
+          - $ref: '#/components/schemas/InBandManagementConfig'
+          - type: 'null'
+          description: Configuração de gerência in-band opcional
+        services:
+          items:
+            $ref: '#/components/schemas/VLANServiceItem'
+          type: array
+          title: Services
+          description: Lista de VLANs de serviço com propósitos
+        qos_policy:
+          $ref: '#/components/schemas/BandwidthQoSPolicy'
+          description: Política de controle de banda
+      type: object
+      required:
+      - name
+      - host
+      - username
+      - password
+      title: OLTWizardOnboardRequest
     OLTXRayResponse:
       properties:
         olt_id:
@@ -5911,6 +6233,54 @@ components:
       required:
       - vlan_id
       title: VLANMetricsItem
+    VLANServiceItem:
+      properties:
+        vlan_id:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Vlan Id
+          description: ID da VLAN de serviço
+        name:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Name
+          description: Nome identificador da VLAN
+        purpose:
+          $ref: '#/components/schemas/VLANServicePurpose'
+          description: Propósito operacional do serviço
+        uplink_port:
+          type: string
+          title: Uplink Port
+          description: 'Porta de saída uplink (ex: ge 0/1 ou ge 0/2 para rede neutra)'
+          default: ge 0/1
+        tagged:
+          type: boolean
+          title: Tagged
+          description: Se a VLAN sai tagged na porta de uplink
+          default: true
+        test_port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Test Port
+          description: 'Porta física de bancada para saída untagged (ex: ge 0/4)'
+      type: object
+      required:
+      - vlan_id
+      - name
+      - purpose
+      title: VLANServiceItem
+    VLANServicePurpose:
+      type: string
+      enum:
+      - pppoe_router
+      - pppoe_bridge
+      - ipoe
+      - rede_neutra
+      - lan_to_lan
+      title: VLANServicePurpose
     ValidationError:
       properties:
         loc:

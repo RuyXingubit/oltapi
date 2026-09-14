@@ -12,11 +12,15 @@ from app.drivers.factory import DriverFactory
 from app.drivers.fiberhome.telnet_client import TelnetClient
 from app.models.hateoas import Link
 from app.models.olt import (
+    ManagementAccessScenario,
     OLTInDB,
+    OLTInspectRequest,
+    OLTInspectResponse,
     OLTOnboardRequest,
     OLTOnboardResponse,
     OLTProtocol,
     OLTVendor,
+    OLTWizardOnboardRequest,
     OnboardingStepItem,
 )
 from app.services.backup_service import BackupService
@@ -155,12 +159,77 @@ class OLTOnboardingService:
             return (OLTVendor.ZTE, "c320")
         elif any(k in text for k in ["intelbras", "8820"]):
             return (OLTVendor.INTELBRAS, "8820")
-        elif any(k in text for k in ["vsol", "v1600"]):
+        elif any(k in text for k in ["vsol", "v1600", "gpon-olt"]):
             return (OLTVendor.VSOL, "v1600")
 
         # Padrão seguro caso inconclusivo
         logger.info(f"[Onboarding Fingerprint] Banner inconclusivo ({text[:80]}). Adotando Fiberhome AN5516 como padrão.")
         return (OLTVendor.FIBERHOME, "an5516")
+
+    def inspect_olt(self, request: OLTInspectRequest) -> OLTInspectResponse:
+        """
+        Pré-inspeção não-destrutiva da OLT antes do comissionamento:
+        1. Conecta via SSH/Telnet.
+        2. Identifica fabricante e modelo.
+        3. Obtém o running-config inicial.
+        4. Detecta cenário de acesso (AUX_ONLY, AUX_WITH_INBAND, INBAND_ACTIVE).
+        5. Retorna mapa completo de SVIs, VLANs existentes e total de ONUs.
+        """
+        protocol, port, banner_prompt = self.probe_connectivity(
+            host=request.host,
+            username=request.username,
+            password=request.password,
+            custom_port=request.custom_port,
+        )
+        vendor, model = self.fingerprint_vendor_and_model(banner_prompt)
+
+        temp_olt = OLTInDB(
+            id="temp-inspect",
+            name="TEMP_INSPECT",
+            vendor=vendor,
+            model=model,
+            host=request.host.strip(),
+            port=port,
+            protocol=protocol,
+            username=request.username.strip(),
+            password=request.password.strip(),
+        )
+
+        driver = DriverFactory.get_driver(temp_olt)
+        running_cfg = driver.get_running_config(temp_olt)
+
+        # Se for VSOL ou compatível, usa o parser arquitetural
+        if hasattr(driver, "parse_management_architecture"):
+            arch = driver.parse_management_architecture(running_cfg, request.host.strip())
+        else:
+            arch = {
+                "aux_ip": None,
+                "gateway": None,
+                "existing_svis": [],
+                "existing_vlans": [],
+                "total_onus": len(re.findall(r"onu\s+add", running_cfg, re.IGNORECASE)),
+                "access_scenario": ManagementAccessScenario.INBAND_ACTIVE,
+                "prompt_message": f"Conectado à OLT {vendor.value.upper()} {model.upper()} via {protocol.value.upper()}.",
+            }
+
+        links = {
+            "wizard": Link(href="/api/v1/olts/onboard-wizard", rel="wizard", method="POST"),
+            "standard_onboard": Link(href="/api/v1/olts/onboard", rel="standard_onboard", method="POST"),
+        }
+
+        return OLTInspectResponse(
+            host=request.host.strip(),
+            vendor=vendor,
+            model=model,
+            access_scenario=arch["access_scenario"],
+            aux_ip=arch.get("aux_ip"),
+            existing_svis=arch.get("existing_svis", []),
+            existing_vlans=arch.get("existing_vlans", []),
+            gateway=arch.get("gateway"),
+            total_onus_detected=arch.get("total_onus", 0),
+            prompt_message=arch.get("prompt_message", "Inspeção concluída com sucesso."),
+            links=links,
+        )
 
     def execute_onboarding(
         self,
@@ -337,6 +406,203 @@ class OLTOnboardingService:
             uptime_human=uptime_str,
             steps=steps,
             message=f"Onboarding da OLT '{created_olt.name}' concluído com sucesso! {total_onus} ONUs e {ports_count} portas mapeadas.",
+            links=links,
+        )
+
+    def execute_wizard_onboarding(
+        self,
+        request: OLTWizardOnboardRequest,
+        tenant_name: Optional[str] = None,
+    ) -> OLTOnboardResponse:
+        """
+        Executa o comissionamento assistido e onboarding em lote da OLT via Wizard.
+        1. Negociação e Conexão SSH/Telnet
+        2. Reconhecimento de Fabricante e Modelo
+        3. Cadastro no Banco de Dados
+        4. Snapshot Preventivo Baseline v0 com SHA-256
+        5. Aplicação das Regras de Comissionamento Wizard (In-Band, VLANs, Perfis, P2P)
+        6. Provisionamento/Validação de SNMP
+        7. Ingestão de Inventário e Circuit ID TR-101
+        8. Telemetria e Consolidação
+        """
+        steps: List[OnboardingStepItem] = []
+        company_slug = slugify_community(tenant_name or "provedor")
+
+        # 1. Conectividade
+        try:
+            protocol, port, banner_prompt = self.probe_connectivity(
+                host=request.host,
+                username=request.username,
+                password=request.password,
+                custom_port=request.custom_port,
+            )
+            steps.append(
+                OnboardingStepItem(
+                    step_key="connectivity",
+                    title="Negociação de Conexão",
+                    status="success",
+                    details=f"Conectado com sucesso via {protocol.value.upper()} na porta {port}.",
+                )
+            )
+        except Exception as e:
+            steps.append(
+                OnboardingStepItem(
+                    step_key="connectivity",
+                    title="Negociação de Conexão",
+                    status="error",
+                    details=str(e),
+                )
+            )
+            raise ConnectionError(str(e))
+
+        # 2. Fingerprint
+        vendor, model = self.fingerprint_vendor_and_model(banner_prompt)
+        steps.append(
+            OnboardingStepItem(
+                step_key="fingerprint",
+                title="Reconhecimento do Fabricante",
+                status="success",
+                details=f"Fabricante identificado: {vendor.value.upper()} (Modelo: {model.upper()}).",
+            )
+        )
+
+        # 3. Cadastro Atômico da OLT
+        default_community = f"olt_{company_slug}"
+        olt_id = generate_uuid7()
+        olt_entity = OLTInDB(
+            id=olt_id,
+            name=request.name.strip(),
+            vendor=vendor,
+            model=model,
+            host=request.host.strip(),
+            port=port,
+            protocol=protocol,
+            username=request.username.strip(),
+            password=request.password.strip(),
+            snmp_community=default_community,
+            snmp_port=161,
+            snmp_version="v2c",
+        )
+        created_olt = self.olt_repo.create(olt_entity)
+
+        # 4. Snapshot Baseline v0 Preventivo
+        try:
+            baseline_backup = self.backup_service.create_backup(
+                olt_id=created_olt.id,
+                notes="Baseline v0 - Pre-Wizard Commissioning Snapshot",
+            )
+            baseline_backup_id = baseline_backup.backup_id
+            steps.append(
+                OnboardingStepItem(
+                    step_key="baseline_backup",
+                    title="Backup Preventivo Baseline v0",
+                    status="success",
+                    details=f"Backup de segurança gravado em disco com SHA-256 (ID: {baseline_backup_id}).",
+                )
+            )
+        except Exception as e:
+            logger.warning(f"Aviso ao gerar baseline v0: {e}")
+            baseline_backup_id = "baseline_v0_pendente"
+            steps.append(
+                OnboardingStepItem(
+                    step_key="baseline_backup",
+                    title="Backup Preventivo Baseline v0",
+                    status="warning",
+                    details=f"Aviso ao extrair backup: {e}",
+                )
+            )
+
+        # 5. Execução do Comissionamento Wizard via Driver
+        driver = DriverFactory.get_driver(created_olt)
+        if hasattr(driver, "execute_wizard_commissioning"):
+            try:
+                cmd_list = driver.execute_wizard_commissioning(created_olt, request)
+                steps.append(
+                    OnboardingStepItem(
+                        step_key="wizard_commissioning",
+                        title="Comissionamento Wizard Aplicado",
+                        status="success",
+                        details=f"{len(cmd_list)} comandos de comissionamento aplicados e persistidos na flash.",
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Erro ao aplicar comissionamento wizard na OLT {created_olt.name}: {e}")
+                steps.append(
+                    OnboardingStepItem(
+                        step_key="wizard_commissioning",
+                        title="Comissionamento Wizard",
+                        status="warning",
+                        details=f"Aviso na aplicação de regras da OLT: {e}",
+                    )
+                )
+
+        # 6. SNMP Telemetry Discovery
+        snmp_active, final_community, step_snmp = self._discover_and_configure_snmp(
+            created_olt=created_olt,
+            tenant_name=tenant_name,
+        )
+        steps.append(step_snmp)
+
+        # 7. Ingestão de Inventário & TR-101
+        try:
+            sync_res = self.sync_service.sync_olt(created_olt.id)
+            total_onus = sync_res.total_onus_discovered
+            new_onus = sync_res.new_onus_registered
+            steps.append(
+                OnboardingStepItem(
+                    step_key="inventory_sync",
+                    title="Ingestão de Inventário & TR-101",
+                    status="success",
+                    details=f"{total_onus} ONUs sincronizadas com cálculo de Circuit ID TR-101.",
+                )
+            )
+        except Exception as e:
+            logger.warning(f"Erro ao sincronizar inventário: {e}")
+            total_onus = 0
+            new_onus = 0
+            steps.append(
+                OnboardingStepItem(
+                    step_key="inventory_sync",
+                    title="Ingestão de Inventário",
+                    status="warning",
+                    details=f"Aviso ao sincronizar inventário: {e}",
+                )
+            )
+
+        # 8. Telemetria Consolidada
+        ports_count, active_ports_count, firmware_ver, uptime_str = self._derive_ports_and_telemetry(
+            created_olt=created_olt,
+            snmp_active=snmp_active,
+            final_community=final_community,
+        )
+
+        links = {
+            "self": Link(href=f"/api/v1/olts/{created_olt.id}", rel="self", method="GET"),
+            "telemetry": Link(href=f"/api/v1/olts/{created_olt.id}/telemetry", rel="telemetry", method="GET"),
+            "ports": Link(href=f"/api/v1/olts/{created_olt.id}/ports", rel="ports", method="GET"),
+            "vlans": Link(href=f"/api/v1/olts/{created_olt.id}/vlans", rel="vlans", method="GET"),
+            "onus": Link(href=f"/api/v1/onus?olt_id={created_olt.id}", rel="onus", method="GET"),
+        }
+
+        return OLTOnboardResponse(
+            olt_id=created_olt.id,
+            name=created_olt.name,
+            vendor=created_olt.vendor,
+            model=created_olt.model,
+            host=created_olt.host,
+            port=created_olt.port,
+            protocol=created_olt.protocol,
+            baseline_backup_id=baseline_backup_id,
+            snmp_community=final_community,
+            snmp_active=snmp_active,
+            total_ports=ports_count,
+            active_ports=active_ports_count,
+            total_onus_detected=total_onus,
+            new_onus_registered=new_onus,
+            firmware_version=firmware_ver,
+            uptime_human=uptime_str,
+            steps=steps,
+            message=f"Comissionamento Wizard da OLT '{created_olt.name}' concluído com sucesso! {total_onus} ONUs e {ports_count} portas mapeadas.",
             links=links,
         )
 

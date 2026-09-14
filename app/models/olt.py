@@ -225,3 +225,93 @@ class OLTOnboardResponse(BaseModel):
     links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
 
     model_config = {"populate_by_name": True}
+
+
+# =============================================================================
+# Modelos para o Wizard de Onboarding & Comissionamento Dinâmico (V-SOL / Multi-Vendor)
+# =============================================================================
+
+class ManagementAccessScenario(str, Enum):
+    AUX_ONLY = "aux_only"
+    AUX_WITH_INBAND = "aux_with_inband"
+    INBAND_ACTIVE = "inband_active"
+
+
+class VLANServicePurpose(str, Enum):
+    PPPOE_ROUTER = "pppoe_router"
+    PPPOE_BRIDGE = "pppoe_bridge"
+    IPOE = "ipoe"
+    REDE_NEUTRA = "rede_neutra"
+    LAN_TO_LAN = "lan_to_lan"
+
+
+class InBandManagementConfig(BaseModel):
+    vlan_id: int = Field(default=2, ge=1, le=4094, description="ID da VLAN de gerência in-band")
+    uplink_port: str = Field(default="ge 0/1", description="Porta física de uplink para a gerência (ex: ge 0/1)")
+    ip_cidr: str = Field(..., description="Endereço IP com máscara CIDR para a SVI (ex: 172.16.251.60/24)")
+    gateway: str = Field(..., description="Gateway padrão da rede de gerência (ex: 172.16.251.1)")
+    tagged: bool = Field(default=True, description="Se a VLAN deve ser tagged na porta de uplink")
+    name: Optional[str] = Field(default="VLAN2_GERENCIA", description="Descrição/nome da VLAN de gerência")
+
+
+class VLANServiceItem(BaseModel):
+    vlan_id: int = Field(..., ge=1, le=4094, description="ID da VLAN de serviço")
+    name: str = Field(..., min_length=1, max_length=64, description="Nome identificador da VLAN")
+    purpose: VLANServicePurpose = Field(..., description="Propósito operacional do serviço")
+    uplink_port: str = Field(default="ge 0/1", description="Porta de saída uplink (ex: ge 0/1 ou ge 0/2 para rede neutra)")
+    tagged: bool = Field(default=True, description="Se a VLAN sai tagged na porta de uplink")
+    test_port: Optional[str] = Field(default=None, description="Porta física de bancada para saída untagged (ex: ge 0/4)")
+
+
+class BandwidthPolicyType(str, Enum):
+    TRANSPARENT_1G = "transparent_1g"
+    CUSTOM_LIMITS = "custom_limits"
+
+
+class BandwidthQoSPolicy(BaseModel):
+    policy_type: BandwidthPolicyType = Field(default=BandwidthPolicyType.TRANSPARENT_1G)
+    upstream_kbps: int = Field(default=1024000, ge=1024, description="Limite de upload no DBA Profile (kbps)")
+    downstream_kbps: int = Field(default=1024000, ge=1024, description="Limite de download no GEM Port Traffic-Limit (kbps)")
+
+
+class OLTInspectRequest(BaseModel):
+    host: str = Field(..., min_length=4, max_length=255, description="Endereço IP ou hostname da OLT")
+    username: str = Field(..., min_length=1, max_length=64, description="Usuário de acesso à CLI")
+    password: str = Field(..., min_length=1, max_length=128, description="Senha de acesso à CLI")
+    custom_port: Optional[int] = Field(default=None, ge=1, le=65535, description="Porta customizada de conexão")
+
+
+class ExistingSVIItem(BaseModel):
+    vlan_id: int
+    name: Optional[str] = None
+    ip_cidr: Optional[str] = None
+    tagged_ports: List[str] = Field(default_factory=list)
+    untagged_ports: List[str] = Field(default_factory=list)
+
+
+class OLTInspectResponse(BaseModel):
+    host: str
+    vendor: OLTVendor
+    model: str
+    access_scenario: ManagementAccessScenario
+    aux_ip: Optional[str] = None
+    existing_svis: List[ExistingSVIItem] = Field(default_factory=list)
+    existing_vlans: List[int] = Field(default_factory=list)
+    gateway: Optional[str] = None
+    total_onus_detected: int = 0
+    prompt_message: str
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+
+
+class OLTWizardOnboardRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=64, description="Nome de identificação da OLT")
+    host: str = Field(..., min_length=4, max_length=255, description="Endereço IP ou hostname de acesso")
+    username: str = Field(..., min_length=1, max_length=64, description="Usuário de acesso à CLI")
+    password: str = Field(..., min_length=1, max_length=128, description="Senha de acesso à CLI")
+    custom_port: Optional[int] = Field(default=None, ge=1, le=65535, description="Porta customizada de conexão")
+    inband_config: Optional[InBandManagementConfig] = Field(default=None, description="Configuração de gerência in-band opcional")
+    services: List[VLANServiceItem] = Field(default_factory=list, description="Lista de VLANs de serviço com propósitos")
+    qos_policy: BandwidthQoSPolicy = Field(default_factory=BandwidthQoSPolicy, description="Política de controle de banda")
+

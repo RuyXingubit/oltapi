@@ -14,6 +14,7 @@ API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 # Padrões regex para prevenção de injeção de comandos CLI
 PORT_REGEX = re.compile(r"^[0-9]+(/[0-9]+)*$")
+INTERFACE_PORT_REGEX = re.compile(r"^([a-zA-Z]{1,16}\s+)?[0-9]+(/[0-9]+)*$")
 SERIAL_REGEX = re.compile(r"^[A-Za-z0-9]{4,24}$")
 SAFE_STRING_REGEX = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
@@ -86,6 +87,15 @@ def sanitize_port(port: str) -> str:
     if not port or not PORT_REGEX.match(port.strip()):
         raise ValueError(
             f"Formato de porta inválido: '{port}'. Esperado formato numérico como '1/1' ou '0/1/1'."
+        )
+    return port.strip()
+
+
+def sanitize_interface_port(port: str) -> str:
+    """Valida formato de porta de interface física ou lógica (ex: '0/1', '1/1', 'ge 0/1', 'gigabitEthernet 0/1', 'gpon 0/2')."""
+    if not port or not INTERFACE_PORT_REGEX.match(port.strip()):
+        raise ValueError(
+            f"Formato de interface inválido: '{port}'. Esperado formato como '1/1', '0/1/1', 'ge 0/1' ou 'gigabitEthernet 0/1'."
         )
     return port.strip()
 

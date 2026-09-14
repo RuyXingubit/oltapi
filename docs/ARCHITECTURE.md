@@ -71,3 +71,52 @@ Conforme as diretrizes globais do projeto:
 6. **Políticas de Retenção & Expurgo (Purge):** O endpoint `POST /api/v1/olts/{id}/backups/purge` aplica retenção por idade (`retention_days`) e cota mínima (`keep_minimum`), com modo de simulação (`dry_run=true`) antes da remoção definitiva.
 7. **Operações Globais:** Endpoints em lote (`/run-all`, `/audit-all`, `/purge-all`) possibilitam execução paralela ou em lote de rotinas preventivas em todo o parque de OLTs da rede.
 8. **Download Seguro:** O endpoint `GET /api/v1/olts/{id}/backups/{backup_id}/download` valida se o arquivo existe e o entrega como fluxo binário/texto com o cabeçalho `Content-Disposition`.
+
+---
+
+## 4. Onboarding em Duas Fases & Gestão Dinâmica de VLANs (Wizard Zero-Touch)
+
+Para atender cenários de bancada física (onde a OLT recém-saída da caixa opera apenas pela porta física AUX com IP de fábrica, como `192.168.8.200`) e cenários de migração em produção, o sistema implementa um fluxo determinístico em duas fases:
+
+```
+[ Técnico / ERP / UI ]
+        |
+        | 1. POST /api/v1/olts/inspect (Host, Usuário, Senha)
+        v
++-----------------------------------------------------------------------------+
+| Fase 1: Pré-Inspeção Não-Destrutiva (OLTOnboardingService.inspect_olt)      |
+| - Proba SSH / Telnet e identifica fabricante (ex: VSOL V1600GT)              |
+| - Extrai running-config sem alterar nenhuma linha da OLT                    |
+| - Analisa 'interface aux' vs 'interface vlan <id>' (SVIs)                   |
+| - Classifica deterministicamente o cenário de acesso:                       |
+|   * AUX_ONLY: OLT virgem em bancada (apenas porta auxiliar física ativa)     |
+|   * AUX_WITH_INBAND: Acessada via AUX, mas já possui gerência In-Band       |
+|   * INBAND_ACTIVE: Acessada diretamente pelo IP de gerência de produção     |
++-----------------------------------------------------------------------------+
+        |
+        | Retorna diagnóstico factual, SVIs, VLANs existentes e orientações
+        v
+[ Seleção de Parâmetros pelo Usuário / Sistema ]
+  - Criar ou manter Gerência In-Band (VLAN, IP/CIDR, Gateway, Uplink Tagged)
+  - Catálogo de VLANs com propósitos específicos:
+    * pppoe_router (HGU VEIP 1 transparent)
+    * pppoe_bridge (SFU ETH 1 transparent)
+    * ipoe / rede_neutra
+    * lan_to_lan (Inter-ONU P2P com 'p2p enable' na PON)
+  - Porta de teste em bancada (ex: ge 0/4 untagged com PVID)
+  - Política de banda (1 Gbps transparente ou limites DBA Upstream)
+        |
+        | 2. POST /api/v1/olts/onboard-wizard
+        v
++-----------------------------------------------------------------------------+
+| Fase 2: Comissionamento Assistido (execute_wizard_onboarding)               |
+| 1. Snapshot preventivo obrigatório (Baseline v0) gravado com SHA-256        |
+| 2. Execução do comissionamento no driver com submodo 'commit'               |
+| 3. Gravação atômica na memória flash ('write')                              |
+| 4. Detecção e provisionamento dinâmico de comunidade SNMP                   |
+| 5. Ingestão de portas físicas, VLANs e ONUs no inventário                   |
+| 6. Cálculo perpétuo de Broadband Forum TR-101 Circuit ID para cada ONU      |
+| 7. Coleta de telemetria inicial consolidada                                 |
++-----------------------------------------------------------------------------+
+```
+

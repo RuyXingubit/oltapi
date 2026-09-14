@@ -34,9 +34,12 @@ from app.models.olt import (
     OLTConfigResponse,
     OLTCreateRequest,
     OLTCredentialsResponse,
+    OLTInspectRequest,
+    OLTInspectResponse,
     OLTOnboardRequest,
     OLTOnboardResponse,
     OLTResponse,
+    OLTWizardOnboardRequest,
     OLTXRayResponse,
     SNMPConfigureRequest,
     SNMPConfigureResponse,
@@ -86,6 +89,70 @@ def list_olts(
         )
         for o in olts
     ]
+
+
+@router.post("/inspect", response_model=OLTInspectResponse, status_code=status.HTTP_200_OK)
+def inspect_olt_endpoint(
+    req: OLTInspectRequest,
+    onboarding_service=Depends(get_onboarding_service),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Pré-inspeção não-destrutiva de OLT (Bancada vs In-Band):
+    Identifica o fabricante e analisa deterministicamente o running-config:
+    - AUX_ONLY: OLT em bancada pura, acessada pela porta auxiliar física sem gerência in-band.
+    - AUX_WITH_INBAND: Acessada via AUX, mas já possui gerência in-band configurada.
+    - INBAND_ACTIVE: OLT já operando em produção via SVI in-band na rede do provedor.
+    """
+    ctx.enforce_scope("olts:admin")
+    try:
+        return onboarding_service.inspect_olt(request=req)
+    except ConnectionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Falha de conexão durante inspeção da OLT: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Erro inesperado na inspeção da OLT '{req.host}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro durante inspeção da OLT: {str(e)}",
+        )
+
+
+@router.post("/onboard-wizard", response_model=OLTOnboardResponse, status_code=status.HTTP_201_CREATED)
+def onboard_olt_wizard_endpoint(
+    req: OLTWizardOnboardRequest,
+    response: Response,
+    onboarding_service=Depends(get_onboarding_service),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Onboarding Assistido via Wizard (V-SOL / Multi-Vendor):
+    Executa o comissionamento estruturado com suporte a:
+    1. Criação/migração de gerência In-Band (VLAN, SVI IP/Máscara e Gateway).
+    2. Criação do pool de VLANs de serviço com propósitos específicos (Router HGU, Bridge SFU, Rede Neutra, LAN-to-LAN).
+    3. Habilitação de Hairpin local (p2p enable) caso haja serviços LAN-to-LAN.
+    4. Compilação dos perfis GPON com commit nativo e persistência via write.
+    5. Ingestão de inventário e cálculo de Circuit ID TR-101 para todas as ONUs detectadas.
+    """
+    ctx.enforce_scope("olts:admin")
+    try:
+        tenant_name = ctx.tenant_name or "Provedor"
+        result = onboarding_service.execute_wizard_onboarding(request=req, tenant_name=tenant_name)
+        response.headers["Location"] = f"/api/v1/olts/{result.olt_id}"
+        return result
+    except ConnectionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Falha de conexão durante o onboarding wizard: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Erro inesperado no onboarding wizard da OLT '{req.name}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro durante o onboarding wizard da OLT: {str(e)}",
+        )
 
 
 @router.post("/onboard", response_model=OLTOnboardResponse, status_code=status.HTTP_201_CREATED)
