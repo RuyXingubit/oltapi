@@ -140,8 +140,13 @@ class OLTOnboardingService:
                     logger.debug(f"[Onboarding Probe] Falha Telnet em {host}:{port}: {e}")
 
         raise ConnectionError(
-            f"Não foi possível autenticar na OLT em {host} via SSH ou Telnet. "
-            f"Verifique IP, rota e credenciais de acesso. Último erro: {last_error}"
+            f"Não foi possível autenticar ou conectar na OLT em {host} via SSH (porta 22) nem Telnet (porta 23). "
+            f"Nem o SSH nem o Telnet responderam ou permitiram acesso. "
+            f"Como resolver: "
+            f"1. Teste no seu terminal se as portas respondem: 'nc -zv {host} 22' ou 'ssh {username}@{host}'. "
+            f"2. Se não houver acesso de rede, entre na OLT via Cabo Console (Serial) ou pela interface Web/HTTP de fábrica e habilite o serviço SSH/Telnet. "
+            f"3. Verifique IP, máscara, cabo de rede e se as credenciais estão corretas. "
+            f"(Último erro registrado: {last_error})"
         )
 
     def fingerprint_vendor_and_model(self, banner_or_prompt: str) -> Tuple[OLTVendor, str]:

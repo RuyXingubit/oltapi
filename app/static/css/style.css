@@ -1080,6 +1080,17 @@ tr:hover td {
   background: var(--accent-rose);
   color: white;
 }
+.stepper-step.step-error .step-desc {
+  white-space: normal;
+  line-height: 1.4;
+  color: #fca5a5;
+  margin-top: 4px;
+}
+
+.alert-error {
+  white-space: pre-line;
+  line-height: 1.5;
+}
 
 @keyframes pulse-step {
   0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6); }

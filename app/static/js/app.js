@@ -1349,6 +1349,7 @@ async function handleStartOnboarding() {
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
     let completedResponse = null;
+    let streamError = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -1373,7 +1374,7 @@ async function handleStartOnboarding() {
           } else if (ev.type === 'completed') {
             completedResponse = ev.response;
           } else if (ev.type === 'error') {
-            throw new Error(ev.message);
+            streamError = ev.message;
           }
         } catch (parseErr) {
           if (jsonStr.startsWith('{')) {
@@ -1383,8 +1384,12 @@ async function handleStartOnboarding() {
       }
     }
 
+    if (streamError) {
+      throw new Error(streamError);
+    }
+
     if (!completedResponse) {
-      throw new Error('Fluxo de onboarding concluído sem relatório final.');
+      throw new Error('Fluxo de onboarding interrompido sem conclusão.');
     }
 
     const res = completedResponse;
