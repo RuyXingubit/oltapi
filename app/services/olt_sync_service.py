@@ -60,7 +60,7 @@ class OLTSyncService:
         # 3. Ingestão no inventário relacional
         for onu in onus:
             existing = self.onu_repo.get_by_serial(onu.serial)
-            target_vlan = getattr(onu, "vlan", None) or (vlan_ids[0] if vlan_ids else 100)
+            target_vlan = getattr(onu, "vlan", None)
             circuit_id = generate_circuit_id(olt.name, onu.port, onu.onu_id, target_vlan)
 
             if existing:
@@ -69,7 +69,7 @@ class OLTSyncService:
                 existing.current_onu_id = onu.onu_id
                 existing.circuit_id = circuit_id
                 existing.contract_status = "ACTIVE"
-                if existing.vlan is None or onu.vlan is not None:
+                if target_vlan is not None:
                     existing.vlan = target_vlan
                 if onu.name:
                     existing.description = onu.name

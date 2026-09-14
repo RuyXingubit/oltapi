@@ -559,7 +559,7 @@ async function openProvisionModal(serial, port, model = 'auto') {
 
     vlans.sort((a, b) => a - b);
 
-    selectVlan.innerHTML = '';
+    selectVlan.innerHTML = '<option value="" selected disabled>Selecione a VLAN...</option>';
     if (vlans.length === 0) {
       selectVlan.innerHTML = '<option value="">Nenhuma VLAN configurada nesta OLT</option>';
     } else {
@@ -567,7 +567,6 @@ async function openProvisionModal(serial, port, model = 'auto') {
         const opt = document.createElement('option');
         opt.value = v;
         opt.textContent = `VLAN ${v}`;
-        if (v === 301) opt.selected = true; // Pré-seleciona VLAN 301 se presente
         selectVlan.appendChild(opt);
       });
     }

@@ -2,11 +2,12 @@ import logging
 import re
 import time
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.deps import (
     get_backup_storage,
+    get_enrichment_service,
     get_ftp_repo,
     get_olt_repo,
     get_onboarding_service,
@@ -15,6 +16,7 @@ from app.api.deps import (
     get_xray_service,
     require_api_key,
 )
+from app.services.onu_enrichment_service import ONUEnrichmentService
 from app.core.rbac import SecurityContext
 from app.drivers.factory import DriverFactory
 from app.models.vlan import SyncOLTResponse
@@ -462,7 +464,9 @@ def inspect_olt_xray(
 @router.post("/{olt_id}/sync", response_model=SyncOLTResponse)
 def sync_olt(
     olt_id: str,
+    background_tasks: BackgroundTasks,
     sync_service=Depends(get_sync_service),
+    enrichment_service: ONUEnrichmentService = Depends(get_enrichment_service),
 ):
     """
     Onboarding e Ingestão Reversa de OLT Brownfield:
@@ -470,9 +474,12 @@ def sync_olt(
     2. Descobre todas as ONUs ativas no chassi via hardware.
     3. Cadastra/atualiza ONUs no inventário com cálculo de Circuit ID (TR-101).
     4. Descobre VLANs configuradas.
+    5. Dispara enriquecimento gradual de VLANs individuais em segundo plano.
     """
     try:
-        return sync_service.sync_olt(olt_id=olt_id)
+        res = sync_service.sync_olt(olt_id=olt_id)
+        background_tasks.add_task(enrichment_service.enrich_olt_onus, olt_id)
+        return res
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
@@ -480,6 +487,26 @@ def sync_olt(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao sincronizar OLT: {str(e)}",
         )
+
+
+@router.post("/{olt_id}/enrich-vlans")
+def enrich_olt_vlans(
+    olt_id: str,
+    background_tasks: BackgroundTasks,
+    force: bool = Query(default=False, description="Forçar nova consulta mesmo se a ONU já tiver VLAN"),
+    enrichment_service: ONUEnrichmentService = Depends(get_enrichment_service),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Dispara varredura e enriquecimento assíncrono em segundo plano para
+    descobrir a VLAN de serviço real de cada ONU configurada no chassi.
+    """
+    background_tasks.add_task(enrichment_service.enrich_olt_onus, olt_id, force)
+    return {
+        "status": "scheduled",
+        "message": "Enriquecimento gradual de VLANs iniciado em segundo plano.",
+        "olt_id": olt_id,
+    }
 
 
 @router.delete("/{olt_id}", status_code=status.HTTP_204_NO_CONTENT)

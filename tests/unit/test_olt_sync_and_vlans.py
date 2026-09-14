@@ -128,8 +128,8 @@ def test_sync_olt_service_success(setup_test_env, sample_olt_fiberhome):
     )
 
     mock_onus = [
-        ONUSummary(serial="FHTT99001122", port="1/1/1", onu_id=1, status="ACTIVE", name="CLIENTE_TESTE_1"),
-        ONUSummary(serial="FHTT99003344", port="1/1/1", onu_id=2, status="ACTIVE", name="CLIENTE_TESTE_2"),
+        ONUSummary(serial="FHTT99001122", port="1/1/1", onu_id=1, status="ACTIVE", name="CLIENTE_TESTE_1", vlan=100),
+        ONUSummary(serial="FHTT99003344", port="1/1/1", onu_id=2, status="ACTIVE", name="CLIENTE_TESTE_2", vlan=None),
     ]
     mock_vlans = [
         VLANItem(vlan_id=100, name="VLAN_INTERNET"),
@@ -165,6 +165,11 @@ def test_sync_olt_service_success(setup_test_env, sample_olt_fiberhome):
         assert onu1.circuit_id == f"{sample_olt_fiberhome.name} eth 1/1/1:1:100"
         assert onu1.vlan == 100
 
+        onu2 = onu_repo.get_by_serial("FHTT99003344")
+        assert onu2 is not None
+        assert onu2.vlan is None
+        assert onu2.circuit_id == f"{sample_olt_fiberhome.name} eth 1/1/1:2"
+
         # 4. Executa segunda sincronização (deve atualizar ao invés de duplicar)
         res2 = sync_service.sync_olt(sample_olt_fiberhome.id)
         assert res2.total_onus_discovered == 2
@@ -182,7 +187,8 @@ def test_api_sync_olt_endpoint(client: TestClient, auth_headers, sample_olt_fibe
 
     with patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.backup_config", return_value="RUNNING_CFG_TL1"), \
          patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.list_all_authorized_onus", return_value=mock_onus), \
-         patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.list_vlans", return_value=mock_vlans):
+         patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.list_vlans", return_value=mock_vlans), \
+         patch("app.services.onu_enrichment_service.ONUEnrichmentService.enrich_olt_onus"):
 
         response = client.post(f"/api/v1/olts/{sample_olt_fiberhome.id}/sync", headers=auth_headers)
         assert response.status_code == 200
@@ -267,3 +273,55 @@ def test_api_sync_and_vlans_olt_not_found(client: TestClient, auth_headers):
         headers=auth_headers,
     )
     assert resp_create_vlan.status_code == 404
+
+
+def test_onu_enrichment_service_discovers_vlan(setup_test_env, sample_olt_fiberhome):
+    from app.models.onu_inventory import ONUInventoryItem
+    from app.services.onu_enrichment_service import ONUEnrichmentService
+
+    olt_repo = setup_test_env["repo"]
+    onu_repo = setup_test_env["onu_repo"]
+    enrichment_service = ONUEnrichmentService(olt_repo=olt_repo, onu_repo=onu_repo)
+
+    # Cria ONU sem VLAN
+    item = ONUInventoryItem(
+        serial="FHTT88990011",
+        current_olt_id=sample_olt_fiberhome.id,
+        current_port="1/15",
+        current_onu_id=9,
+        vlan=None,
+    )
+    onu_repo.upsert(item)
+
+    # Simula leitura CLI de show onu service-info
+    fake_service_out = """
+FE service info : 
+NO.  SL/LI/ONU PORT ID TYPE  MODE CVID COS  TPID  TVID COS  TPID  SVID COS  TPID PVID COS DATATYPE PRIQUE GEMPORT
+1    1 /15/9   1    1  unica tag  301  0    33024 null null null  null null null  null null default default default
+Admin\\onu#
+    """
+
+    with patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver.is_telnet_cli", return_value=True), \
+         patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver._open_telnet_session") as mock_open, \
+         patch("app.drivers.fiberhome.fiberhome_tl1.FiberhomeTL1Driver._exec_telnet_cmd", return_value=fake_service_out):
+        mock_client = MagicMock()
+        mock_open.return_value = mock_client
+
+        res = enrichment_service.enrich_olt_onus(sample_olt_fiberhome.id, delay_seconds=0.0)
+        assert res["status"] == "completed"
+        assert res["total_scanned"] >= 1
+        assert res["vlans_discovered"] >= 1
+
+        updated = onu_repo.get_by_serial("FHTT88990011")
+        assert updated.vlan == 301
+        assert updated.circuit_id == f"{sample_olt_fiberhome.name} eth 1/15:9:301"
+
+
+def test_api_enrich_vlans_endpoint(client: TestClient, auth_headers, sample_olt_fiberhome):
+    with patch("app.services.onu_enrichment_service.ONUEnrichmentService.enrich_olt_onus"):
+        resp = client.post(f"/api/v1/olts/{sample_olt_fiberhome.id}/enrich-vlans", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "scheduled"
+        assert data["olt_id"] == sample_olt_fiberhome.id
+

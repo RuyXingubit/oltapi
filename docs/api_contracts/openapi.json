@@ -1602,7 +1602,7 @@
           "OLTs & Backups"
         ],
         "summary": "Sync Olt",
-        "description": "Onboarding e Ingestão Reversa de OLT Brownfield:\n1. Realiza Snapshot v0 preventivo e obrigatório da configuração da OLT.\n2. Descobre todas as ONUs ativas no chassi via hardware.\n3. Cadastra/atualiza ONUs no inventário com cálculo de Circuit ID (TR-101).\n4. Descobre VLANs configuradas.",
+        "description": "Onboarding e Ingestão Reversa de OLT Brownfield:\n1. Realiza Snapshot v0 preventivo e obrigatório da configuração da OLT.\n2. Descobre todas as ONUs ativas no chassi via hardware.\n3. Cadastra/atualiza ONUs no inventário com cálculo de Circuit ID (TR-101).\n4. Descobre VLANs configuradas.\n5. Dispara enriquecimento gradual de VLANs individuais em segundo plano.",
         "operationId": "sync_olt_api_v1_olts__olt_id__sync_post",
         "security": [
           {
@@ -1631,6 +1631,67 @@
                 "schema": {
                   "$ref": "#/components/schemas/SyncOLTResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/olts/{olt_id}/enrich-vlans": {
+      "post": {
+        "tags": [
+          "OLTs & Backups"
+        ],
+        "summary": "Enrich Olt Vlans",
+        "description": "Dispara varredura e enriquecimento assíncrono em segundo plano para\ndescobrir a VLAN de serviço real de cada ONU configurada no chassi.",
+        "operationId": "enrich_olt_vlans_api_v1_olts__olt_id__enrich_vlans_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "olt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Olt Id"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Forçar nova consulta mesmo se a ONU já tiver VLAN",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "Forçar nova consulta mesmo se a ONU já tiver VLAN"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },

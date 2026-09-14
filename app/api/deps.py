@@ -32,6 +32,7 @@ from app.services.autofind_scanner import AutofindScannerService
 from app.services.olt_sync_service import OLTSyncService
 from app.services.olt_xray_service import OLTXRayService
 from app.services.olt_onboarding_service import OLTOnboardingService
+from app.services.onu_enrichment_service import ONUEnrichmentService
 from app.storage.sql.ftp_repository import SQLFTPRepository
 
 # Instâncias singleton padrão (persistência relacional via SQLAlchemy)
@@ -302,6 +303,16 @@ def get_onboarding_service(
         sync_service=sync_service,
         telemetry_service=telemetry_service,
     )
+
+
+def get_enrichment_service(
+    olt_repo: Union[SQLOLTRepository, OLTRepository] = Depends(get_olt_repo),
+    onu_repo: Union[SQLONUInventoryRepository, ONUInventoryRepository] = Depends(get_onu_repo),
+) -> ONUEnrichmentService:
+    actual_olt_repo = _olt_repo if hasattr(olt_repo, "dependency") else olt_repo
+    actual_onu_repo = _onu_repo if hasattr(onu_repo, "dependency") else onu_repo
+    return ONUEnrichmentService(olt_repo=actual_olt_repo, onu_repo=actual_onu_repo)
+
 
 
 

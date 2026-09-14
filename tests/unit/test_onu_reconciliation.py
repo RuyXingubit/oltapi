@@ -36,6 +36,10 @@ def test_circuit_id_generation():
     cid6 = generate_circuit_id("  OLT   CIDADE   NOVA  ", "0/2/1", 7, 200)
     assert cid6 == "OLT-CIDADE-NOVA eth 0/2/1:7:200"
 
+    # Circuit ID sem VLAN (ou VLAN ainda não descoberta)
+    cid7 = generate_circuit_id("OLT-CENTRAL-01", "1/1", 5, None)
+    assert cid7 == "OLT-CENTRAL-01 eth 1/1:5"
+
 
 # ---------------------------------------------------------------------------
 # Testes de Cadastro no Inventário e Coordenadas Geográficas
