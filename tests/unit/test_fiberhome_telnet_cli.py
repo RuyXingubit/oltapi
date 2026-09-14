@@ -283,9 +283,23 @@ SEND POWER   :  1.61\t(Dbm)
 RECV POWER   : -24.69\t(Dbm)
 Admin\\onu# 
     """
-    rx, tx = parse_telnet_optical_info(sample_optical)
+    rx, tx, olt_rx = parse_telnet_optical_info(sample_optical)
     assert rx == -24.69
     assert tx == 1.61
+    assert olt_rx is None
+
+
+def test_parse_telnet_optical_info_with_olt_recv():
+    sample_module = """
+SEND POWER   :  2.42 (Dbm)
+RECV POWER   : -22.52 (Dbm)
+OLT RECV POWER : -21.12 (Dbm)
+Admin\\onu# 
+    """
+    rx, tx, olt_rx = parse_telnet_optical_info(sample_module)
+    assert rx == -22.52
+    assert tx == 2.42
+    assert olt_rx == -21.12
 
 
 def test_parse_telnet_optical_info_error():
@@ -295,9 +309,10 @@ show onu opticalpower-info phy-id FHTT00000000
 Command executes failed.
 Admin\\onu# 
     """
-    rx, tx = parse_telnet_optical_info(sample_error)
+    rx, tx, olt_rx = parse_telnet_optical_info(sample_error)
     assert rx is None
     assert tx is None
+    assert olt_rx is None
 
 
 def test_parse_telnet_service_vlan():
@@ -341,6 +356,8 @@ def test_fiberhome_get_onu_details_telnet_cli():
                 return " onu (1/1/6).\n-----  ONU OPTICAL INFO 1.1.6-----\nSEND POWER   :  1.97\t(Dbm)\nRECV POWER   : -24.69\t(Dbm)\n"
             elif "show onu-info" in cmd:
                 return "1    1    6    AN5516\nAdmin\\onu#"
+            elif "show optic_module" in cmd:
+                return "SEND POWER   :  1.97\t(Dbm)\nRECV POWER   : -24.69\t(Dbm)\nOLT RECV POWER : -21.12\t(Dbm)\nAdmin\\onu#"
             elif "show authorization" in cmd:
                 return "1    1    6    AN5516    A    1    up    FHTTc0829bac\nAdmin\\onu#"
             elif "show onu service-info" in cmd:
@@ -356,5 +373,6 @@ def test_fiberhome_get_onu_details_telnet_cli():
         assert details.status == "online"
         assert details.rx_power_dbm == -24.69
         assert details.tx_power_dbm == 1.97
+        assert details.olt_rx_power_dbm == -21.12
         assert details.vlan == 301
 

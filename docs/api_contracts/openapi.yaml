@@ -4077,23 +4077,24 @@ components:
         status:
           type: string
           title: Status
-        name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Name
         rx_power_dbm:
           anyOf:
           - type: number
           - type: 'null'
           title: Rx Power Dbm
-          description: Potência óptica recebida na OLT em dBm
+          description: Potência óptica recebida na ONU em dBm (Downlink)
         tx_power_dbm:
           anyOf:
           - type: number
           - type: 'null'
           title: Tx Power Dbm
           description: Potência óptica transmitida pela ONU em dBm
+        olt_rx_power_dbm:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Olt Rx Power Dbm
+          description: Potência óptica recebida na OLT vinda da ONU em dBm (Uplink)
         vlan:
           anyOf:
           - type: integer

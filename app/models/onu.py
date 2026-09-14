@@ -21,9 +21,9 @@ class ONUDetails(BaseModel):
     onu_id: int
     serial: str
     status: str
-    name: Optional[str] = None
-    rx_power_dbm: Optional[float] = Field(default=None, description="Potência óptica recebida na OLT em dBm")
+    rx_power_dbm: Optional[float] = Field(default=None, description="Potência óptica recebida na ONU em dBm (Downlink)")
     tx_power_dbm: Optional[float] = Field(default=None, description="Potência óptica transmitida pela ONU em dBm")
+    olt_rx_power_dbm: Optional[float] = Field(default=None, description="Potência óptica recebida na OLT vinda da ONU em dBm (Uplink)")
     vlan: Optional[int] = None
     links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
 

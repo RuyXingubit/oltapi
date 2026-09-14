@@ -699,23 +699,40 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         return self.parse_port_onus(output, f"{slot}/{pon}")
 
     @staticmethod
-    def parse_telnet_optical_info(output: str) -> Tuple[Optional[float], Optional[float]]:
-        """Interpreta saída de show onu opticalpower-info phy-id ou show optic_module."""
-        rx = None
-        tx = None
-        m_rx = re.search(r"RECV\s+POWER\s*:\s*([-\d\.]+)", output, re.IGNORECASE)
-        if m_rx:
-            try:
-                rx = float(m_rx.group(1))
-            except ValueError:
-                pass
-        m_tx = re.search(r"SEND\s+POWER\s*:\s*([-\d\.]+)", output, re.IGNORECASE)
-        if m_tx:
-            try:
-                tx = float(m_tx.group(1))
-            except ValueError:
-                pass
-        return rx, tx
+    def parse_telnet_optical_info(output: str) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        """Interpreta saída de show onu opticalpower-info phy-id ou show optic_module.
+        Retorna (rx_onu, tx_onu, olt_rx).
+        """
+        rx_onu = None
+        tx_onu = None
+        olt_rx = None
+
+        for line in output.splitlines():
+            line_s = line.strip()
+            if re.search(r"OLT\s+RECV\s+POWER", line_s, re.IGNORECASE):
+                m = re.search(r"OLT\s+RECV\s+POWER\s*:\s*([-\d\.]+)", line_s, re.IGNORECASE)
+                if m:
+                    try:
+                        olt_rx = float(m.group(1))
+                    except ValueError:
+                        pass
+            elif re.search(r"(?:RECV\s+POWER|RX\s*POWER|RX)\s*:", line_s, re.IGNORECASE):
+                m = re.search(r"(?:RECV\s+POWER|RX\s*POWER|RX)\s*:\s*([-\d\.]+)", line_s, re.IGNORECASE)
+                if m:
+                    try:
+                        rx_onu = float(m.group(1))
+                    except ValueError:
+                        pass
+
+            if re.search(r"(?:SEND\s+POWER|TX\s*POWER|TX)\s*:", line_s, re.IGNORECASE):
+                m = re.search(r"(?:SEND\s+POWER|TX\s*POWER|TX)\s*:\s*([-\d\.]+)", line_s, re.IGNORECASE)
+                if m:
+                    try:
+                        tx_onu = float(m.group(1))
+                    except ValueError:
+                        pass
+
+        return rx_onu, tx_onu, olt_rx
 
     @staticmethod
     def parse_telnet_service_vlan(output: str) -> Optional[int]:
@@ -748,13 +765,27 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
                 # 1. Medição óptica rápida diretamente pelo serial
                 optic_out = self._exec_telnet_cmd(client, f"show onu opticalpower-info phy-id {serial_or_id}")
-                rx_power, tx_power = self.parse_telnet_optical_info(optic_out)
+                rx_power, tx_power, olt_rx_power = self.parse_telnet_optical_info(optic_out)
 
                 # 2. Localização física e status
                 out = self._exec_telnet_cmd(client, f"show onu-info by {serial_or_id}")
                 m = re.search(r"(\d+)\s+(\d+)\s+(\d+)\s+([A-Za-z]+)", out)
                 if m:
                     slot, pon, onu_id, _state = m.groups()
+                    
+                    # 2.1 Consulta módulo óptico para obter também o OLT RECV POWER (sinal recebido na OLT)
+                    try:
+                        mod_out = self._exec_telnet_cmd(client, f"show optic_module slot {slot} pon {pon} onu {onu_id}")
+                        mod_rx, mod_tx, mod_olt_rx = self.parse_telnet_optical_info(mod_out)
+                        if mod_rx is not None:
+                            rx_power = mod_rx
+                        if mod_tx is not None:
+                            tx_power = mod_tx
+                        if mod_olt_rx is not None:
+                            olt_rx_power = mod_olt_rx
+                    except Exception as e:
+                        logger.debug(f"Falha ao consultar show optic_module na ONU {serial_or_id}: {e}")
+
                     auth_out = self._exec_telnet_cmd(client, f"show authorization slot {slot} pon {pon}")
                     status = "online"
                     for line in auth_out.splitlines():
@@ -781,6 +812,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                         status=status,
                         rx_power_dbm=rx_power,
                         tx_power_dbm=tx_power,
+                        olt_rx_power_dbm=olt_rx_power,
                         vlan=vlan,
                     )
 
@@ -797,6 +829,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                         status="online" if rx_power is not None else "offline",
                         rx_power_dbm=rx_power,
                         tx_power_dbm=tx_power,
+                        olt_rx_power_dbm=olt_rx_power,
                         vlan=vlan,
                     )
 
@@ -807,6 +840,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                     status="offline",
                     rx_power_dbm=rx_power,
                     tx_power_dbm=tx_power,
+                    olt_rx_power_dbm=olt_rx_power,
                 )
             finally:
                 client.write("exit\r\n")

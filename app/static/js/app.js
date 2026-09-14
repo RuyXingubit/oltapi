@@ -432,15 +432,35 @@ async function checkOpticalPower(oltId, serial) {
     const diag = await apiRequest(`/olts/${oltId}/onus/${serial}`);
     const rx = diag.rx_power_dbm !== undefined ? diag.rx_power_dbm : diag.rx_power;
     const tx = diag.tx_power_dbm !== undefined ? diag.tx_power_dbm : diag.tx_power;
+    const oltRx = diag.olt_rx_power_dbm !== undefined ? diag.olt_rx_power_dbm : diag.olt_rx_power;
 
     if (cell) {
       if (rx === null || rx === undefined) {
         cell.innerHTML = `<span class="badge badge-optical-warn">${diag.status === 'offline' ? 'Offline' : 'N/A'}</span>`;
       } else {
-        let badgeClass = 'badge-optical-good';
-        if (rx < -27) badgeClass = 'badge-optical-bad';
-        else if (rx < -25) badgeClass = 'badge-optical-warn';
-        cell.innerHTML = `<span class="badge ${badgeClass}">${rx} dBm</span>`;
+        let badgeClassRx = 'badge-optical-good';
+        if (rx < -27) badgeClassRx = 'badge-optical-bad';
+        else if (rx < -25) badgeClassRx = 'badge-optical-warn';
+
+        let oltRxHtml = '';
+        if (oltRx !== null && oltRx !== undefined) {
+          let badgeClassOlt = 'badge-optical-good';
+          if (oltRx < -27) badgeClassOlt = 'badge-optical-bad';
+          else if (oltRx < -25) badgeClassOlt = 'badge-optical-warn';
+          oltRxHtml = `<span class="badge ${badgeClassOlt}" style="font-size: 10px; padding: 2px 6px; white-space: nowrap;" title="Potência óptica recebida na OLT vinda da ONU (Uplink)">📤 OLT: ${oltRx} dBm</span>`;
+        }
+
+        let txHtml = '';
+        if (tx !== null && tx !== undefined) {
+          txHtml = `<span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-secondary); font-size: 10px; padding: 2px 6px; white-space: nowrap;" title="Potência óptica transmitida pela ONU (TX)">TX: ${tx > 0 ? '+' : ''}${tx} dBm</span>`;
+        }
+
+        cell.innerHTML = `
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start; max-width: 100%; overflow: hidden;">
+            <span class="badge ${badgeClassRx}" style="font-size: 11px; padding: 2px 6px; white-space: nowrap;" title="Potência óptica recebida na ONU vinda da OLT (Downlink)">📥 ONU: ${rx} dBm</span>
+            ${(oltRxHtml || txHtml) ? `<div style="display: flex; gap: 4px; flex-wrap: wrap;">${oltRxHtml}${txHtml}</div>` : ''}
+          </div>
+        `;
       }
     }
 
@@ -456,8 +476,9 @@ async function checkOpticalPower(oltId, serial) {
     }
 
     const rxMsg = rx !== null && rx !== undefined ? `${rx} dBm` : 'N/A';
+    const oltRxMsg = oltRx !== null && oltRx !== undefined ? `${oltRx} dBm` : 'N/A';
     const txMsg = tx !== null && tx !== undefined ? `${tx} dBm` : 'N/A';
-    logTerminal(`Sinal ONU ${serial}: RX = ${rxMsg} | TX = ${txMsg} (Status: ${diag.status})`, 'success');
+    logTerminal(`Sinal ONU ${serial}: RX ONU = ${rxMsg} | RX OLT = ${oltRxMsg} | TX = ${txMsg} (Status: ${diag.status})`, 'success');
   } catch (error) {
     if (cell) cell.innerHTML = `<span class="badge badge-optical-bad">Erro</span>`;
     logTerminal(`Falha ao medir potência da ONU ${serial}: ${error.message}`, 'error');
