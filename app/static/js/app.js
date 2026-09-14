@@ -1444,10 +1444,22 @@ async function handleStartOnboarding() {
     await loadOLTs();
     await loadOLTsList();
   } catch (err) {
-    if (logBox) logBox.textContent = `[Falha no Onboarding] ${err.message}`;
+    let shortMsg = err.message || 'Erro durante o processo de onboarding.';
+    if (shortMsg.includes('Não foi possível autenticar ou conectar') || shortMsg.includes('Falha de conexão')) {
+      shortMsg = 'Não foi possível conectar à OLT via SSH ou Telnet. Siga as instruções no card da etapa abaixo para habilitar o acesso.';
+    } else if (shortMsg.length > 120) {
+      const firstPeriod = shortMsg.indexOf('.');
+      if (firstPeriod > 0) {
+        shortMsg = shortMsg.slice(0, firstPeriod + 1);
+      }
+    }
+
     if (alertBox) {
-      alertBox.textContent = `Falha no Onboarding: ${err.message}`;
+      alertBox.textContent = `Falha no Onboarding: ${shortMsg}`;
       alertBox.classList.remove('hidden');
+    }
+    if (logBox) {
+      logBox.textContent = `[Falha no Onboarding] ${shortMsg}`;
     }
     const footer = document.getElementById('onboarding-modal-footer');
     if (footer) {
