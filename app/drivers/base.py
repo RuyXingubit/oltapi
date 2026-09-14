@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from app.models.bootstrap import BootstrapRequest
-from app.models.olt import OLTInDB
+from app.models.olt import OLTInDB, OLTPortStatusItem
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.models.vlan import VLANItem, VLANCreateRequest, ProfileItem
@@ -113,5 +113,37 @@ class BaseOLTDriver(ABC):
     def save_running_config(self, olt: OLTInDB) -> bool:
         """Grava as configurações ativas na memória não-volátil/flash da OLT (write/save)."""
         return True
+
+    def get_chassis_interfaces(self, olt: OLTInDB) -> List[OLTPortStatusItem]:
+        """Mapeia as interfaces físicas (PON e Uplink) do chassi com seus nomes canônicos e estados operacionais."""
+        return []
+
+    def get_chassis_uptime(self, olt: OLTInDB) -> Optional[int]:
+        """Retorna o tempo de atividade do chassi em segundos."""
+        return None
+
+    def extract_snmp_community(self, config_text: str) -> Tuple[Optional[str], bool]:
+        """
+        Extrai a comunidade SNMP do running-config ou backup do equipamento.
+        Retorna:
+            (community_em_texto_claro_ou_None, is_cipher_flag)
+        """
+        return None, False
+
+    def configure_snmp(self, olt: OLTInDB, community: str, port: int = 161) -> bool:
+        """
+        Configura comunidade SNMP somente-leitura (RO) via CLI do equipamento
+        e grava permanentemente na flash (save/write).
+        """
+        return False
+
+    def get_snmp_community_live(self, olt: OLTInDB) -> Tuple[Optional[str], bool]:
+        """
+        Consulta a comunidade SNMP diretamente no chassi físico via CLI ativa.
+        Implementado por drivers específicos com suporte a leitura direta.
+        Retorna (community, is_cipher).
+        """
+        return None, False
+
 
 

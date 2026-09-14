@@ -517,6 +517,78 @@ paths:
       security:
       - APIKeyHeader: []
       - HTTPBearer: []
+  /api/v1/olts/onboard:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Onboard Olt
+      description: 'Onboarding Contínuo Zero-Touch de OLT (À Prova de Erro Humano):
+
+        1. Probe automático de conectividade (SSH :22 -> Telnet :23).
+
+        2. Fingerprinting e identificação de fabricante/modelo via prompt CLI.
+
+        3. Cadastro atômico e criação obrigatória do Snapshot Baseline v0.
+
+        4. Auto-detecção e provisionamento dinâmico de SNMP (comunidade da empresa/tenant).
+
+        5. Ingestão completa de interfaces físicas, VLANs e ONUs com Circuit ID TR-101.
+
+        6. Retorno consolidado de telemetria e card resumo.'
+      operationId: onboard_olt_api_v1_olts_onboard_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OLTOnboardRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTOnboardResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+  /api/v1/olts/onboard/stream:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Onboard Olt Stream
+      description: 'Onboarding Contínuo Zero-Touch via Server-Sent Events (SSE).
+
+        Emite eventos em tempo real com status granular de cada etapa para animação
+        do stepper e logs.'
+      operationId: onboard_olt_stream_api_v1_olts_onboard_stream_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OLTOnboardRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/olts/{olt_id}:
     get:
       tags:
@@ -850,6 +922,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/telemetry:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Inspect Olt Telemetry
+      description: 'Telemetria e Diagnóstico Físico de Chassi de OLT:
+
+        - Uptime em dias/horas;
+
+        - Versão de software/firmware da controladora;
+
+        - Mapeamento físico de TODAS as portas (PON e Uplink) e seus estados operacionais
+        (up, down, loss_of_signal);
+
+        - Detecção de ONUs na fibra e VLANs de serviço;
+
+        - Preview do running-config vivo.'
+      operationId: inspect_olt_telemetry_api_v1_olts__olt_id__telemetry_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTXRayResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/xray:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Inspect Olt Xray
+      description: Alias retrocompatível para telemetria e diagnóstico de chassi.
+      operationId: inspect_olt_xray_api_v1_olts__olt_id__xray_post
+      deprecated: true
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OLTXRayResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/sync:
     post:
       tags:
@@ -882,6 +1026,97 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SyncOLTResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/snmp/test:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Test Olt Snmp
+      description: 'Testa a conectividade SNMP v2c via UDP 161 na OLT física:
+
+        - Valida se o agente SNMP está respondendo e obtém sysUpTime;
+
+        - Permite testar uma comunidade específica (ex: descoberta por um técnico);
+
+        - Opcionalmente adota e salva a comunidade no cadastro se o teste for bem-sucedido.'
+      operationId: test_olt_snmp_api_v1_olts__olt_id__snmp_test_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/SNMPTestRequest'
+              - type: 'null'
+              title: Req
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SNMPTestResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/snmp/configure:
+    post:
+      tags:
+      - OLTs & Backups
+      summary: Configure Olt Snmp
+      description: 'Provisiona comunidade SNMP Read-Only (RO) diretamente na OLT física
+        via CLI/driver
+
+        e persiste na memória flash permanente (save/write):
+
+        - Requer privilégio de SUPER_ADMIN;
+
+        - Valida contra injeção CLI;
+
+        - Aplica sintaxe do fabricante em modo estritamente RO;
+
+        - Executa teste UDP 161 imediato e atualiza o cadastro da OLT.'
+      operationId: configure_olt_snmp_api_v1_olts__olt_id__snmp_configure_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SNMPConfigureRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SNMPConfigureResponse'
         '422':
           description: Validation Error
           content:
@@ -2099,6 +2334,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/vlans/metrics:
+    get:
+      tags:
+      - VLANs & Serviços de Rede
+      summary: Get Vlan Metrics
+      description: Retorna as VLANs da OLT com contagem de ONUs provisionadas e ativas/online.
+      operationId: get_vlan_metrics_api_v1_olts__olt_id__vlans_metrics_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VLANMetricsItem'
+                title: Response Get Vlan Metrics Api V1 Olts  Olt Id  Vlans Metrics
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/vlans/{vlan_id}/history:
+    get:
+      tags:
+      - VLANs & Serviços de Rede
+      summary: Get Vlan History
+      description: Retorna o histórico completo de seriais de ONUs que já utilizaram
+        esta VLAN.
+      operationId: get_vlan_history_api_v1_olts__olt_id__vlans__vlan_id__history_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: vlan_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Vlan Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VLANHistoryItem'
+                title: Response Get Vlan History Api V1 Olts  Olt Id  Vlans  Vlan
+                  Id  History Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/profiles:
     get:
       tags:
@@ -2132,6 +2442,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/ftp-servers/overview:
+    get:
+      tags:
+      - Servidores FTP & Destinos de Backup
+      summary: Get Ftp Overview
+      description: Retorna diagnóstico consolidado do servidor FTP ativo (.env ou
+        DB), saúde e backups por equipamento.
+      operationId: get_ftp_overview_api_v1_ftp_servers_overview_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FTPOverviewResponse'
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/ftp-servers:
     get:
       tags:
@@ -2813,6 +3141,136 @@ components:
       - router
       - bridge
       title: DefaultONUMode
+    FTPBoundOLTItem:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+        olt_name:
+          type: string
+          title: Olt Name
+        vendor:
+          type: string
+          title: Vendor
+        model:
+          type: string
+          title: Model
+        host:
+          type: string
+          title: Host
+        backup_count:
+          type: integer
+          title: Backup Count
+          default: 0
+        last_backup_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Backup At
+      type: object
+      required:
+      - olt_id
+      - olt_name
+      - vendor
+      - model
+      - host
+      title: FTPBoundOLTItem
+    FTPOverviewResponse:
+      properties:
+        configured:
+          type: boolean
+          title: Configured
+          description: Se o FTP está configurado e pronto para uso
+        source:
+          type: string
+          title: Source
+          description: 'Origem da configuração: database, env ou none'
+        server_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Server Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        host:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Host
+        port:
+          type: integer
+          title: Port
+          default: 21
+        username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Username
+        base_path:
+          type: string
+          title: Base Path
+          default: /
+        is_global_default:
+          type: boolean
+          title: Is Global Default
+          default: true
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+        is_online:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Online
+        latency_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latency Ms
+        status_message:
+          type: string
+          title: Status Message
+          default: Status não verificado
+        banner:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Banner
+        last_checked_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Checked At
+        total_backups_count:
+          type: integer
+          title: Total Backups Count
+          default: 0
+        total_backups_bytes:
+          type: integer
+          title: Total Backups Bytes
+          default: 0
+        bound_olts:
+          items:
+            $ref: '#/components/schemas/FTPBoundOLTItem'
+          type: array
+          title: Bound Olts
+          description: OLTs que enviam backups para este servidor
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - configured
+      - source
+      title: FTPOverviewResponse
     FTPServerCreate:
       properties:
         name:
@@ -3076,6 +3534,29 @@ components:
           type: string
           minLength: 1
           title: Password
+        snmp_community:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snmp Community
+          description: Comunidade SNMP v2c para telemetria de chassi
+          default: public
+        snmp_port:
+          anyOf:
+          - type: integer
+            maximum: 65535.0
+            minimum: 1.0
+          - type: 'null'
+          title: Snmp Port
+          description: Porta UDP do serviço SNMP
+          default: 161
+        snmp_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snmp Version
+          description: Versão do protocolo SNMP (v2c)
+          default: v2c
       type: object
       required:
       - name
@@ -3124,6 +3605,178 @@ components:
       - global_destinations
       - effective_destinations
       title: OLTFTPDestinationResponse
+    OLTOnboardRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 64
+          minLength: 2
+          title: Name
+          description: Nome identificador da OLT
+        host:
+          type: string
+          maxLength: 255
+          minLength: 4
+          title: Host
+          description: Endereço IP ou hostname da OLT
+        username:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Username
+          description: Usuário de acesso à CLI
+        password:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Password
+          description: Senha de acesso à CLI
+        custom_port:
+          anyOf:
+          - type: integer
+            maximum: 65535.0
+            minimum: 1.0
+          - type: 'null'
+          title: Custom Port
+          description: Porta de acesso customizada (opcional)
+      type: object
+      required:
+      - name
+      - host
+      - username
+      - password
+      title: OLTOnboardRequest
+    OLTOnboardResponse:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+        name:
+          type: string
+          title: Name
+        vendor:
+          $ref: '#/components/schemas/OLTVendor'
+        model:
+          type: string
+          title: Model
+        host:
+          type: string
+          title: Host
+        port:
+          type: integer
+          title: Port
+        protocol:
+          $ref: '#/components/schemas/OLTProtocol'
+        baseline_backup_id:
+          type: string
+          title: Baseline Backup Id
+        snmp_community:
+          type: string
+          title: Snmp Community
+        snmp_active:
+          type: boolean
+          title: Snmp Active
+        total_ports:
+          type: integer
+          title: Total Ports
+        active_ports:
+          type: integer
+          title: Active Ports
+        total_onus_detected:
+          type: integer
+          title: Total Onus Detected
+        new_onus_registered:
+          type: integer
+          title: New Onus Registered
+        firmware_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Firmware Version
+        uptime_human:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Uptime Human
+        steps:
+          items:
+            $ref: '#/components/schemas/OnboardingStepItem'
+          type: array
+          title: Steps
+          description: Histórico de execução do pipeline
+        message:
+          type: string
+          title: Message
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - olt_id
+      - name
+      - vendor
+      - model
+      - host
+      - port
+      - protocol
+      - baseline_backup_id
+      - snmp_community
+      - snmp_active
+      - total_ports
+      - active_ports
+      - total_onus_detected
+      - new_onus_registered
+      - message
+      title: OLTOnboardResponse
+    OLTPortStatusItem:
+      properties:
+        port_id:
+          type: string
+          title: Port Id
+          description: 'Identificador da porta (ex: gpon 0/1/1 ou xg 0/0/1)'
+        port_type:
+          type: string
+          title: Port Type
+          description: 'Tipo da porta: gpon, epon, ge, xg, 100ge'
+        admin_state:
+          type: string
+          title: Admin State
+          description: 'Estado administrativo: enabled, disabled'
+          default: enabled
+        oper_status:
+          type: string
+          title: Oper Status
+          description: 'Estado operacional: up, down, loss_of_signal'
+        onu_count:
+          type: integer
+          title: Onu Count
+          description: Quantidade de ONUs ativas na porta
+          default: 0
+        onu_capacity:
+          type: integer
+          title: Onu Capacity
+          description: Capacidade máxima de ONUs na porta
+          default: 128
+        speed_duplex:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Speed Duplex
+          description: 'Velocidade e modo para portas uplink (ex: 10Gbps Full Duplex)'
+        details:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Details
+          description: Informações adicionais do laser/SFP
+      type: object
+      required:
+      - port_id
+      - port_type
+      - oper_status
+      title: OLTPortStatusItem
     OLTProtocol:
       type: string
       enum:
@@ -3151,6 +3804,24 @@ components:
           title: Port
         protocol:
           $ref: '#/components/schemas/OLTProtocol'
+        snmp_community:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snmp Community
+          default: public
+        snmp_port:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Snmp Port
+          default: 161
+        snmp_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snmp Version
+          default: v2c
         status:
           anyOf:
           - type: string
@@ -3194,6 +3865,128 @@ components:
       - zte
       - parks
       title: OLTVendor
+    OLTXRayResponse:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+        olt_name:
+          type: string
+          title: Olt Name
+        vendor:
+          $ref: '#/components/schemas/OLTVendor'
+        model:
+          type: string
+          title: Model
+        host:
+          type: string
+          title: Host
+        uptime_seconds:
+          type: integer
+          title: Uptime Seconds
+          description: Tempo de uptime da OLT em segundos
+        uptime_human:
+          type: string
+          title: Uptime Human
+          description: 'Tempo de uptime legível (ex: 142 dias, 8 horas, 12 min)'
+        firmware_version:
+          type: string
+          title: Firmware Version
+          description: Versão do software/firmware em execução
+        cpu_usage_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Cpu Usage Pct
+          description: Percentual de uso de CPU
+        memory_usage_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Memory Usage Pct
+          description: Percentual de uso de memória
+        temperature_celsius:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Temperature Celsius
+          description: Temperatura média das placas em °C
+        ports:
+          items:
+            $ref: '#/components/schemas/OLTPortStatusItem'
+          type: array
+          title: Ports
+          description: Lista completa de todas as portas PON e Uplink e seus estados
+        total_onus_detected:
+          type: integer
+          title: Total Onus Detected
+          description: Total de ONUs detectadas no chassi físico
+          default: 0
+        total_vlans_detected:
+          type: integer
+          title: Total Vlans Detected
+          description: Total de VLANs configuradas na OLT
+          default: 0
+        vlans:
+          items:
+            type: integer
+          type: array
+          title: Vlans
+          description: Lista de IDs de VLANs detectadas
+        running_config_preview:
+          type: string
+          title: Running Config Preview
+          description: Prévia do arquivo de configuração vivo
+          default: ''
+        is_onboarded:
+          type: boolean
+          title: Is Onboarded
+          description: Se a OLT já passou pelo processo de sync / onboarding
+          default: false
+        baseline_backup_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Baseline Backup Id
+          description: ID do backup baseline v0 se já sincronizado
+        snmp_active:
+          type: boolean
+          title: Snmp Active
+          description: Indica se a telemetria SNMP respondeu via UDP 161
+          default: false
+        snmp_status:
+          type: string
+          title: Snmp Status
+          description: 'Status SNMP: active, unreachable, cipher_detected, not_configured'
+          default: inactive
+        snmp_community:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snmp Community
+          description: Comunidade SNMP em uso ou auto-descoberta
+        snmp_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snmp Message
+          description: Diagnóstico detalhado da telemetria SNMP
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - olt_id
+      - olt_name
+      - vendor
+      - model
+      - host
+      - uptime_seconds
+      - uptime_human
+      - firmware_version
+      title: OLTXRayResponse
     ONUActionResponse:
       properties:
         success:
@@ -3494,6 +4287,11 @@ components:
           - type: string
           - type: 'null'
           title: Name
+        vlan:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Vlan
         _links:
           additionalProperties:
             $ref: '#/components/schemas/Link'
@@ -3506,6 +4304,32 @@ components:
       - serial
       - status
       title: ONUSummary
+    OnboardingStepItem:
+      properties:
+        step_key:
+          type: string
+          title: Step Key
+          description: Chave identificadora da etapa
+        title:
+          type: string
+          title: Title
+          description: Título da etapa
+        status:
+          type: string
+          title: Status
+          description: 'Estado: pending, running, success, warning, error'
+        details:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Details
+          description: Mensagem de detalhe ou diagnóstico
+      type: object
+      required:
+      - step_key
+      - title
+      - status
+      title: OnboardingStepItem
     ProfileItem:
       properties:
         name:
@@ -3921,6 +4745,144 @@ components:
       required:
       - serial
       title: RegisterONUInventoryRequest
+    SNMPConfigureRequest:
+      properties:
+        community:
+          type: string
+          maxLength: 64
+          minLength: 3
+          title: Community
+          description: Nova comunidade SNMP somente-leitura (RO) a ser gravada na
+            OLT
+        port:
+          anyOf:
+          - type: integer
+            maximum: 65535.0
+            minimum: 1.0
+          - type: 'null'
+          title: Port
+          description: Porta UDP do agente SNMP
+          default: 161
+      type: object
+      required:
+      - community
+      title: SNMPConfigureRequest
+    SNMPConfigureResponse:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+        host:
+          type: string
+          title: Host
+        community:
+          type: string
+          title: Community
+        configured_in_cli:
+          type: boolean
+          title: Configured In Cli
+        saved_to_flash:
+          type: boolean
+          title: Saved To Flash
+        tested_ok:
+          type: boolean
+          title: Tested Ok
+        uptime_seconds:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Uptime Seconds
+        message:
+          type: string
+          title: Message
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - olt_id
+      - host
+      - community
+      - configured_in_cli
+      - saved_to_flash
+      - tested_ok
+      - message
+      title: SNMPConfigureResponse
+    SNMPTestRequest:
+      properties:
+        community:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Community
+          description: Comunidade SNMP a testar. Se omitida, usa a cadastrada na OLT
+        port:
+          anyOf:
+          - type: integer
+            maximum: 65535.0
+            minimum: 1.0
+          - type: 'null'
+          title: Port
+          description: Porta UDP do agente SNMP (padrão 161)
+          default: 161
+        save_if_successful:
+          type: boolean
+          title: Save If Successful
+          description: Se True e o teste for bem-sucedido, adota esta comunidade no
+            cadastro da OLT
+          default: false
+      type: object
+      title: SNMPTestRequest
+    SNMPTestResponse:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+        host:
+          type: string
+          title: Host
+        port:
+          type: integer
+          title: Port
+        community:
+          type: string
+          title: Community
+        reachable:
+          type: boolean
+          title: Reachable
+        latency_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latency Ms
+        uptime_seconds:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Uptime Seconds
+        saved_to_db:
+          type: boolean
+          title: Saved To Db
+          default: false
+        message:
+          type: string
+          title: Message
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - olt_id
+      - host
+      - port
+      - community
+      - reachable
+      - message
+      title: SNMPTestResponse
     ScannerIntervalUpdateRequest:
       properties:
         interval_seconds:
@@ -4610,6 +5572,67 @@ components:
       required:
       - vlan_id
       title: VLANCreateRequest
+    VLANHistoryItem:
+      properties:
+        id:
+          type: string
+          title: Id
+        serial:
+          type: string
+          title: Serial
+        vlan_id:
+          type: integer
+          title: Vlan Id
+        olt_id:
+          type: string
+          title: Olt Id
+        port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Port
+        contract_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contract Id
+        subscriber_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Subscriber Name
+        reason:
+          type: string
+          title: Reason
+        started_at:
+          type: string
+          format: date-time
+          title: Started At
+        ended_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Ended At
+        is_current:
+          type: boolean
+          title: Is Current
+          description: True se a ONU ainda estiver usando esta VLAN
+          default: true
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - id
+      - serial
+      - vlan_id
+      - olt_id
+      - reason
+      - started_at
+      title: VLANHistoryItem
     VLANItem:
       properties:
         vlan_id:
@@ -4651,6 +5674,53 @@ components:
       required:
       - vlan_id
       title: VLANItem
+    VLANMetricsItem:
+      properties:
+        vlan_id:
+          type: integer
+          title: Vlan Id
+          description: ID numérico da VLAN
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+          description: Nome identificador da VLAN
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Descrição ou propósito da VLAN
+        tagged_ports:
+          items:
+            type: string
+          type: array
+          title: Tagged Ports
+        untagged_ports:
+          items:
+            type: string
+          type: array
+          title: Untagged Ports
+        total_provisioned_onus:
+          type: integer
+          title: Total Provisioned Onus
+          description: Total de ONUs cadastradas nesta VLAN
+          default: 0
+        total_active_onus:
+          type: integer
+          title: Total Active Onus
+          description: Total de ONUs com status ACTIVE nesta VLAN
+          default: 0
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - vlan_id
+      title: VLANMetricsItem
     ValidationError:
       properties:
         loc:

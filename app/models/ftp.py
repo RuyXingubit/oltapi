@@ -47,3 +47,37 @@ class OLTFTPDestinationResponse(BaseModel):
     specific_destinations: List[FTPServerResponse]
     global_destinations: List[FTPServerResponse]
     effective_destinations: List[FTPServerResponse]
+
+
+class FTPBoundOLTItem(BaseModel):
+    olt_id: str
+    olt_name: str
+    vendor: str
+    model: str
+    host: str
+    backup_count: int = 0
+    last_backup_at: Optional[datetime] = None
+
+
+class FTPOverviewResponse(BaseModel):
+    configured: bool = Field(description="Se o FTP está configurado e pronto para uso")
+    source: str = Field(description="Origem da configuração: database, env ou none")
+    server_id: Optional[str] = None
+    name: Optional[str] = None
+    host: Optional[str] = None
+    port: int = 21
+    username: Optional[str] = None
+    base_path: str = "/"
+    is_global_default: bool = True
+    is_active: bool = True
+    is_online: Optional[bool] = None
+    latency_ms: Optional[float] = None
+    status_message: str = "Status não verificado"
+    banner: Optional[str] = None
+    last_checked_at: Optional[datetime] = None
+    total_backups_count: int = 0
+    total_backups_bytes: int = 0
+    bound_olts: List[FTPBoundOLTItem] = Field(default_factory=list, description="OLTs que enviam backups para este servidor")
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}

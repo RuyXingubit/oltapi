@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=2.1">
 </head>
 <body>
 
@@ -27,7 +27,12 @@
       <form id="form-setup">
         <div class="form-group">
           <label class="form-label" for="setup-master-key">Master API Key (configurada no .env)</label>
-          <input type="password" id="setup-master-key" class="form-control" placeholder="••••••••••••••••" required>
+          <div class="password-input-wrapper">
+            <input type="password" id="setup-master-key" class="form-control" placeholder="••••••••••••••••" required>
+            <button type="button" class="password-toggle-btn" data-target="setup-master-key" aria-label="Alternar visibilidade da chave" title="Exibir / Ocultar chave">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
 
         <div class="form-group">
@@ -47,13 +52,29 @@
 
         <div class="form-group">
           <label class="form-label" for="setup-admin-password">Senha do Administrador (mínimo 8 caracteres)</label>
-          <input type="password" id="setup-admin-password" class="form-control" placeholder="••••••••" minlength="8" required>
+          <div class="password-input-wrapper">
+            <input type="password" id="setup-admin-password" class="form-control" placeholder="••••••••" minlength="8" required>
+            <button type="button" class="password-toggle-btn" data-target="setup-admin-password" aria-label="Alternar visibilidade da senha" title="Exibir / Ocultar senha">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="setup-admin-password-confirm">Confirmar Senha do Administrador</label>
+          <div class="password-input-wrapper">
+            <input type="password" id="setup-admin-password-confirm" class="form-control" placeholder="••••••••" minlength="8" required>
+            <button type="button" class="password-toggle-btn" data-target="setup-admin-password-confirm" aria-label="Alternar visibilidade da confirmação de senha" title="Exibir / Ocultar confirmação">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
 
         <button type="submit" id="btn-submit-setup" class="btn btn-primary" style="width: 100%; margin-top: 10px;">
           Concluir Setup & Iniciar Sistema
         </button>
       </form>
+
     </div>
   </div>
 
@@ -78,7 +99,12 @@
 
         <div class="form-group">
           <label class="form-label" for="login-password">Senha</label>
-          <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+          <div class="password-input-wrapper">
+            <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+            <button type="button" class="password-toggle-btn" data-target="login-password" aria-label="Alternar visibilidade da senha" title="Exibir / Ocultar senha">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
 
         <button type="submit" id="btn-submit-login" class="btn btn-primary" style="width: 100%; margin-top: 10px;">
@@ -104,13 +130,25 @@
         </div>
 
         <nav class="nav-menu">
-          <a class="nav-item active" data-view="bancada">
+          <a class="nav-item active" data-view="bancada" id="nav-bancada">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
             ONUs Não Autorizadas
           </a>
-          <a class="nav-item" data-view="inventario">
+          <a class="nav-item" data-view="inventario" id="nav-inventario">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
             ONUs Autorizadas
+          </a>
+          <a class="nav-item" data-view="olts" id="nav-olts">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            OLTs & Telemetria
+          </a>
+          <a class="nav-item" data-view="vlans" id="nav-vlans">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
+            VLANs & Serviços
+          </a>
+          <a class="nav-item" data-view="config" id="nav-config">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Configurações & FTP
           </a>
           <a class="nav-item" id="nav-admin" data-view="administracao">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -243,6 +281,271 @@
         </div>
       </section>
 
+      <!-- Sub-view: OLTs & Telemetria -->
+      <section id="subview-olts" class="page-container hidden">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">🖥️ OLTs Gerenciadas</h2>
+              <p class="card-subtitle">Gerenciamento de chassis, testes de conectividade e diagnóstico de hardware.</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-open-modal-olt" class="btn btn-primary btn-sm">➕ Cadastrar OLT</button>
+              <button id="btn-reload-olts" class="btn btn-secondary btn-sm">↻ Atualizar</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Fabricante / Modelo</th>
+                  <th>Host / Porta</th>
+                  <th>Protocolo</th>
+                  <th>Conectividade</th>
+                  <th style="text-align: right;">Ações de Diagnóstico & Onboarding</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-olts-list">
+                <tr>
+                  <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    Carregando OLTs...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sub-view: Telemetria & Diagnóstico de Chassi -->
+      <section id="subview-xray" class="page-container hidden">
+        <div class="xray-top-nav">
+          <button id="btn-back-to-olts" class="btn btn-secondary btn-sm">← Voltar para OLTs</button>
+          <div class="xray-top-actions">
+            <button id="btn-refresh-xray" class="btn btn-secondary btn-sm">↻ Atualizar Telemetria</button>
+          </div>
+        </div>
+
+        <!-- Card de Resumo do Chassi -->
+        <div class="card" style="margin-bottom: 20px;">
+          <div class="card-header xray-card-header">
+            <div class="xray-header-info">
+              <h2 class="card-title" id="xray-olt-title">⚡ Telemetria & Diagnóstico de Chassi</h2>
+              <p class="card-subtitle" id="xray-olt-subtitle">Diagnóstico de hardware, firmware, interfaces físicas e running-config em tempo real.</p>
+            </div>
+            <div class="xray-header-badges">
+              <span id="xray-badge-firmware" class="badge badge-info">Firmware: -</span>
+              <span id="xray-badge-uptime" class="badge badge-optical-good">Uptime: -</span>
+              <span id="xray-badge-snmp" class="badge badge-optical-good">SNMP: -</span>
+            </div>
+          </div>
+
+          <!-- Métricas Chave do Chassi -->
+          <div class="metric-cards-grid">
+            <div class="stat-card">
+              <span class="stat-label">Total de Portas</span>
+              <span class="stat-value" id="xray-stat-total-ports">-</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Portas Ativas (Link UP)</span>
+              <span class="stat-value" id="xray-stat-active-ports" style="color: var(--accent-green);">-</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Portas Livres / Down</span>
+              <span class="stat-value" id="xray-stat-down-ports" style="color: var(--accent-amber);">-</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">ONUs Físicas Detectadas</span>
+              <span class="stat-value" id="xray-stat-onus-detected" style="color: var(--accent-cyan);">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Painel de Telemetria SNMP & Gestão de Chassi -->
+        <div class="card" style="margin-bottom: 20px;">
+          <div class="card-header xray-card-header">
+            <div class="xray-header-info">
+              <h3 class="card-title">📡 Telemetria SNMP (UDP 161) & Auto-Descoberta</h3>
+              <p class="card-subtitle" id="xray-snmp-message">Diagnóstico e status do agente SNMP na OLT física.</p>
+            </div>
+            <div class="xray-header-badges">
+              <div id="xray-snmp-status-pill" class="badge badge-optical-good">SNMP Ativo</div>
+            </div>
+          </div>
+          <div style="padding: 16px 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; background: rgba(255,255,255,0.02); border-top: 1px solid var(--border-color);">
+            <div style="flex: 2; min-width: 220px;">
+              <label class="form-label" for="xray-snmp-input-community">Comunidade SNMP (Somente-Leitura / RO)</label>
+              <input type="text" id="xray-snmp-input-community" class="form-control" placeholder="public ou comunidade do provedor">
+            </div>
+            <div style="flex: 1; min-width: 100px;">
+              <label class="form-label" for="xray-snmp-input-port">Porta UDP</label>
+              <input type="number" id="xray-snmp-input-port" class="form-control" value="161">
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button id="btn-xray-test-snmp" class="btn btn-secondary btn-sm" title="Testa se a OLT responde via UDP 161">⚡ Testar Conectividade</button>
+              <button id="btn-xray-adopt-snmp" class="btn btn-secondary btn-sm" title="Testa e adota no cadastro da API">💾 Salvar no Cadastro</button>
+              <button id="btn-xray-provision-snmp" class="btn btn-primary btn-sm" title="Configura comandos CLI na OLT e grava na flash via API (SUPER_ADMIN)">🔧 Provisionar na OLT (Admin)</button>
+            </div>
+          </div>
+          <div id="xray-snmp-result" class="hidden" style="margin: 12px 20px; padding: 10px 14px; border-radius: 6px; font-size: 13px;"></div>
+        </div>
+
+        <!-- Grade Visual de Portas (GPON e Uplink) -->
+        <div class="card" style="margin-bottom: 20px;">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">🔌 Mapa Físico de Portas (GPON & Uplink)</h3>
+              <p class="card-subtitle">Status operacional em tempo real de todas as portas presentes no chassi.</p>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary btn-sm filter-port-btn active" data-port-filter="all">Todas</button>
+              <button class="btn btn-secondary btn-sm filter-port-btn" data-port-filter="pon">PON</button>
+              <button class="btn btn-secondary btn-sm filter-port-btn" data-port-filter="uplink">Uplink</button>
+            </div>
+          </div>
+
+          <div style="padding: 20px;">
+            <div id="xray-ports-grid" class="ports-grid">
+              <div style="text-align: center; color: var(--text-muted); grid-column: 1 / -1; padding: 30px;">
+                Carregando mapa de portas...
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visualizador de Running-Config da OLT -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">📜 Running-Config Live (Configuração Atual do Chassi)</h3>
+              <p class="card-subtitle">Configuração em execução extraída diretamente da memória volátil da OLT.</p>
+            </div>
+            <button id="btn-copy-config" class="btn btn-secondary btn-sm">📋 Copiar Configuração</button>
+          </div>
+          <div style="padding: 20px;">
+            <pre id="xray-running-config" class="config-viewer-box">Carregando running-config...</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sub-view: VLANs & Serviços -->
+      <section id="subview-vlans" class="page-container hidden">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">🌐 Gestão de VLANs & Capacidade</h2>
+              <p class="card-subtitle">Controle de tráfego, quantidade de ONUs provisionadas vs ativas e histórico de seriais.</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-open-modal-vlan" class="btn btn-primary btn-sm">➕ Criar VLAN</button>
+              <button id="btn-reload-vlans" class="btn btn-secondary btn-sm">↻ Atualizar</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>VLAN ID</th>
+                  <th>Nome do Serviço</th>
+                  <th>Descrição</th>
+                  <th>ONUs Provisionadas</th>
+                  <th>ONUs Ativas (Online)</th>
+                  <th style="text-align: right;">Ações de Auditoria</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-vlans-metrics">
+                <tr>
+                  <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    Carregando métricas de VLANs...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sub-view: Configurações & FTP -->
+      <section id="subview-config" class="page-container hidden">
+        <div class="card" style="margin-bottom: 20px;">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">💾 Servidor FTP & Armazenamento de Backups</h2>
+              <p class="card-subtitle">Status operacional, conectividade em tempo real e histórico de backups das OLTs.</p>
+            </div>
+            <button id="btn-test-ftp" class="btn btn-primary btn-sm">⚡ Testar Conectividade FTP</button>
+          </div>
+
+          <div id="ftp-status-container" style="padding: 20px;">
+            <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+              Carregando dados do servidor FTP...
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px;">
+          <!-- Card: OLTs Vinculadas -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">🔗 OLTs Vinculadas ao FTP</h3>
+                <p class="card-subtitle">Equipamentos configurados para exportar dumps e configs para este repositório.</p>
+              </div>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome OLT</th>
+                    <th>Host</th>
+                    <th>Modelo</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-ftp-olts">
+                  <tr>
+                    <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                      Nenhuma OLT vinculada.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Card: Backups Disponíveis -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">📦 Backups Recentes no Repositório</h3>
+                <p class="card-subtitle">Snapshots e baselines v0 armazenados no repositório.</p>
+              </div>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Arquivo</th>
+                    <th>OLT</th>
+                    <th>Tamanho</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-ftp-backups">
+                  <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                      Nenhum backup disponível.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Sub-view: Inquilinos & RBAC (Apenas Super Admin) -->
       <section id="subview-administracao" class="page-container hidden">
         <div class="card">
@@ -342,7 +645,224 @@
     </div>
   </div>
 
+  <!-- ====================================================================
+       5. MODAL: HISTÓRICO DE SERIAIS DA VLAN
+       ==================================================================== -->
+  <div id="modal-vlan-history" class="modal-overlay">
+    <div class="modal-box" style="max-width: 720px;">
+      <div class="modal-header">
+        <h3 class="card-title">📜 Histórico de Seriais • VLAN <span id="vlan-history-title">-</span></h3>
+        <button class="btn-logout" data-close-modal="modal-vlan-history">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Serial ONU</th>
+                <th>Assinante / Descrição</th>
+                <th>Primeiro Registro</th>
+                <th>Último Visto</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-vlan-history">
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">
+                  Carregando histórico...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal="modal-vlan-history">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       6. MODAL: ONBOARDING DE OLT ZERO-TOUCH
+       ==================================================================== -->
+  <div id="modal-new-olt" class="modal-overlay">
+    <div class="modal-box" style="max-width: 620px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="card-title">⚡ Onboarding Contínuo de OLT</h3>
+          <p class="card-subtitle">Cadastro automatizado com negociação de porta, backup inicial e ingestão de inventário.</p>
+        </div>
+        <button class="btn-logout" data-close-modal="modal-new-olt">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div id="new-olt-alert" class="badge badge-optical-bad hidden" style="width: 100%; margin-bottom: 12px; padding: 10px; font-size: 12px;"></div>
+
+        <!-- 1. Formulário Inicial de Dados Mínimos -->
+        <div id="onboarding-form-section">
+          <form id="form-new-olt">
+            <div class="form-group">
+              <label class="form-label" for="new-olt-name">Nome de Identificação da OLT</label>
+              <input type="text" id="new-olt-name" class="form-control" placeholder="Ex: OLT VTX ou OLT-CENTRAL-01" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="new-olt-host">Endereço IP / Host da OLT</label>
+              <input type="text" id="new-olt-host" class="form-control" placeholder="Ex: 172.16.65.2 ou 192.168.1.10" required>
+            </div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <div class="form-group" style="flex: 1; min-width: 200px;">
+                <label class="form-label" for="new-olt-username">Usuário de Acesso (CLI / TL1)</label>
+                <input type="text" id="new-olt-username" class="form-control" placeholder="admin" required>
+              </div>
+              <div class="form-group" style="flex: 1; min-width: 200px;">
+                <label class="form-label" for="new-olt-password">Senha</label>
+                <div class="password-input-wrapper">
+                  <input type="password" id="new-olt-password" class="form-control" placeholder="••••••••" required>
+                  <button type="button" class="password-toggle-btn" data-target="new-olt-password" aria-label="Alternar visibilidade da senha" title="Exibir / Ocultar senha">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Opções Avançadas Recolhidas -->
+            <details style="margin-top: 8px; margin-bottom: 14px; font-size: 12px; color: var(--text-secondary); cursor: pointer;">
+              <summary style="font-weight: 600; color: var(--accent-cyan);">⚙️ Opções Avançadas (Porta NAT customizada)</summary>
+              <div style="padding-top: 10px;">
+                <label class="form-label" for="new-olt-custom-port">Porta de Acesso (Opcional)</label>
+                <input type="number" id="new-olt-custom-port" class="form-control" placeholder="Automático (tenta SSH:22 e Telnet:23)">
+                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Deixe vazio para o sistema testar SSH na 22 e Telnet na 23 automaticamente.</small>
+              </div>
+            </details>
+          </form>
+        </div>
+
+        <!-- 2. Stepper de Execução Contínua em Tempo Real -->
+        <div id="onboarding-stepper-section" class="hidden">
+          <div class="onboarding-stepper">
+            <div class="stepper-step" id="step-connectivity">
+              <div class="step-icon">1</div>
+              <div class="step-content">
+                <div class="step-title">Negociação de Protocolo (SSH ➔ Telnet)</div>
+                <div class="step-desc" id="step-desc-connectivity">Testando handshake e autenticação...</div>
+              </div>
+            </div>
+            <div class="stepper-step" id="step-fingerprint">
+              <div class="step-icon">2</div>
+              <div class="step-content">
+                <div class="step-title">Reconhecimento do Fabricante & Modelo</div>
+                <div class="step-desc" id="step-desc-fingerprint">Aguardando conexão...</div>
+              </div>
+            </div>
+            <div class="stepper-step" id="step-baseline">
+              <div class="step-icon">3</div>
+              <div class="step-content">
+                <div class="step-title">Snapshot Preventivo Baseline v0</div>
+                <div class="step-desc" id="step-desc-baseline">Aguardando identificação...</div>
+              </div>
+            </div>
+            <div class="stepper-step" id="step-snmp">
+              <div class="step-icon">4</div>
+              <div class="step-content">
+                <div class="step-title">Diagnóstico & Provisionamento SNMP</div>
+                <div class="step-desc" id="step-desc-snmp">Aguardando backup inicial...</div>
+              </div>
+            </div>
+            <div class="stepper-step" id="step-inventory">
+              <div class="step-icon">5</div>
+              <div class="step-content">
+                <div class="step-title">Sincronização de Inventário & TR-101</div>
+                <div class="step-desc" id="step-desc-inventory">Mapeando portas, VLANs e ONUs ativas...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Log Box da Execução -->
+          <div id="onboarding-terminal-logs" class="onboarding-logs-box">Iniciando pipeline de onboarding...</div>
+
+          <!-- 3. Card Resumo de Conclusão -->
+          <div id="onboarding-summary-card" class="onboarding-summary-card hidden">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+              <span class="badge badge-optical-good" style="font-size: 12px;">✓ Onboarding Concluído com Sucesso</span>
+              <span id="summary-olt-protocol-badge" class="badge badge-info">TELNET :23</span>
+            </div>
+            <div class="summary-metrics-grid">
+              <div class="summary-metric-item">
+                <span class="summary-label">OLT</span>
+                <span class="summary-value" id="summary-olt-name">-</span>
+              </div>
+              <div class="summary-metric-item">
+                <span class="summary-label">Fabricante / Modelo</span>
+                <span class="summary-value" id="summary-olt-vendor-model">-</span>
+              </div>
+              <div class="summary-metric-item">
+                <span class="summary-label">Portas Físicas</span>
+                <span class="summary-value" id="summary-olt-ports" style="color: var(--accent-green);">-</span>
+              </div>
+              <div class="summary-metric-item">
+                <span class="summary-label">ONUs Ingeridas</span>
+                <span class="summary-value" id="summary-olt-onus" style="color: var(--accent-cyan);">-</span>
+              </div>
+              <div class="summary-metric-item">
+                <span class="summary-label">Firmware</span>
+                <span class="summary-value" id="summary-olt-firmware">-</span>
+              </div>
+              <div class="summary-metric-item">
+                <span class="summary-label">SNMP</span>
+                <span class="summary-value" id="summary-olt-snmp">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" id="onboarding-modal-footer">
+        <button class="btn btn-secondary" id="btn-cancel-new-olt" data-close-modal="modal-new-olt">Cancelar</button>
+        <button type="button" id="btn-submit-new-olt" class="btn btn-primary">⚡ Iniciar Onboarding Automático</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       7. MODAL: CRIAR NOVA VLAN NA OLT
+       ==================================================================== -->
+  <div id="modal-new-vlan" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="card-title">🌐 Criar Nova VLAN na OLT</h3>
+        <button class="btn-logout" data-close-modal="modal-new-vlan">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="new-vlan-alert" class="badge badge-optical-bad hidden" style="width: 100%; margin-bottom: 12px; padding: 8px;"></div>
+        <form id="form-new-vlan">
+          <div style="display: flex; gap: 12px;">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label" for="new-vlan-id">VLAN ID (1-4094)</label>
+              <input type="number" id="new-vlan-id" class="form-control" min="1" max="4094" placeholder="Ex: 500" required>
+            </div>
+            <div class="form-group" style="flex: 2;">
+              <label class="form-label" for="new-vlan-name">Nome do Serviço</label>
+              <input type="text" id="new-vlan-name" class="form-control" placeholder="Ex: INTERNET_DEDICADA" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="new-vlan-desc">Descrição (Opcional)</label>
+            <input type="text" id="new-vlan-desc" class="form-control" placeholder="Descrição do tráfego ou destino">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="new-vlan-ports">Portas Tagged (Separadas por vírgula, opcional)</label>
+            <input type="text" id="new-vlan-ports" class="form-control" placeholder="Ex: ge 0/0/1, xg 0/0/2">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal="modal-new-vlan">Cancelar</button>
+        <button type="button" id="btn-submit-new-vlan" class="btn btn-primary">Criar & Salvar na Flash</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/app.js?v=2.2"></script>
 </body>
 </html>

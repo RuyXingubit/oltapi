@@ -27,6 +27,9 @@ class SQLOLTRepository:
             protocol=OLTProtocol(m.protocol),
             username=m.username,
             password=m.password,
+            snmp_community=getattr(m, "snmp_community", "public") or "public",
+            snmp_port=getattr(m, "snmp_port", 161) or 161,
+            snmp_version=getattr(m, "snmp_version", "v2c") or "v2c",
             created_at=m.created_at,
         )
 
@@ -53,11 +56,34 @@ class SQLOLTRepository:
                 protocol=req.protocol.value if hasattr(req.protocol, "value") else str(req.protocol),
                 username=req.username,
                 password=req.password,
+                snmp_community=getattr(req, "snmp_community", "public") or "public",
+                snmp_port=getattr(req, "snmp_port", 161) or 161,
+                snmp_version=getattr(req, "snmp_version", "v2c") or "v2c",
             )
             db.add(m)
             db.commit()
             db.refresh(m)
             return self._to_model(m)
+
+    def update(self, olt: OLTInDB) -> OLTInDB:
+        with self.session_factory() as db:
+            m = db.query(OLTModel).filter(OLTModel.id == olt.id).first()
+            if m:
+                m.name = olt.name
+                m.vendor = olt.vendor.value if hasattr(olt.vendor, "value") else str(olt.vendor)
+                m.model = olt.model
+                m.host = olt.host
+                m.port = olt.port
+                m.protocol = olt.protocol.value if hasattr(olt.protocol, "value") else str(olt.protocol)
+                m.username = olt.username
+                m.password = olt.password
+                m.snmp_community = olt.snmp_community
+                m.snmp_port = olt.snmp_port
+                m.snmp_version = olt.snmp_version
+                db.commit()
+                db.refresh(m)
+                return self._to_model(m)
+            return olt
 
     def delete(self, olt_id: str) -> bool:
         with self.session_factory() as db:

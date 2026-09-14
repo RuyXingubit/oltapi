@@ -51,7 +51,15 @@ class OLTRepository:
             protocol=req.protocol,
             username=req.username,
             password=req.password,
+            snmp_community=getattr(req, "snmp_community", "public") or "public",
+            snmp_port=getattr(req, "snmp_port", 161) or 161,
+            snmp_version=getattr(req, "snmp_version", "v2c") or "v2c",
         )
+        self._olts[olt.id] = olt
+        self._save()
+        return olt
+
+    def update(self, olt: OLTInDB) -> OLTInDB:
         self._olts[olt.id] = olt
         self._save()
         return olt

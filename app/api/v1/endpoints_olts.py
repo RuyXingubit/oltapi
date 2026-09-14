@@ -1,14 +1,18 @@
 import logging
+import re
+import time
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.deps import (
     get_backup_storage,
     get_ftp_repo,
     get_olt_repo,
+    get_onboarding_service,
     get_security_context,
     get_sync_service,
+    get_xray_service,
     require_api_key,
 )
 from app.core.rbac import SecurityContext
@@ -26,10 +30,18 @@ from app.models.olt import (
     ConnectionTestResult,
     OLTConfigResponse,
     OLTCreateRequest,
+    OLTOnboardRequest,
+    OLTOnboardResponse,
     OLTResponse,
+    OLTXRayResponse,
+    SNMPConfigureRequest,
+    SNMPConfigureResponse,
+    SNMPTestRequest,
+    SNMPTestResponse,
 )
 from app.services.connection_service import test_olt_connectivity
 from app.services.ftp_service import FTPService
+from app.services.snmp_collector import SNMPCollector
 from app.storage.backup_storage import BackupStorage
 from app.storage.olt_repository import OLTRepository
 from app.storage.sql.ftp_repository import SQLFTPRepository
@@ -70,6 +82,64 @@ def list_olts(
         )
         for o in olts
     ]
+
+
+@router.post("/onboard", response_model=OLTOnboardResponse, status_code=status.HTTP_201_CREATED)
+def onboard_olt(
+    req: OLTOnboardRequest,
+    response: Response,
+    onboarding_service=Depends(get_onboarding_service),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Onboarding Contínuo Zero-Touch de OLT (À Prova de Erro Humano):
+    1. Probe automático de conectividade (SSH :22 -> Telnet :23).
+    2. Fingerprinting e identificação de fabricante/modelo via prompt CLI.
+    3. Cadastro atômico e criação obrigatória do Snapshot Baseline v0.
+    4. Auto-detecção e provisionamento dinâmico de SNMP (comunidade da empresa/tenant).
+    5. Ingestão completa de interfaces físicas, VLANs e ONUs com Circuit ID TR-101.
+    6. Retorno consolidado de telemetria e card resumo.
+    """
+    ctx.enforce_scope("olts:admin")
+    try:
+        tenant_name = ctx.tenant_name or "Provedor"
+        result = onboarding_service.execute_onboarding(request=req, tenant_name=tenant_name)
+        response.headers["Location"] = f"/api/v1/olts/{result.olt_id}"
+        return result
+    except ConnectionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Falha de conexão durante o onboarding: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Erro inesperado no pipeline de onboarding da OLT '{req.name}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro durante o onboarding da OLT: {str(e)}",
+        )
+
+
+@router.post("/onboard/stream")
+async def onboard_olt_stream(
+    req: OLTOnboardRequest,
+    onboarding_service=Depends(get_onboarding_service),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Onboarding Contínuo Zero-Touch via Server-Sent Events (SSE).
+    Emite eventos em tempo real com status granular de cada etapa para animação do stepper e logs.
+    """
+    ctx.enforce_scope("olts:admin")
+    tenant_name = ctx.tenant_name or "Provedor"
+    return StreamingResponse(
+        onboarding_service.execute_onboarding_stream(request=req, tenant_name=tenant_name),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("", response_model=OLTResponse, status_code=status.HTTP_201_CREATED)
@@ -352,6 +422,43 @@ def purge_olt_backups(
     )
 
 
+@router.post("/{olt_id}/telemetry", response_model=OLTXRayResponse)
+def inspect_olt_telemetry(
+    olt_id: str,
+    xray_service=Depends(get_xray_service),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Telemetria e Diagnóstico Físico de Chassi de OLT:
+    - Uptime em dias/horas;
+    - Versão de software/firmware da controladora;
+    - Mapeamento físico de TODAS as portas (PON e Uplink) e seus estados operacionais (up, down, loss_of_signal);
+    - Detecção de ONUs na fibra e VLANs de serviço;
+    - Preview do running-config vivo.
+    """
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
+    try:
+        return xray_service.inspect_olt(olt_id=olt_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao executar telemetria de chassi na OLT: {str(e)}",
+        )
+
+
+@router.post("/{olt_id}/xray", response_model=OLTXRayResponse, deprecated=True)
+def inspect_olt_xray(
+    olt_id: str,
+    xray_service=Depends(get_xray_service),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Alias retrocompatível para telemetria e diagnóstico de chassi."""
+    return inspect_olt_telemetry(olt_id=olt_id, xray_service=xray_service, ctx=ctx)
+
+
 @router.post("/{olt_id}/sync", response_model=SyncOLTResponse)
 def sync_olt(
     olt_id: str,
@@ -382,5 +489,147 @@ def delete_olt(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
     return None
+
+
+@router.post("/{olt_id}/snmp/test", response_model=SNMPTestResponse)
+def test_olt_snmp(
+    olt_id: str,
+    req: Optional[SNMPTestRequest] = None,
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Testa a conectividade SNMP v2c via UDP 161 na OLT física:
+    - Valida se o agente SNMP está respondendo e obtém sysUpTime;
+    - Permite testar uma comunidade específica (ex: descoberta por um técnico);
+    - Opcionalmente adota e salva a comunidade no cadastro se o teste for bem-sucedido.
+    """
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    test_req = req or SNMPTestRequest()
+    community = test_req.community or olt.snmp_community or "public"
+    port = test_req.port or olt.snmp_port or 161
+
+    start_t = time.perf_counter()
+    uptime = SNMPCollector.get_sys_uptime(host=olt.host, community=community, port=port, timeout=1.2)
+    latency_ms = round((time.perf_counter() - start_t) * 1000, 2)
+    reachable = uptime is not None
+
+    saved_to_db = False
+    if reachable and test_req.save_if_successful:
+        ctx.enforce_scope("olts:write")
+        olt.snmp_community = community
+        olt.snmp_port = port
+        repo.update(olt)
+        saved_to_db = True
+
+    msg = (
+        f"Agente SNMP respondendo via UDP {port} (sysUpTime: {uptime}s, latência: {latency_ms}ms)."
+        if reachable
+        else f"Agente SNMP não respondeu em {olt.host}:{port} com a comunidade informada."
+    )
+    if saved_to_db:
+        msg += " Comunidade adotada e salva no cadastro da OLT com sucesso."
+
+    links = {
+        "self": Link(href=f"/api/v1/olts/{olt.id}/snmp/test", rel="self", method="POST"),
+        "olt": Link(href=f"/api/v1/olts/{olt.id}", rel="olt", method="GET"),
+        "telemetry": Link(href=f"/api/v1/olts/{olt.id}/telemetry", rel="telemetry", method="POST"),
+    }
+
+    return SNMPTestResponse(
+        olt_id=olt.id,
+        host=olt.host,
+        port=port,
+        community=community,
+        reachable=reachable,
+        latency_ms=latency_ms if reachable else None,
+        uptime_seconds=uptime,
+        saved_to_db=saved_to_db,
+        message=msg,
+        links=links,
+    )
+
+
+@router.post("/{olt_id}/snmp/configure", response_model=SNMPConfigureResponse)
+def configure_olt_snmp(
+    olt_id: str,
+    req: SNMPConfigureRequest,
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Provisiona comunidade SNMP Read-Only (RO) diretamente na OLT física via CLI/driver
+    e persiste na memória flash permanente (save/write):
+    - Requer privilégio de SUPER_ADMIN;
+    - Valida contra injeção CLI;
+    - Aplica sintaxe do fabricante em modo estritamente RO;
+    - Executa teste UDP 161 imediato e atualiza o cadastro da OLT.
+    """
+    ctx.enforce_scope("olts:write")
+    if not ctx.is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas administradores (SUPER_ADMIN) têm autorização para provisionar comandos CLI de SNMP na OLT.",
+        )
+    ctx.enforce_olt(olt_id)
+
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    # Sanitização estrita contra injeção CLI
+    clean_comm = req.community.strip()
+    if not re.match(r"^[A-Za-z0-9_\.\-]{3,64}$", clean_comm):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Comunidade SNMP inválida. Use de 3 a 64 caracteres alfanuméricos, ponto, traço ou sublinhado, sem espaços.",
+        )
+
+    port = req.port or olt.snmp_port or 161
+    driver = DriverFactory.get_driver(olt)
+
+    configured = driver.configure_snmp(olt, clean_comm, port)
+    if not configured:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Falha ao executar comandos de provisionamento SNMP no equipamento {olt.name}.",
+        )
+
+    # Teste de conectividade pós-configuração
+    uptime = SNMPCollector.get_sys_uptime(host=olt.host, community=clean_comm, port=port, timeout=1.5)
+    tested_ok = uptime is not None
+
+    # Atualiza dados no repositório
+    olt.snmp_community = clean_comm
+    olt.snmp_port = port
+    repo.update(olt)
+
+    msg = (
+        f"Comunidade SNMP '{clean_comm}' configurada como RO na OLT {olt.name} e gravada na flash com sucesso. "
+        + (f"Agente SNMP validado (sysUpTime: {uptime}s)." if tested_ok else "Aguardando agente subir ou liberar porta UDP.")
+    )
+
+    links = {
+        "self": Link(href=f"/api/v1/olts/{olt.id}/snmp/configure", rel="self", method="POST"),
+        "test": Link(href=f"/api/v1/olts/{olt.id}/snmp/test", rel="test", method="POST"),
+        "telemetry": Link(href=f"/api/v1/olts/{olt.id}/telemetry", rel="telemetry", method="POST"),
+    }
+
+    return SNMPConfigureResponse(
+        olt_id=olt.id,
+        host=olt.host,
+        community=clean_comm,
+        configured_in_cli=configured,
+        saved_to_flash=True,
+        tested_ok=tested_ok,
+        uptime_seconds=uptime,
+        message=msg,
+        links=links,
+    )
 
 

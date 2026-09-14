@@ -27,8 +27,33 @@ class OLTModel(Base):
     protocol = Column(String(16), nullable=False, default="ssh")
     username = Column(String(64), nullable=False)
     password = Column(String(256), nullable=False)
+    snmp_community = Column(String(64), nullable=True, default="public")
+    snmp_port = Column(Integer, nullable=True, default=161)
+    snmp_version = Column(String(16), nullable=True, default="v2c")
     created_at = Column(
         DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class ChassisTelemetryHistoryModel(Base):
+    __tablename__ = "chassis_telemetry_history"
+    __table_args__ = (
+        {"postgresql_partition_by": "RANGE (recorded_at)"},
+    )
+
+    id = Column(String(36), primary_key=True)
+    olt_id = Column(
+        String(36), ForeignKey("olts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    online_onus = Column(Integer, nullable=False, default=0)
+    offline_onus = Column(Integer, nullable=False, default=0)
+    active_ports = Column(Integer, nullable=False, default=0)
+    uptime_seconds = Column(Integer, nullable=True)
+    recorded_at = Column(
+        DateTime(timezone=True),
+        primary_key=True,
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
@@ -94,6 +119,29 @@ class ONUMigrationHistoryModel(Base):
         index=True,
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class ONUVLANHistoryModel(Base):
+    """Histórico de vinculação e rastreabilidade de seriais de ONUs por VLAN."""
+    __tablename__ = "onu_vlan_history"
+
+    id = Column(String(36), primary_key=True)
+    serial = Column(String(32), index=True, nullable=False)
+    vlan_id = Column(Integer, index=True, nullable=False)
+    olt_id = Column(String(36), ForeignKey("olts.id", ondelete="CASCADE"), index=True, nullable=False)
+    port = Column(String(32), nullable=True)
+    contract_id = Column(String(64), nullable=True)
+    subscriber_name = Column(String(128), nullable=True)
+    reason = Column(String(64), nullable=False, default="PROVISIONING")
+    started_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    ended_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
 

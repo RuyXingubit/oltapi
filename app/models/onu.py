@@ -10,6 +10,7 @@ class ONUSummary(BaseModel):
     serial: str
     status: str = Field(description="Ex: online, offline, los, dying-gasp")
     name: Optional[str] = None
+    vlan: Optional[int] = None
     links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
 
     model_config = {"populate_by_name": True}

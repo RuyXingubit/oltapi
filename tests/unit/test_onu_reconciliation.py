@@ -28,6 +28,14 @@ def test_circuit_id_generation():
     cid4 = generate_circuit_id("  olt-zte-c300  ", "1/1/1", 8, 400)
     assert cid4 == "OLT-ZTE-C300 eth 1/1/1:8:400"
 
+    # Nome de OLT com espaços internos (ex: 'OLT VTX')
+    cid5 = generate_circuit_id("OLT VTX", "1/1", 3, 100)
+    assert cid5 == "OLT-VTX eth 1/1:3:100"
+
+    # Nome de OLT com múltiplos espaços internos
+    cid6 = generate_circuit_id("  OLT   CIDADE   NOVA  ", "0/2/1", 7, 200)
+    assert cid6 == "OLT-CIDADE-NOVA eth 0/2/1:7:200"
+
 
 # ---------------------------------------------------------------------------
 # Testes de Cadastro no Inventário e Coordenadas Geográficas

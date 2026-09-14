@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 from app.models.hateoas import Link
@@ -40,6 +41,36 @@ class SyncOLTResponse(BaseModel):
     vlans_discovered: List[int] = Field(default_factory=list, description="VLANs identificadas na OLT")
     duration_ms: float = Field(..., description="Tempo de execução do sync em milissegundos")
     message: str = Field(default="Onboarding e sincronização concluídos com sucesso")
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+
+
+class VLANMetricsItem(BaseModel):
+    vlan_id: int = Field(..., description="ID numérico da VLAN")
+    name: Optional[str] = Field(default=None, description="Nome identificador da VLAN")
+    description: Optional[str] = Field(default=None, description="Descrição ou propósito da VLAN")
+    tagged_ports: List[str] = Field(default_factory=list)
+    untagged_ports: List[str] = Field(default_factory=list)
+    total_provisioned_onus: int = Field(default=0, description="Total de ONUs cadastradas nesta VLAN")
+    total_active_onus: int = Field(default=0, description="Total de ONUs com status ACTIVE nesta VLAN")
+    links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
+
+    model_config = {"populate_by_name": True}
+
+
+class VLANHistoryItem(BaseModel):
+    id: str
+    serial: str
+    vlan_id: int
+    olt_id: str
+    port: Optional[str] = None
+    contract_id: Optional[str] = None
+    subscriber_name: Optional[str] = None
+    reason: str
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    is_current: bool = Field(default=True, description="True se a ONU ainda estiver usando esta VLAN")
     links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
 
     model_config = {"populate_by_name": True}

@@ -163,6 +163,7 @@ def test_sync_olt_service_success(setup_test_env, sample_olt_fiberhome):
         assert onu1.current_port == "1/1/1"
         assert onu1.current_onu_id == 1
         assert onu1.circuit_id == f"{sample_olt_fiberhome.name} eth 1/1/1:1:100"
+        assert onu1.vlan == 100
 
         # 4. Executa segunda sincronização (deve atualizar ao invés de duplicar)
         res2 = sync_service.sync_olt(sample_olt_fiberhome.id)

@@ -8,8 +8,10 @@ from app.drivers.fiberhome.fiberhome_tl1 import (
     build_telnet_reboot_commands,
     build_telnet_resume_commands,
     build_telnet_suspend_commands,
+    parse_telnet_optical_info,
     parse_telnet_port_onus,
     parse_telnet_profiles,
+    parse_telnet_service_vlan,
     parse_telnet_unauth_onus,
     parse_telnet_vlans,
 )
@@ -271,3 +273,88 @@ def test_telnet_driver_mocked_flow():
         reb_res = driver.reboot_onu(olt, serial_or_id="FHTT99881122", port="1/1", onu_id=5)
         assert reb_res.success is True
         assert reb_res.action == "reboot"
+
+
+def test_parse_telnet_optical_info():
+    sample_optical = """
+ onu (1/1/6).
+-----  ONU OPTICAL INFO 1.1.6-----
+SEND POWER   :  1.61\t(Dbm)
+RECV POWER   : -24.69\t(Dbm)
+Admin\\onu# 
+    """
+    rx, tx = parse_telnet_optical_info(sample_optical)
+    assert rx == -24.69
+    assert tx == 1.61
+
+
+def test_parse_telnet_optical_info_error():
+    sample_error = """
+show onu opticalpower-info phy-id FHTT00000000
+[Error -506]: Onu is not authcated. 
+Command executes failed.
+Admin\\onu# 
+    """
+    rx, tx = parse_telnet_optical_info(sample_error)
+    assert rx is None
+    assert tx is None
+
+
+def test_parse_telnet_service_vlan():
+    sample_srv = """
+FE service info : 
+
+NO.  SL/LI/ONU PORT ID TYPE  MODE CVID COS  TPID  TVID COS  TPID  SVID COS  TPID PVID COS DATATYPE PRIQUE GEMPORT
+1    1 /1 /6   1    1  unica tag  301  0    33024 null null null  null null null  null null default default default
+
+VEIP service info : 
+
+------------------------------------------------------------------
+Slot 1 pon 1 onu 6 port 1 service 1 onuveip info:
+Service no(Gemport)     : 1
+Cvlan                   : 301
+    """
+    vlan = parse_telnet_service_vlan(sample_srv)
+    assert vlan == 301
+
+
+def test_fiberhome_get_onu_details_telnet_cli():
+    driver = FiberhomeTL1Driver()
+    olt = OLTInDB(
+        name="OLT-TEST",
+        vendor=OLTVendor.FIBERHOME,
+        model="AN5516-01",
+        host="192.0.2.1",
+        port=23,
+        protocol=OLTProtocol.TELNET,
+        username="tecnico",
+        password="pwd",
+    )
+
+    with patch.object(driver, "_open_telnet_session") as mock_open, \
+         patch.object(driver, "_exec_telnet_cmd") as mock_exec:
+        mock_client = MagicMock()
+        mock_open.return_value = mock_client
+
+        def side_effect(client, cmd):
+            if "show onu opticalpower-info" in cmd:
+                return " onu (1/1/6).\n-----  ONU OPTICAL INFO 1.1.6-----\nSEND POWER   :  1.97\t(Dbm)\nRECV POWER   : -24.69\t(Dbm)\n"
+            elif "show onu-info" in cmd:
+                return "1    1    6    AN5516\nAdmin\\onu#"
+            elif "show authorization" in cmd:
+                return "1    1    6    AN5516    A    1    up    FHTTc0829bac\nAdmin\\onu#"
+            elif "show onu service-info" in cmd:
+                return "Cvlan                   : 301\nAdmin\\onu#"
+            return ""
+
+        mock_exec.side_effect = side_effect
+
+        details = driver.get_onu_details(olt, "FHTTc0829bac")
+        assert details.serial == "FHTTc0829bac"
+        assert details.port == "1/1"
+        assert details.onu_id == 6
+        assert details.status == "online"
+        assert details.rx_power_dbm == -24.69
+        assert details.tx_power_dbm == 1.97
+        assert details.vlan == 301
+
