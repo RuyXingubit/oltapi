@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
+from app.core.security import decrypt_password, encrypt_password
 from app.core.uuid import generate_uuid7
 from app.db.models import OLTModel
 from app.db.session import SessionLocal
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class SQLOLTRepository:
-    """Repositório de OLTs persistido em banco de dados relacional via SQLAlchemy."""
+    """Repositório de OLTs persistido em banco de dados relacional via SQLAlchemy com senhas cifradas."""
 
     def __init__(self, session_factory=SessionLocal):
         self.session_factory = session_factory
@@ -26,7 +27,7 @@ class SQLOLTRepository:
             port=m.port,
             protocol=OLTProtocol(m.protocol),
             username=m.username,
-            password=m.password,
+            password=decrypt_password(m.password),
             snmp_community=getattr(m, "snmp_community", "public") or "public",
             snmp_port=getattr(m, "snmp_port", 161) or 161,
             snmp_version=getattr(m, "snmp_version", "v2c") or "v2c",
@@ -55,7 +56,7 @@ class SQLOLTRepository:
                 port=req.port,
                 protocol=req.protocol.value if hasattr(req.protocol, "value") else str(req.protocol),
                 username=req.username,
-                password=req.password,
+                password=encrypt_password(req.password),
                 snmp_community=getattr(req, "snmp_community", "public") or "public",
                 snmp_port=getattr(req, "snmp_port", 161) or 161,
                 snmp_version=getattr(req, "snmp_version", "v2c") or "v2c",
@@ -76,7 +77,7 @@ class SQLOLTRepository:
                 m.port = olt.port
                 m.protocol = olt.protocol.value if hasattr(olt.protocol, "value") else str(olt.protocol)
                 m.username = olt.username
-                m.password = olt.password
+                m.password = encrypt_password(olt.password)
                 m.snmp_community = olt.snmp_community
                 m.snmp_port = olt.snmp_port
                 m.snmp_version = olt.snmp_version

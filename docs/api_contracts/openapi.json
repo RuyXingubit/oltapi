@@ -1708,6 +1708,57 @@
         }
       }
     },
+    "/api/v1/olts/{olt_id}/reveal-credentials": {
+      "post": {
+        "tags": [
+          "OLTs & Backups"
+        ],
+        "summary": "Revelar credenciais de acesso da OLT (apenas Administradores)",
+        "description": "Permite que usuários com privilégio SUPER_ADMIN ou TENANT_ADMIN recuperem a senha administrativa da OLT. Toda consulta gera registro na trilha de auditoria.",
+        "operationId": "reveal_olt_credentials_api_v1_olts__olt_id__reveal_credentials_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "olt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Olt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OLTCredentialsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/olts/{olt_id}/snmp/test": {
       "post": {
         "tags": [
@@ -5732,6 +5783,60 @@
           "password"
         ],
         "title": "OLTCreateRequest"
+      },
+      "OLTCredentialsResponse": {
+        "properties": {
+          "olt_id": {
+            "type": "string",
+            "title": "Olt Id"
+          },
+          "olt_name": {
+            "type": "string",
+            "title": "Olt Name"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port"
+          },
+          "protocol": {
+            "type": "string",
+            "title": "Protocol"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "revealed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Revealed At"
+          },
+          "audit_warning": {
+            "type": "string",
+            "title": "Audit Warning",
+            "description": "Aviso de conformidade e auditoria",
+            "default": "A visualização de credenciais de hardware foi registrada na trilha de auditoria de segurança."
+          }
+        },
+        "type": "object",
+        "required": [
+          "olt_id",
+          "olt_name",
+          "host",
+          "port",
+          "protocol",
+          "username",
+          "password"
+        ],
+        "title": "OLTCredentialsResponse"
       },
       "OLTFTPBindingRequest": {
         "properties": {

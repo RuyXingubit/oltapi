@@ -9,9 +9,11 @@ from alembic.config import Config
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.security import encrypt_password
 from app.db.models import (
     BackupMetadataModel,
     Base,
+    FTPServerModel,
     OLTModel,
     ONUInventoryModel,
     ONUMigrationHistoryModel,
@@ -178,7 +180,48 @@ def migrate_legacy_json_data(db: Optional[Session] = None):
         if close_session:
             db.close()
 
+def encrypt_existing_plain_passwords(db: Optional[Session] = None):
+    """
+    Varre as tabelas de OLTs e servidores FTP e cifra em repouso qualquer
+    senha legada que ainda esteja armazenada em texto claro no PostgreSQL.
+    """
+    close_session = False
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+        # Cifra senhas de OLTs
+        olts = db.query(OLTModel).all()
+        migrated_olts = 0
+        for olt in olts:
+            if olt.password and not olt.password.startswith("gAAAAA"):
+                olt.password = encrypt_password(olt.password)
+                migrated_olts += 1
+
+        # Cifra senhas de Servidores FTP
+        ftps = db.query(FTPServerModel).all()
+        migrated_ftps = 0
+        for ftp in ftps:
+            if ftp.password and not ftp.password.startswith("gAAAAA"):
+                ftp.password = encrypt_password(ftp.password)
+                migrated_ftps += 1
+
+        if migrated_olts > 0 or migrated_ftps > 0:
+            db.commit()
+            logger.info(
+                f"[Security Hardening] Criptografadas {migrated_olts} senhas de OLTs e {migrated_ftps} de FTPs em repouso."
+            )
+    except Exception as e:
+        logger.warning(f"Erro ao verificar/cifrar senhas em repouso: {e}")
+        db.rollback()
+    finally:
+        if close_session:
+            db.close()
+
+
 def init_db():
-    """Inicialização completa: aplica migrações e migra dados legados. Nenhum seed fictício é inserido."""
+    """Inicialização completa: aplica migrações, migra dados legados e cifra senhas em repouso."""
     run_migrations()
     migrate_legacy_json_data()
+    encrypt_existing_plain_passwords()

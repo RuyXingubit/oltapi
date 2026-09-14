@@ -12,11 +12,14 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
 
-    # Autenticação
+    # Autenticação & Segurança
+    ENVIRONMENT: str = "development"
     API_KEY: str = "oltapi_secret_default_key_change_me"
     JWT_SECRET: str = "oltapi_jwt_secret_key_change_me_in_production"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 horas por padrão
+    DB_ENCRYPTION_KEY: Optional[str] = None
+    CORS_ORIGINS: str = "*"
 
     # Armazenamento de Backups e Dados
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent

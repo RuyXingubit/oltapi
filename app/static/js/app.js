@@ -1108,6 +1108,11 @@ function renderOLTsTable() {
         <button class="btn btn-primary btn-sm btn-xray-olt" data-id="${olt.id}" data-name="${olt.name}" title="Telemetria & Diagnóstico de Chassi">
           ⚡ Telemetria
         </button>
+        ${(state.user?.role === 'SUPER_ADMIN' || state.user?.role === 'TENANT_ADMIN' || !state.user || state.masterKey) ? `
+          <button class="btn btn-secondary btn-sm btn-reveal-olt" data-id="${olt.id}" data-name="${olt.name}" title="Revelar Credenciais (Apenas Administradores)">
+            🔑 Senha
+          </button>
+        ` : ''}
         ${state.user?.role === 'SUPER_ADMIN' ? `
           <button class="btn btn-secondary btn-sm btn-sync-olt" data-id="${olt.id}" data-name="${olt.name}" title="Sincronizar Baseline v0">
             📥 Sync v0
@@ -1134,6 +1139,14 @@ function renderOLTsTable() {
     });
   });
 
+  document.querySelectorAll('.btn-reveal-olt').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const oltId = e.currentTarget.getAttribute('data-id');
+      const oltName = e.currentTarget.getAttribute('data-name');
+      await openRevealCredentialsModal(oltId, oltName);
+    });
+  });
+
   document.querySelectorAll('.btn-sync-olt').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const oltId = e.currentTarget.getAttribute('data-id');
@@ -1143,6 +1156,53 @@ function renderOLTsTable() {
       }
     });
   });
+}
+
+let revealCountdownInterval = null;
+
+async function openRevealCredentialsModal(oltId, oltName) {
+  const modal = document.getElementById('modal-reveal-credentials');
+  if (!modal) return;
+
+  document.getElementById('reveal-olt-name').textContent = oltName;
+  document.getElementById('reveal-olt-endpoint').textContent = 'Consultando...';
+  document.getElementById('reveal-olt-username').textContent = '...';
+  document.getElementById('reveal-olt-password').value = '••••••••';
+  document.getElementById('reveal-timer-countdown').textContent = '30';
+
+  modal.classList.add('active');
+
+  try {
+    const creds = await apiRequest(`/olts/${oltId}/reveal-credentials`, 'POST');
+    document.getElementById('reveal-olt-endpoint').textContent = `${creds.host}:${creds.port} (${(creds.protocol || 'telnet').toUpperCase()})`;
+    document.getElementById('reveal-olt-username').textContent = creds.username;
+    document.getElementById('reveal-olt-password').value = creds.password;
+
+    if (revealCountdownInterval) clearInterval(revealCountdownInterval);
+    let secondsLeft = 30;
+    revealCountdownInterval = setInterval(() => {
+      secondsLeft--;
+      const el = document.getElementById('reveal-timer-countdown');
+      if (el) el.textContent = secondsLeft;
+      if (secondsLeft <= 0) {
+        clearInterval(revealCountdownInterval);
+        modal.classList.remove('active');
+        document.getElementById('reveal-olt-password').value = '••••••••';
+      }
+    }, 1000);
+
+    const copyBtn = document.getElementById('btn-copy-revealed-pass');
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(creds.password);
+        copyBtn.textContent = '✅ Copiado!';
+        setTimeout(() => { copyBtn.textContent = '📋 Copiar'; }, 2000);
+      };
+    }
+  } catch (error) {
+    alert(`Não foi possível revelar credenciais: ${error.message}`);
+    modal.classList.remove('active');
+  }
 }
 
 async function testOLTConnection(oltId) {

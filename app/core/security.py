@@ -121,3 +121,61 @@ def sanitize_vlan(vlan: int) -> int:
     if not isinstance(vlan, int) or vlan < 1 or vlan > 4094:
         raise ValueError(f"VLAN inválida: {vlan}. Deve estar entre 1 e 4094.")
     return vlan
+
+
+# ==============================================================================
+# Criptografia Simétrica Reversível em Repouso (AES-256 Fernet)
+# ==============================================================================
+import base64
+from cryptography.fernet import Fernet, InvalidToken
+
+_fernet_instance: Optional[Fernet] = None
+
+
+def get_fernet() -> Fernet:
+    """Retorna uma instância singleton de Fernet para cifragem simétrica de senhas de OLTs/FTPs em repouso."""
+    global _fernet_instance
+    if _fernet_instance is not None:
+        return _fernet_instance
+
+    key = getattr(settings, "DB_ENCRYPTION_KEY", None)
+    if key and key.strip():
+        raw_key = key.strip().encode("utf-8")
+        if len(raw_key) == 44:
+            try:
+                base64.urlsafe_b64decode(raw_key)
+                _fernet_instance = Fernet(raw_key)
+                return _fernet_instance
+            except Exception:
+                pass
+        derived = base64.urlsafe_b64encode(hashlib.sha256(raw_key).digest())
+        _fernet_instance = Fernet(derived)
+        return _fernet_instance
+
+    seed = f"{settings.JWT_SECRET}:{settings.API_KEY}".encode("utf-8")
+    derived = base64.urlsafe_b64encode(hashlib.sha256(seed).digest())
+    _fernet_instance = Fernet(derived)
+    return _fernet_instance
+
+
+def encrypt_password(plain_text: str) -> str:
+    """Criptografa credenciais em repouso com Fernet AES-256. Retorna string segura."""
+    if not plain_text:
+        return ""
+    if plain_text.startswith("gAAAAA"):
+        return plain_text
+    fernet = get_fernet()
+    return fernet.encrypt(plain_text.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_password(cipher_or_plain: str) -> str:
+    """Decifra credenciais salvas em repouso. Retorna texto puro caso já esteja descriptografado (retrocompatível)."""
+    if not cipher_or_plain:
+        return ""
+    if not cipher_or_plain.startswith("gAAAAA"):
+        return cipher_or_plain
+    try:
+        fernet = get_fernet()
+        return fernet.decrypt(cipher_or_plain.encode("utf-8")).decode("utf-8")
+    except (InvalidToken, Exception):
+        return cipher_or_plain

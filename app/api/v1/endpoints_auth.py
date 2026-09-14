@@ -1,10 +1,11 @@
 from datetime import timedelta
 from typing import Dict, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_security_context
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.core.rbac import SecurityContext
 from app.core.security import create_access_token, verify_password
 from app.db.models import TenantModel, TenantVLANAllocationModel, UserModel, UserOLTPermissionModel
@@ -15,7 +16,8 @@ router = APIRouter(prefix="/auth", tags=["Autenticação & Sessões Web"])
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(req: UserLoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, req: UserLoginRequest, db: Session = Depends(get_db)):
     """Autentica usuário e senha para acesso à futura interface Web gerando token JWT."""
     user = db.query(UserModel).filter(UserModel.email == req.email).first()
     if not user or not verify_password(req.password, user.password_hash):

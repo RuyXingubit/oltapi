@@ -2,7 +2,7 @@ import logging
 import re
 import time
 from typing import List, Optional
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.deps import (
@@ -16,6 +16,7 @@ from app.api.deps import (
     get_xray_service,
     require_api_key,
 )
+from app.core.rate_limit import limiter
 from app.services.onu_enrichment_service import ONUEnrichmentService
 from app.core.rbac import SecurityContext
 from app.drivers.factory import DriverFactory
@@ -32,6 +33,7 @@ from app.models.olt import (
     ConnectionTestResult,
     OLTConfigResponse,
     OLTCreateRequest,
+    OLTCredentialsResponse,
     OLTOnboardRequest,
     OLTOnboardResponse,
     OLTResponse,
@@ -211,7 +213,8 @@ def get_olt(
 
 
 @router.post("/{olt_id}/test-connection", response_model=ConnectionTestResult)
-async def test_connection(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+@limiter.limit("15/minute")
+async def test_connection(request: Request, olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
     """Executa teste de conectividade sob demanda e retorna diagnóstico e links de fluxo."""
     olt = repo.get_by_id(olt_id)
     if not olt:
@@ -425,7 +428,9 @@ def purge_olt_backups(
 
 
 @router.post("/{olt_id}/telemetry", response_model=OLTXRayResponse)
+@limiter.limit("10/minute")
 def inspect_olt_telemetry(
+    request: Request,
     olt_id: str,
     xray_service=Depends(get_xray_service),
     ctx: SecurityContext = Depends(get_security_context),
@@ -453,16 +458,19 @@ def inspect_olt_telemetry(
 
 @router.post("/{olt_id}/xray", response_model=OLTXRayResponse, deprecated=True)
 def inspect_olt_xray(
+    request: Request,
     olt_id: str,
     xray_service=Depends(get_xray_service),
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """Alias retrocompatível para telemetria e diagnóstico de chassi."""
-    return inspect_olt_telemetry(olt_id=olt_id, xray_service=xray_service, ctx=ctx)
+    return inspect_olt_telemetry(request=request, olt_id=olt_id, xray_service=xray_service, ctx=ctx)
 
 
 @router.post("/{olt_id}/sync", response_model=SyncOLTResponse)
+@limiter.limit("10/minute")
 def sync_olt(
+    request: Request,
     olt_id: str,
     background_tasks: BackgroundTasks,
     sync_service=Depends(get_sync_service),
@@ -490,7 +498,9 @@ def sync_olt(
 
 
 @router.post("/{olt_id}/enrich-vlans")
+@limiter.limit("5/minute")
 def enrich_olt_vlans(
+    request: Request,
     olt_id: str,
     background_tasks: BackgroundTasks,
     force: bool = Query(default=False, description="Forçar nova consulta mesmo se a ONU já tiver VLAN"),
@@ -507,6 +517,57 @@ def enrich_olt_vlans(
         "message": "Enriquecimento gradual de VLANs iniciado em segundo plano.",
         "olt_id": olt_id,
     }
+
+
+@router.post(
+    "/{olt_id}/reveal-credentials",
+    response_model=OLTCredentialsResponse,
+    summary="Revelar credenciais de acesso da OLT (apenas Administradores)",
+    description="Permite que usuários com privilégio SUPER_ADMIN ou TENANT_ADMIN recuperem a senha administrativa da OLT. Toda consulta gera registro na trilha de auditoria.",
+)
+@limiter.limit("5/minute")
+def reveal_olt_credentials(
+    request: Request,
+    olt_id: str,
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Revela credenciais da OLT para administradores autorizados com log de auditoria."""
+    ctx.enforce_scope("olts:admin")
+    if not ctx.is_super_admin and ctx.role != "TENANT_ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado: apenas Administradores podem revelar credenciais de hardware.",
+        )
+
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"OLT com ID '{olt_id}' não encontrada.",
+        )
+
+    if ctx.allowed_olt_ids is not None and olt.id not in ctx.allowed_olt_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado para esta OLT.",
+        )
+
+    client_ip = request.client.host if request.client else "unknown"
+    logger.warning(
+        f"[SECURITY AUDIT] Usuário '{ctx.user_email or ctx.caller_type}' (Role: {ctx.role}) "
+        f"revelou as credenciais da OLT '{olt.name}' (ID: {olt.id}) a partir do IP {client_ip}."
+    )
+
+    return OLTCredentialsResponse(
+        olt_id=olt.id,
+        olt_name=olt.name,
+        host=olt.host,
+        port=olt.port,
+        protocol=olt.protocol.value if hasattr(olt.protocol, "value") else str(olt.protocol),
+        username=olt.username,
+        password=olt.password,
+    )
 
 
 @router.delete("/{olt_id}", status_code=status.HTTP_204_NO_CONTENT)

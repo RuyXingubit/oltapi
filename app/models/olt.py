@@ -69,6 +69,19 @@ class OLTResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class OLTCredentialsResponse(BaseModel):
+    olt_id: str
+    olt_name: str
+    host: str
+    port: int
+    protocol: str
+    username: str
+    password: str
+    revealed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    audit_warning: str = Field(
+        default="A visualização de credenciais de hardware foi registrada na trilha de auditoria de segurança.",
+        description="Aviso de conformidade e auditoria",
+    )
 
 
 class ConnectionTestResult(BaseModel):

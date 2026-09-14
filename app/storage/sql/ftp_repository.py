@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
+from app.core.security import decrypt_password, encrypt_password
 from app.core.uuid import generate_uuid7
 from app.db.models import FTPServerModel, OLTFTPDestinationModel, OLTModel
 from app.db.session import SessionLocal
@@ -48,9 +49,13 @@ class SQLFTPRepository:
             return self._to_response(m) if m else None
 
     def get_raw_by_id(self, ftp_id: str) -> Optional[FTPServerModel]:
-        """Retorna o modelo com a senha em texto puro/hash para conexões internas."""
+        """Retorna o modelo com a senha decifrada para conexões internas."""
         with self.session_factory() as db:
-            return db.query(FTPServerModel).filter(FTPServerModel.id == ftp_id).first()
+            m = db.query(FTPServerModel).filter(FTPServerModel.id == ftp_id).first()
+            if m:
+                db.expunge(m)
+                m.password = decrypt_password(m.password)
+            return m
 
     def get_by_name(self, name: str) -> Optional[FTPServerResponse]:
         with self.session_factory() as db:
@@ -66,7 +71,7 @@ class SQLFTPRepository:
                 host=req.host,
                 port=req.port,
                 username=req.username,
-                password=req.password,
+                password=encrypt_password(req.password),
                 base_path=req.base_path,
                 is_global_default=req.is_global_default,
                 is_active=req.is_active,
@@ -90,7 +95,7 @@ class SQLFTPRepository:
             if req.username is not None:
                 m.username = req.username
             if req.password is not None:
-                m.password = req.password
+                m.password = encrypt_password(req.password)
             if req.base_path is not None:
                 m.base_path = req.base_path
             if req.is_global_default is not None:
