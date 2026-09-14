@@ -48,6 +48,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
+      - ./app:/app/app
     logging:
       driver: "json-file"
       options:
