@@ -286,25 +286,25 @@ def test_vsol_v1600_driver_actions(sample_olt_8820):
         driver.deprovision_onu(sample_olt_8820, "VSOL12345678", port="0/4", onu_id=3)
         mock_exec.assert_called_with(
             sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon 0/4", "no ont 3", "exit", "exit", "write"],
+            ["enable", "configure terminal", "interface gpon 0/4", "no onu 3", "exit", "exit", "write"],
         )
 
         driver.reboot_onu(sample_olt_8820, "VSOL12345678", port="0/4", onu_id=3)
         mock_exec.assert_called_with(
             sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon 0/4", "ont reset 3", "exit", "exit"],
+            ["enable", "configure terminal", "interface gpon 0/4", "onu 3 reboot", "exit", "exit"],
         )
 
         driver.suspend_onu(sample_olt_8820, "VSOL12345678", port="0/4", onu_id=3)
         mock_exec.assert_called_with(
             sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon 0/4", "ont deactivate 3", "exit", "exit", "write"],
+            ["enable", "configure terminal", "interface gpon 0/4", "onu 3 disable", "exit", "exit", "write"],
         )
 
         driver.resume_onu(sample_olt_8820, "VSOL12345678", port="0/4", onu_id=3)
         mock_exec.assert_called_with(
             sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon 0/4", "ont activate 3", "exit", "exit", "write"],
+            ["enable", "configure terminal", "interface gpon 0/4", "onu 3 enable", "exit", "exit", "write"],
         )
 
 

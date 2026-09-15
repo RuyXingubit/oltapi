@@ -45,6 +45,12 @@ Durante o processo de homologação, foram catalogadas particularidades mandató
    A rota padrão deve ser declarada como `ip route 0.0.0.0/0 <gateway>` (notação `/0` com máscara CIDR).
 5. **Gravação Permanente na Flash (`write`):**
    A configuração ativa é compilada em `/mnt/config/usrcfg.conf` através do comando `write`.
+6. **Desbloqueio de Firewall/ACL para SNMP (`login-access-list`):**
+   De fábrica, a V-SOL bloqueia consultas SNMP externas via `login-access-list deny snmp 0.0.0.0 0.0.0.0`. O driver remove essa restrição (`no login-access-list deny snmp 0.0.0.0 0.0.0.0`), aplica permissão explícita (`login-access-list permit snmp 0.0.0.0 0.0.0.0`) e inicia o serviço com `snmp-server start` e `snmp-server enable`.
+7. **Ciclo de Vida de ONUs (Sintaxe Nativa GPON):**
+   - Provisionamento: `onu add <id> profile default sn <serial>` com amarração de line profile e srv profile.
+   - Desprovisionamento: `no onu <id>` (remove a instância e desassocia da porta PON).
+   - Ações operacionais: `onu <id> reboot`, `onu <id> disable` (suspensão) e `onu <id> enable` (reativação). Validadas com sucesso em bancada.
 
 ---
 

@@ -171,17 +171,21 @@ def test_vsol_provision_commands():
     )
 
     with patch.object(driver, "_execute_cli_commands") as mock_exec:
-        mock_exec.return_value = "Command successful."
+        mock_exec.return_value = "interface gpon 0/2\nexit"
         res = driver.provision_onu(olt, req)
 
         assert res.success is True
         assert res.port == "0/2"
         assert res.serial == "VSOL12345678"
 
-        mock_exec.assert_called_once()
-        cmds_called = mock_exec.call_args[0][1]
+        # O driver consulta o running config e depois aplica os comandos
+        assert mock_exec.call_count == 2
+        cmds_called = mock_exec.call_args_list[1][0][1]
         assert "interface gpon 0/2" in cmds_called
-        assert any('ont add 1 sn-auth VSOL12345678 vlan 600 desc "Cliente_Bancada_1"' in c for c in cmds_called)
+        assert any("onu add 1 profile default sn VSOL12345678" in c for c in cmds_called)
+        assert any("onu 1 profile line name line_1" in c for c in cmds_called)
+        assert any("onu 1 profile srv name srv_1" in c for c in cmds_called)
+        assert any('onu 1 desc "Cliente_Bancada_1"' in c for c in cmds_called)
         assert "write" in cmds_called
 
 

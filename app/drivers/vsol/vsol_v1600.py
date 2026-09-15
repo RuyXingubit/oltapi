@@ -511,11 +511,29 @@ class VSOLV1600Driver(BaseOLTDriver):
 
         slot, pon = self.parse_port_components(safe_port)
 
+        # Determina o próximo ID de ONU disponível na porta PON
+        used_ids = set()
+        try:
+            cfg = self.get_running_config(olt)
+            pon_block_match = re.search(rf"interface\s+gpon\s+0/{pon}\b(.*?)(?=interface|\Z)", cfg, re.DOTALL | re.IGNORECASE)
+            if pon_block_match:
+                matches = re.findall(r"onu\s+add\s+(\d+)", pon_block_match.group(1), re.IGNORECASE)
+                used_ids = {int(m) for m in matches}
+        except Exception as e:
+            logger.debug(f"Aviso ao verificar IDs de ONU em uso na PON 0/{pon}: {e}")
+
+        onu_id = 1
+        while onu_id in used_ids and onu_id < 128:
+            onu_id += 1
+
         commands = [
             "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
-            f'ont add 1 sn-auth {safe_serial} vlan {safe_vlan} desc "{safe_desc}"',
+            f"onu add {onu_id} profile default sn {safe_serial}",
+            f"onu {onu_id} profile line name line_1",
+            f"onu {onu_id} profile srv name srv_1",
+            f'onu {onu_id} desc "{safe_desc}"',
             "exit",
             "exit",
             "write",
@@ -525,9 +543,9 @@ class VSOLV1600Driver(BaseOLTDriver):
         return ProvisionResponse(
             success=True,
             port=f"0/{pon}",
-            onu_id=1,
+            onu_id=onu_id,
             serial=safe_serial,
-            message=f"ONU provisionada com sucesso na OLT V-SOL V1600GT (Porta 0/{pon}, VLAN {safe_vlan}).",
+            message=f"ONU provisionada com sucesso na OLT V-SOL V1600 (Porta 0/{pon}, ID {onu_id}, VLAN {safe_vlan}).",
         )
 
     def deprovision_onu(
@@ -546,7 +564,7 @@ class VSOLV1600Driver(BaseOLTDriver):
             "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
-            f"no ont {onu_idx}",
+            f"no onu {onu_idx}",
             "exit",
             "exit",
             "write",
@@ -580,7 +598,7 @@ class VSOLV1600Driver(BaseOLTDriver):
             "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
-            f"ont reset {onu_idx}",
+            f"onu {onu_idx} reboot",
             "exit",
             "exit",
         ]
@@ -613,7 +631,7 @@ class VSOLV1600Driver(BaseOLTDriver):
             "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
-            f"ont deactivate {onu_idx}",
+            f"onu {onu_idx} disable",
             "exit",
             "exit",
             "write",
@@ -647,7 +665,7 @@ class VSOLV1600Driver(BaseOLTDriver):
             "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
-            f"ont activate {onu_idx}",
+            f"onu {onu_idx} enable",
             "exit",
             "exit",
             "write",
@@ -880,10 +898,13 @@ class VSOLV1600Driver(BaseOLTDriver):
         return None, False
 
     def configure_snmp(self, olt: OLTInDB, community: str, port: int = 161) -> bool:
-        """Provisiona comunidade SNMP Read-Only (RO) na VSOL V1600 e salva via 'write'."""
+        """Provisiona comunidade SNMP Read-Only (RO) na VSOL V1600, liberando ACL e salvando via 'write'."""
         commands = [
             "enable",
             "configure terminal",
+            "no login-access-list deny snmp 0.0.0.0 0.0.0.0",
+            "login-access-list permit snmp 0.0.0.0 0.0.0.0",
+            "snmp-server start",
             "snmp-server enable",
             f"snmp-server community {community} ro",
             "exit",
