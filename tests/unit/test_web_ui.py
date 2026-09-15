@@ -80,3 +80,31 @@ def test_onboarding_form_preservation_on_retry(client: TestClient):
     assert "btn-open-modal-olt" in resp_js.text
     assert "resetOnboardingModal(true)" in resp_js.text
 
+
+def test_modal_delete_olt_structure_and_behavior(client: TestClient):
+    """Garante a integridade do HTML dos modais e a robustez da exclusão de OLT."""
+    resp_html = client.get("/")
+    assert resp_html.status_code == 200
+    html = resp_html.text
+
+    # Verifica que o modal de reveal fecha adequadamente antes do modal de delete
+    idx_reveal = html.find('id="modal-reveal-credentials"')
+    idx_delete = html.find('id="modal-delete-olt"')
+    assert idx_reveal != -1 and idx_delete != -1
+    assert idx_reveal < idx_delete
+
+    # O modal de delete NÃO pode estar dentro do modal-reveal-credentials
+    reveal_block = html[idx_reveal:idx_delete]
+    assert "</div>\n  </div>" in reveal_block or "</div>\n    </div>\n  </div>" in reveal_block or "</div>\r\n  </div>" in reveal_block
+
+    # Valida presença dos elementos do modal
+    assert 'id="input-confirm-delete-olt"' in html
+    assert 'id="btn-confirm-delete-olt"' in html
+    assert "Confirmar Exclusão de OLT" in html
+
+    resp_js = client.get("/static/js/app.js")
+    assert resp_js.status_code == 200
+    assert "method: 'DELETE'" in resp_js.text
+    assert "typeof options === 'string'" in resp_js.text
+
+

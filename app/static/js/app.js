@@ -25,6 +25,9 @@ const state = {
 // Utilitários HTTP com Injeção Automática de Bearer Token
 // ============================================================================
 async function apiRequest(endpoint, options = {}) {
+  if (typeof options === 'string') {
+    options = { method: options };
+  }
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
@@ -961,7 +964,7 @@ function initEventListeners() {
     const confirmBtn = document.getElementById('btn-confirm-delete-olt');
     if (!confirmBtn || !pendingDeleteOlt) return;
     const typed = e.target.value.trim();
-    if (typed === pendingDeleteOlt.name) {
+    if (typed.toLowerCase() === pendingDeleteOlt.name.trim().toLowerCase()) {
       confirmBtn.disabled = false;
       confirmBtn.style.opacity = '1.0';
       confirmBtn.style.cursor = 'pointer';
@@ -1205,7 +1208,7 @@ async function openRevealCredentialsModal(oltId, oltName) {
   modal.classList.add('active');
 
   try {
-    const creds = await apiRequest(`/olts/${oltId}/reveal-credentials`, 'POST');
+    const creds = await apiRequest(`/olts/${oltId}/reveal-credentials`, { method: 'POST' });
     document.getElementById('reveal-olt-endpoint').textContent = `${creds.host}:${creds.port} (${(creds.protocol || 'telnet').toUpperCase()})`;
     document.getElementById('reveal-olt-username').textContent = creds.username;
     document.getElementById('reveal-olt-password').value = creds.password;
@@ -1269,7 +1272,7 @@ async function handleConfirmDeleteOLT() {
   if (!pendingDeleteOlt) return;
   const { id, name } = pendingDeleteOlt;
   const inputEl = document.getElementById('input-confirm-delete-olt');
-  if (!inputEl || inputEl.value.trim() !== name) {
+  if (!inputEl || inputEl.value.trim().toLowerCase() !== name.trim().toLowerCase()) {
     alert('O nome digitado não corresponde exatamente ao nome da OLT.');
     return;
   }
@@ -1281,7 +1284,7 @@ async function handleConfirmDeleteOLT() {
   }
 
   try {
-    await apiRequest(`/olts/${id}`, 'DELETE');
+    await apiRequest(`/olts/${id}`, { method: 'DELETE' });
     logTerminal(`OLT '${name}' excluída com sucesso do sistema.`, 'warning');
     document.getElementById('modal-delete-olt')?.classList.remove('active');
     pendingDeleteOlt = null;
