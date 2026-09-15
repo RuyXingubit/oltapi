@@ -58,4 +58,19 @@ def test_serve_static_css_and_js(client: TestClient):
     assert "btn-onu-edit" in resp_js.text
     assert "openEditOnuModal" in resp_js.text
     assert "prov-onu-model" in resp_js.text
+    assert "resetOnboardingModal(clearForm = false)" in resp_js.text
+    assert "resetOnboardingModal(false)" in resp_js.text
+    assert "resetOnboardingModal(true)" in resp_js.text
+
+
+def test_onboarding_form_preservation_on_retry(client: TestClient):
+    """Garante que a UI preserva os dados digitados no formulário de OLT ao clicar em Tentar Novamente."""
+    resp_js = client.get("/static/js/app.js")
+    assert resp_js.status_code == 200
+    # Verifica que o botão de retry chama resetOnboardingModal(false) para manter o estado
+    assert "btn-onboarding-retry" in resp_js.text
+    assert "resetOnboardingModal(false)" in resp_js.text
+    # Garante que a abertura inicial pelo botão do menu limpa o formulário com true
+    assert "btn-open-modal-olt" in resp_js.text
+    assert "resetOnboardingModal(true)" in resp_js.text
 

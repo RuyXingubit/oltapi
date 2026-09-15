@@ -927,7 +927,7 @@ function initEventListeners() {
   document.getElementById('btn-reload-olts')?.addEventListener('click', loadOLTsList);
 
   document.getElementById('btn-open-modal-olt')?.addEventListener('click', () => {
-    resetOnboardingModal();
+    resetOnboardingModal(true);
     document.getElementById('modal-new-olt')?.classList.add('active');
   });
 
@@ -1234,9 +1234,11 @@ async function testOLTConnection(oltId) {
   }
 }
 
-function resetOnboardingModal() {
+function resetOnboardingModal(clearForm = false) {
   document.getElementById('new-olt-alert')?.classList.add('hidden');
-  document.getElementById('form-new-olt')?.reset();
+  if (clearForm) {
+    document.getElementById('form-new-olt')?.reset();
+  }
   document.getElementById('onboarding-form-section')?.classList.remove('hidden');
   document.getElementById('onboarding-stepper-section')?.classList.add('hidden');
   document.getElementById('onboarding-summary-card')?.classList.add('hidden');
@@ -1433,9 +1435,11 @@ async function handleStartOnboarding() {
       `;
       document.getElementById('btn-onboarding-close')?.addEventListener('click', () => {
         document.getElementById('modal-new-olt')?.classList.remove('active');
+        resetOnboardingModal(true);
       });
       document.getElementById('btn-onboarding-goto-xray')?.addEventListener('click', () => {
         document.getElementById('modal-new-olt')?.classList.remove('active');
+        resetOnboardingModal(true);
         openOLTXRay(res.olt_id, res.name);
       });
     }
@@ -1470,7 +1474,9 @@ async function handleStartOnboarding() {
       document.getElementById('btn-onboarding-error-close')?.addEventListener('click', () => {
         document.getElementById('modal-new-olt')?.classList.remove('active');
       });
-      document.getElementById('btn-onboarding-retry')?.addEventListener('click', resetOnboardingModal);
+      document.getElementById('btn-onboarding-retry')?.addEventListener('click', () => {
+        resetOnboardingModal(false);
+      });
     }
     logTerminal(`Falha no onboarding da OLT: ${err.message}`, 'error');
   }
