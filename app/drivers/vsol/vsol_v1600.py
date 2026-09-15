@@ -736,11 +736,11 @@ class VSOLV1600Driver(BaseOLTDriver):
         self._execute_cli_commands(olt, commands)
         return len(commands)
 
-    def list_all_authorized_onus(self, olt: OLTInDB) -> List[ONUSummary]:
+    def list_all_authorized_onus(self, olt: OLTInDB, config_text: Optional[str] = None) -> List[ONUSummary]:
         """Varredura global de todas as ONUs autorizadas no chassi VSOL V1600."""
         # 1. Tenta varrer via 'show running-config' (rápido, atômico e confiável)
         try:
-            cfg = self.get_running_config(olt)
+            cfg = config_text or self.get_running_config(olt)
             onus_found: List[ONUSummary] = []
             pon_blocks = re.findall(r"interface\s+gpon\s+0/(\d+)(.*?)(?=interface|\Z)", cfg, re.DOTALL | re.IGNORECASE)
             for pon_num, block in pon_blocks:
@@ -779,29 +779,52 @@ class VSOLV1600Driver(BaseOLTDriver):
             logger.warning(f"Erro ao listar ONUs da VSOL {olt.name}: {e}")
             return []
 
-    def get_chassis_interfaces(self, olt: OLTInDB) -> List[OLTPortStatusItem]:
-        """Mapeia as portas GPON e Uplink do chassi VSOL V1600."""
+    def get_chassis_interfaces(self, olt: OLTInDB, config_text: Optional[str] = None) -> List[OLTPortStatusItem]:
+        """Mapeia as portas GPON e Uplink reais do chassi VSOL V1600 diretamente do hardware/running-config."""
+        cfg = config_text
+        if not cfg:
+            try:
+                cfg = self.get_running_config(olt) or ""
+            except Exception as e:
+                logger.warning(f"Erro ao ler running-config para interfaces da VSOL {olt.name}: {e}")
+                cfg = ""
+
+        # 1. Parse de ONUs por porta PON
         onus = []
         try:
-            onus = self.list_all_authorized_onus(olt) or []
+            onus = self.list_all_authorized_onus(olt, config_text=cfg)
         except Exception as e:
             logger.warning(f"Erro ao listar ONUs da VSOL {olt.name}: {e}")
 
-        onu_count_by_pon: Dict[int, int] = {}
-        for o in onus:
-            nums = re.findall(r"\d+", o.port)
+        onu_count_by_pon: Dict[str, int] = {}
+        for o in (onus or []):
+            nums = re.findall(r"\d+", getattr(o, "port", ""))
             if nums:
-                p = int(nums[-1])
-                onu_count_by_pon[p] = onu_count_by_pon.get(p, 0) + 1
+                p_key = f"0/{nums[-1]}"
+                onu_count_by_pon[p_key] = onu_count_by_pon.get(p_key, 0) + 1
 
-        num_ports = 16 if "16" in self.model_name.lower() else (8 if "8" in self.model_name.lower() else 8)
+        # 2. Descoberta das portas GPON reais declaradas no chassi
+        gpon_nums = sorted(list({int(m) for m in re.findall(r"interface\s+gpon\s+0/(\d+)", cfg, re.IGNORECASE)}))
+        if not gpon_nums:
+            # Fallback quando não há running-config disponível (ex: testes mockados)
+            m_str = (self.model_name or olt.model or "").lower()
+            m_match = re.search(r"(?:g|gt|d|gs)[-_]?(16|8|4|2|1)\b", m_str)
+            if m_match:
+                num_pon = int(m_match.group(1))
+            elif "16" in m_str and not m_str.startswith("v1600"):
+                num_pon = 16
+            else:
+                num_pon = 2  # Padrão compacto V-SOL (2 portas PON)
+            gpon_nums = list(range(1, num_pon + 1))
+
         ports: List[OLTPortStatusItem] = []
 
-        for i in range(1, num_ports + 1):
-            count = onu_count_by_pon.get(i, 0)
+        for p_num in gpon_nums:
+            p_id = f"gpon 0/{p_num}"
+            count = onu_count_by_pon.get(f"0/{p_num}", 0)
             ports.append(
                 OLTPortStatusItem(
-                    port_id=f"gpon 0/{i}",
+                    port_id=p_id,
                     port_type="gpon",
                     admin_state="enabled",
                     oper_status="up",
@@ -814,30 +837,28 @@ class VSOLV1600Driver(BaseOLTDriver):
                 )
             )
 
-        ports.append(
-            OLTPortStatusItem(
-                port_id="ge 0/1",
-                port_type="ge",
-                admin_state="enabled",
-                oper_status="up",
-                onu_count=0,
-                onu_capacity=0,
-                speed_duplex="1Gbps Full Duplex",
-                details="Link de Transporte Principal (Uplink GE Ativo)",
+        # 3. Descoberta das portas de Uplink reais declaradas no chassi
+        ge_nums = sorted(list({int(m) for m in re.findall(r"interface\s+gigabitEthernet\s+0/(\d+)", cfg, re.IGNORECASE)}))
+        if not ge_nums:
+            ge_nums = [1, 2, 3, 4] if len(gpon_nums) <= 2 else [1, 2]
+
+        for ge_num in ge_nums:
+            block_match = re.search(rf"interface\s+gigabitEthernet\s+0/{ge_num}\b(.*?)(?=interface|\Z)", cfg, re.DOTALL | re.IGNORECASE)
+            is_10g = bool(block_match and "speed 10000" in block_match.group(1).lower())
+            speed = "10Gbps Full Duplex (SFP+)" if is_10g else "1Gbps Full Duplex"
+            ports.append(
+                OLTPortStatusItem(
+                    port_id=f"ge 0/{ge_num}",
+                    port_type="ge" if not is_10g else "xge",
+                    admin_state="enabled",
+                    oper_status="up" if ge_num <= 2 else "down",
+                    onu_count=0,
+                    onu_capacity=0,
+                    speed_duplex=speed,
+                    details=f"Uplink {speed} (Porta Física {ge_num})",
+                )
             )
-        )
-        ports.append(
-            OLTPortStatusItem(
-                port_id="ge 0/2",
-                port_type="ge",
-                admin_state="enabled",
-                oper_status="down",
-                onu_count=0,
-                onu_capacity=0,
-                speed_duplex="1Gbps",
-                details="Link Redundante (Standby)",
-            )
-        )
+
         return ports
 
     def save_running_config(self, olt: OLTInDB) -> bool:

@@ -156,18 +156,22 @@ def test_intelbras_8820_get_chassis_interfaces(fake_olt):
 
 
 def test_vsol_get_chassis_interfaces(fake_olt):
-    driver = VSOLV1600Driver(model_name="V1600G1")
+    driver = VSOLV1600Driver(model_name="V1600G2")
     fake_olt.vendor = OLTVendor.VSOL
-    fake_olt.model = "V1600G1"
+    fake_olt.model = "V1600G2"
     mock_onus = [
         ONUSummary(port="0/1", onu_id=1, serial="VSOL11111111", status="online"),
     ]
-    with patch.object(driver, "list_all_authorized_onus", return_value=mock_onus):
+    with patch.object(driver, "list_all_authorized_onus", return_value=mock_onus), \
+         patch.object(driver, "get_running_config", return_value=""):
         ports = driver.get_chassis_interfaces(fake_olt)
-        assert len(ports) == 18  # 16 PON + 2 Uplink
+        assert len(ports) == 6  # 2 PON + 4 Uplink
         pon1 = next(p for p in ports if p.port_id == "gpon 0/1")
         assert pon1.oper_status == "up"
         assert pon1.onu_count == 1
+        pon2 = next(p for p in ports if p.port_id == "gpon 0/2")
+        assert pon2.oper_status == "up"
+        assert pon2.onu_count == 0
 
 
 # -----------------------------------------------------------------------------
