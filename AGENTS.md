@@ -15,3 +15,10 @@ Toda alteração deve manter ou aumentar os padrões de segurança (sanitizaçã
 
 ## 4. Histórico de Planos Aprovados (`docs/planos/`)
 Somente planos de implementação aprovados explicitamente pelo usuário (e seus respectivos walkthroughs de conclusão) devem ser arquivados em `docs/planos/` (ex: `docs/planos/YYYY-MM-DD_<tema>_plan.md` e `docs/planos/YYYY-MM-DD_<tema>_walkthrough.md`) e commitados no repositório Git. Rascunhos ou planos em debate descartados não devem poluir a pasta.
+
+## 5. Governança de Drivers & Orientação a Objetos Pura
+Toda OLT adicionada DEVE herdar de `BaseOLTDriver`. Proibido utilizar `hasattr` ou checagens de `vendor` nos serviços de negócio. Cada driver deve cumprir a suíte obrigatória de conformidade (`BaseDriverComplianceTest`) cobrindo: `get_running_config`, `backup_config`, `get_chassis_interfaces` (sem dados inventados), `get_onu_details` (sinal óptico real), `provision_onu`, `deprovision_onu`, `suspend_onu`, `resume_onu`, `reboot_onu` e `configure_snmp`.
+
+## 6. Desacoplamento API-First & Zero Hardcode
+O backend é 100% REST JSON. O client e os serviços nunca presumem portas, perfis ou formatos hardcoded; todo dado operacional deve ser derivado diretamente do hardware ou da API.
+
