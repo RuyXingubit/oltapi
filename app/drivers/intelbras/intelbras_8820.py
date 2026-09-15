@@ -187,7 +187,7 @@ class Intelbras8820Driver(BaseOLTDriver):
         ]
         return self._execute_cli_commands(olt, commands)
 
-    def backup_config(self, olt: OLTInDB) -> str:
+    def backup_config(self, olt: OLTInDB, ftp_servers: Optional[List[object]] = None, **kwargs) -> str:
         """Gera e retorna a configuração integral para backup."""
         return self.get_running_config(olt)
 

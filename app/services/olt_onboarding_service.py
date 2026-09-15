@@ -767,7 +767,7 @@ class OLTOnboardingService:
         Deriva total de portas, portas ativas e telemetria básica a partir do inventário sincronizado
         e do agente SNMP, evitando sobrecarregar a sessão de terminal com um inspect_chassis pesado.
         """
-        firmware_ver = None
+        firmware_ver = f"{created_olt.vendor.value.upper()}_{created_olt.model.upper()}"
         uptime_str = None
         ports_count = 0
         active_ports_count = 0
@@ -793,18 +793,21 @@ class OLTOnboardingService:
                     uptime_str = f"{hours}h {minutes}m"
 
             if ports_count == 0:
-                xray = self.telemetry_service.inspect_chassis(created_olt.id)
-                if hasattr(xray, "firmware_version") and isinstance(xray.firmware_version, str):
-                    firmware_ver = xray.firmware_version
-                else:
-                    firmware_ver = f"{created_olt.vendor.value.upper()}_{created_olt.model.upper()}"
-                if hasattr(xray, "uptime_human") and isinstance(xray.uptime_human, str):
-                    uptime_str = uptime_str or xray.uptime_human
-                if hasattr(xray, "ports") and isinstance(xray.ports, list):
-                    ports_count = len(xray.ports)
-                    active_ports_count = len([p for p in xray.ports if getattr(p, "oper_status", "") == "up"])
-            else:
-                firmware_ver = f"{created_olt.vendor.value.upper()}_{created_olt.model.upper()}"
+                driver = DriverFactory.get_driver(created_olt)
+                if hasattr(driver, "get_chassis_interfaces"):
+                    chassis_ports = driver.get_chassis_interfaces(created_olt)
+                    if chassis_ports:
+                        ports_count = len(chassis_ports)
+                        active_ports_count = len([p for p in chassis_ports if getattr(p, "oper_status", "") == "up"])
+                if ports_count == 0:
+                    xray = self.telemetry_service.inspect_chassis(created_olt.id)
+                    if hasattr(xray, "firmware_version") and isinstance(xray.firmware_version, str):
+                        firmware_ver = xray.firmware_version
+                    if hasattr(xray, "uptime_human") and isinstance(xray.uptime_human, str):
+                        uptime_str = uptime_str or xray.uptime_human
+                    if hasattr(xray, "ports") and isinstance(xray.ports, list):
+                        ports_count = len(xray.ports)
+                        active_ports_count = len([p for p in xray.ports if getattr(p, "oper_status", "") == "up"])
         except Exception as e:
             logger.debug(f"[Onboarding Ports/Telemetry] Erro ao consolidar portas/telemetria: {e}")
 

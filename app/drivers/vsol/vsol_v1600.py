@@ -462,7 +462,7 @@ class VSOLV1600Driver(BaseOLTDriver):
         ]
         return self._execute_cli_commands(olt, commands)
 
-    def backup_config(self, olt: OLTInDB) -> str:
+    def backup_config(self, olt: OLTInDB, ftp_servers: Optional[List[object]] = None, **kwargs) -> str:
         return self.get_running_config(olt)
 
     def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
@@ -863,6 +863,7 @@ class VSOLV1600Driver(BaseOLTDriver):
         commands = [
             "enable",
             "configure terminal",
+            "snmp-server enable",
             f"snmp-server community {community} ro",
             "exit",
             "write",
