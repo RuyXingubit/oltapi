@@ -352,3 +352,56 @@ def test_neutral_operator_inventory_isolation(client: TestClient, auth_headers, 
     # Consulta direta por serial da ONU da Matriz deve retornar 404
     direct_resp = client.get("/api/v1/onus/SNMATRIZ002", headers=gamma_headers)
     assert direct_resp.status_code == 404
+
+
+def test_delete_olt_rbac_protection(client: TestClient, auth_headers, sample_olt_8820):
+    """Garante que apenas administradores podem excluir uma OLT (403 para não-admins, 204 para admin)."""
+    # 1. Chave com escopo apenas de leitura (sem olts:admin)
+    k_resp = client.post(
+        "/api/v1/api-keys",
+        json={"name": "NOC Key", "scopes": ["olts:read"]},
+        headers=auth_headers,
+    )
+    assert k_resp.status_code == 201
+    noc_headers = {"X-API-Key": k_resp.json()["key"]}
+    forbidden_resp1 = client.delete(f"/api/v1/olts/{sample_olt_8820.id}", headers=noc_headers)
+    assert forbidden_resp1.status_code == 403
+    assert "requer o escopo 'olts:admin'" in forbidden_resp1.json()["detail"]
+
+    # 2. Usuário com papel NOC (não-administrador) tenta excluir via JWT
+    tenants = client.get("/api/v1/tenants", headers=auth_headers).json()
+    tenant_id = tenants[0]["id"] if tenants else None
+
+    u_resp = client.post(
+        "/api/v1/users",
+        json={
+            "tenant_id": tenant_id,
+            "name": "Operador NOC",
+            "email": "operador.noc.delete@provedor.net",
+            "password": "senha_noc_segura_123",
+            "role": "NOC",
+        },
+        headers=auth_headers,
+    )
+    assert u_resp.status_code == 201
+
+    login_resp = client.post(
+        "/api/v1/auth/login",
+        json={"email": "operador.noc.delete@provedor.net", "password": "senha_noc_segura_123"},
+    )
+    assert login_resp.status_code == 200
+    noc_jwt_headers = {"Authorization": f"Bearer {login_resp.json()['access_token']}"}
+
+    forbidden_resp2 = client.delete(f"/api/v1/olts/{sample_olt_8820.id}", headers=noc_jwt_headers)
+    assert forbidden_resp2.status_code == 403
+    assert "olts:admin" in forbidden_resp2.json()["detail"] or "apenas Administradores" in forbidden_resp2.json()["detail"]
+
+    # 3. Exclusão bem-sucedida usando credenciais de Administrador (auth_headers / Master Key)
+    success_delete = client.delete(f"/api/v1/olts/{sample_olt_8820.id}", headers=auth_headers)
+    assert success_delete.status_code == 204
+
+    # 4. Consulta após exclusão deve retornar 404
+    check_deleted = client.get(f"/api/v1/olts/{sample_olt_8820.id}", headers=auth_headers)
+    assert check_deleted.status_code == 404
+
+

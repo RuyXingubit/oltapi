@@ -25,6 +25,9 @@ def test_serve_ui_root_endpoint(client: TestClient):
     assert "setup-admin-password-confirm" in resp.text
     assert "password-toggle-btn" in resp.text
     assert "password-input-wrapper" in resp.text
+    assert "id=\"modal-delete-olt\"" in resp.text
+    assert "id=\"input-confirm-delete-olt\"" in resp.text
+    assert "id=\"btn-confirm-delete-olt\"" in resp.text
 
 
 def test_serve_static_css_and_js(client: TestClient):
@@ -58,6 +61,9 @@ def test_serve_static_css_and_js(client: TestClient):
     assert "btn-onu-edit" in resp_js.text
     assert "openEditOnuModal" in resp_js.text
     assert "prov-onu-model" in resp_js.text
+    assert "btn-delete-olt" in resp_js.text
+    assert "openDeleteOLTModal" in resp_js.text
+    assert "handleConfirmDeleteOLT" in resp_js.text
     assert "resetOnboardingModal(clearForm = false)" in resp_js.text
     assert "resetOnboardingModal(false)" in resp_js.text
     assert "resetOnboardingModal(true)" in resp_js.text

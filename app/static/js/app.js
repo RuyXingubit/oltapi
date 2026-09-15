@@ -956,6 +956,24 @@ function initEventListeners() {
     }
   });
 
+  // Confirmação defensiva de Exclusão de OLT
+  document.getElementById('input-confirm-delete-olt')?.addEventListener('input', (e) => {
+    const confirmBtn = document.getElementById('btn-confirm-delete-olt');
+    if (!confirmBtn || !pendingDeleteOlt) return;
+    const typed = e.target.value.trim();
+    if (typed === pendingDeleteOlt.name) {
+      confirmBtn.disabled = false;
+      confirmBtn.style.opacity = '1.0';
+      confirmBtn.style.cursor = 'pointer';
+    } else {
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.4';
+      confirmBtn.style.cursor = 'not-allowed';
+    }
+  });
+
+  document.getElementById('btn-confirm-delete-olt')?.addEventListener('click', handleConfirmDeleteOLT);
+
   // Operações SNMP no Diagnóstico de Chassi
   document.getElementById('btn-xray-test-snmp')?.addEventListener('click', () => handleTestSNMP(false));
   document.getElementById('btn-xray-adopt-snmp')?.addEventListener('click', () => handleTestSNMP(true));
@@ -1115,6 +1133,9 @@ function renderOLTsTable() {
           <button class="btn btn-secondary btn-sm btn-reveal-olt" data-id="${olt.id}" data-name="${olt.name}" title="Revelar Credenciais (Apenas Administradores)">
             🔑 Senha
           </button>
+          <button class="btn btn-secondary btn-sm btn-delete-olt" data-id="${olt.id}" data-name="${olt.name}" title="Excluir OLT (Apenas Administradores)" style="color: var(--status-error); border-color: rgba(239, 68, 68, 0.35);">
+            🗑️ Apagar
+          </button>
         ` : ''}
         ${state.user?.role === 'SUPER_ADMIN' ? `
           <button class="btn btn-secondary btn-sm btn-sync-olt" data-id="${olt.id}" data-name="${olt.name}" title="Sincronizar Baseline v0">
@@ -1157,6 +1178,14 @@ function renderOLTsTable() {
       if (confirm(`Deseja sincronizar e criar o Baseline v0 para a OLT ${oltName}?`)) {
         await syncOLTBaseline(oltId);
       }
+    });
+  });
+
+  document.querySelectorAll('.btn-delete-olt').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const oltId = e.currentTarget.getAttribute('data-id');
+      const oltName = e.currentTarget.getAttribute('data-name');
+      openDeleteOLTModal(oltId, oltName);
     });
   });
 }
@@ -1205,6 +1234,76 @@ async function openRevealCredentialsModal(oltId, oltName) {
   } catch (error) {
     alert(`Não foi possível revelar credenciais: ${error.message}`);
     modal.classList.remove('active');
+  }
+}
+
+let pendingDeleteOlt = null;
+
+function openDeleteOLTModal(oltId, oltName) {
+  pendingDeleteOlt = { id: oltId, name: oltName };
+  const modal = document.getElementById('modal-delete-olt');
+  if (!modal) return;
+
+  const targetNameEl = document.getElementById('delete-olt-target-name');
+  const namePromptEl = document.getElementById('delete-olt-name-prompt');
+  const inputEl = document.getElementById('input-confirm-delete-olt');
+  const confirmBtn = document.getElementById('btn-confirm-delete-olt');
+
+  if (targetNameEl) targetNameEl.textContent = oltName;
+  if (namePromptEl) namePromptEl.textContent = oltName;
+  if (inputEl) {
+    inputEl.value = '';
+    setTimeout(() => inputEl.focus(), 150);
+  }
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.4';
+    confirmBtn.style.cursor = 'not-allowed';
+    confirmBtn.textContent = '🗑️ Sim, Excluir OLT';
+  }
+
+  modal.classList.add('active');
+}
+
+async function handleConfirmDeleteOLT() {
+  if (!pendingDeleteOlt) return;
+  const { id, name } = pendingDeleteOlt;
+  const inputEl = document.getElementById('input-confirm-delete-olt');
+  if (!inputEl || inputEl.value.trim() !== name) {
+    alert('O nome digitado não corresponde exatamente ao nome da OLT.');
+    return;
+  }
+
+  const confirmBtn = document.getElementById('btn-confirm-delete-olt');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Excluindo...';
+  }
+
+  try {
+    await apiRequest(`/olts/${id}`, 'DELETE');
+    logTerminal(`OLT '${name}' excluída com sucesso do sistema.`, 'warning');
+    document.getElementById('modal-delete-olt')?.classList.remove('active');
+    pendingDeleteOlt = null;
+
+    if (state.currentXrayOltId === id) {
+      document.getElementById('subview-xray')?.classList.add('hidden');
+      document.getElementById('subview-olts')?.classList.remove('hidden');
+      state.currentXrayOltId = null;
+    }
+
+    await loadOLTs();
+    await loadOLTsList();
+  } catch (err) {
+    alert(`Erro ao excluir OLT: ${err.message}`);
+    logTerminal(`Falha ao excluir OLT '${name}': ${err.message}`, 'error');
+  } finally {
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.4';
+      confirmBtn.style.cursor = 'not-allowed';
+      confirmBtn.textContent = '🗑️ Sim, Excluir OLT';
+    }
   }
 }
 

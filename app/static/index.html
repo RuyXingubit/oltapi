@@ -975,6 +975,37 @@
         <button type="button" class="btn btn-primary btn-sm" data-close-modal="modal-reveal-credentials">Fechar</button>
       </div>
     </div>
+  <!-- ====================================================================
+       9. MODAL: EXCLUSÃO SEGURA DE OLT (ADMINS ONLY COM CONFIRMAÇÃO DEFENSIVA)
+       ==================================================================== -->
+  <div id="modal-delete-olt" class="modal-overlay">
+    <div class="modal-box" style="max-width: 500px; border: 1px solid rgba(239, 68, 68, 0.4);">
+      <div class="modal-header" style="border-bottom: 1px solid rgba(239, 68, 68, 0.2);">
+        <h3 class="card-title" style="color: var(--status-error); display: flex; align-items: center; gap: 8px;">
+          <span>🗑️</span> Confirmar Exclusão de OLT
+        </h3>
+        <button class="btn-logout" data-close-modal="modal-delete-olt">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 16px; font-size: 13px; color: #fca5a5; line-height: 1.5;">
+          <strong>Atenção:</strong> Você está prestes a remover permanentemente a OLT <strong id="delete-olt-target-name" style="color: #ffffff; text-decoration: underline;">-</strong> do sistema.
+          <br><br>
+          Esta ação desvinculará o chassi físico e removerá os dados de telemetria desta OLT. As ONUs vinculadas ficarão desassociadas no inventário.
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="font-size: 12px; color: var(--text-secondary);">
+            Para confirmar, digite exatamente o nome <strong id="delete-olt-name-prompt" style="color: var(--accent-cyan); font-family: var(--font-mono);">-</strong> abaixo:
+          </label>
+          <input type="text" id="input-confirm-delete-olt" class="form-control" placeholder="Digite o nome exato da OLT" style="font-family: var(--font-mono); font-size: 14px;" autocomplete="off" />
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary btn-sm" data-close-modal="modal-delete-olt">Cancelar</button>
+        <button type="button" id="btn-confirm-delete-olt" class="btn btn-sm" disabled style="background: var(--status-error); color: white; opacity: 0.4; cursor: not-allowed; font-weight: 600;">
+          🗑️ Sim, Excluir OLT
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Scripts -->

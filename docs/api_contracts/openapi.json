@@ -1089,7 +1089,7 @@
           "OLTs & Backups"
         ],
         "summary": "Delete Olt",
-        "description": "Remove uma OLT cadastrada no inventário.",
+        "description": "Remove uma OLT cadastrada no inventário (Exclusivo para Administradores com auditoria).",
         "operationId": "delete_olt_api_v1_olts__olt_id__delete",
         "security": [
           {

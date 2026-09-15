@@ -638,11 +638,39 @@ def reveal_olt_credentials(
 
 
 @router.delete("/{olt_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_olt(olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
-    """Remove uma OLT cadastrada no inventário."""
+def delete_olt(
+    olt_id: str,
+    request: Request,
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Remove uma OLT cadastrada no inventário (Exclusivo para Administradores com auditoria)."""
+    ctx.enforce_scope("olts:admin")
+    if not ctx.is_super_admin and ctx.role != "TENANT_ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado: apenas Administradores (SUPER_ADMIN ou TENANT_ADMIN) podem excluir uma OLT.",
+        )
+
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    if ctx.allowed_olt_ids is not None and olt.id not in ctx.allowed_olt_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado para esta OLT.",
+        )
+
     deleted = repo.delete(olt_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    client_ip = request.client.host if request.client else "unknown"
+    logger.warning(
+        f"[SECURITY AUDIT] Usuário '{ctx.user_email or ctx.caller_type}' (Role: {ctx.role}) "
+        f"EXCLUIU permanentemente a OLT '{olt.name}' (ID: {olt.id}) a partir do IP {client_ip}."
+    )
     return None
 
 

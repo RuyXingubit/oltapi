@@ -23,7 +23,7 @@ class SecurityContext:
 
     @property
     def is_super_admin(self) -> bool:
-        return self.role == "SUPER_ADMIN" or "*" in self.scopes
+        return self.role == "SUPER_ADMIN"
 
     def enforce_scope(self, required_scope: str) -> None:
         """Valida se o chamador possui o escopo necessário para a operação."""

@@ -106,6 +106,51 @@ def get_scanner_service() -> AutofindScannerService:
 http_bearer = HTTPBearer(auto_error=False)
 
 
+ROLE_DEFAULT_SCOPES = {
+    "SUPER_ADMIN": {"*"},
+    "TENANT_ADMIN": {
+        "olts:read",
+        "olts:admin",
+        "onus:read",
+        "onus:discover",
+        "onus:provision",
+        "onus:deprovision",
+        "onus:actions",
+        "diagnostics:read",
+        "backups:read",
+        "backups:create",
+        "vlans:read",
+        "api_keys:manage",
+    },
+    "NOC": {
+        "olts:read",
+        "onus:read",
+        "onus:discover",
+        "onus:provision",
+        "onus:actions",
+        "diagnostics:read",
+        "backups:read",
+        "vlans:read",
+    },
+    "FIELD_TECH": {
+        "olts:read",
+        "onus:read",
+        "onus:discover",
+        "onus:provision",
+        "onus:actions",
+        "diagnostics:read",
+    },
+    "TENANT_TECH": {
+        "olts:read",
+        "onus:read",
+        "onus:discover",
+        "onus:provision",
+        "onus:actions",
+        "diagnostics:read",
+    },
+}
+
+
 def get_security_context(
     api_key: Optional[str] = Security(API_KEY_HEADER),
     auth_cred: Optional[HTTPAuthorizationCredentials] = Security(http_bearer),
@@ -249,10 +294,13 @@ def get_security_context(
             for al in allocs:
                 allowed_vlans.setdefault(al.olt_id, set()).add(al.vlan_id)
 
+        user_role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
+        role_scopes = set(ROLE_DEFAULT_SCOPES.get(user_role_str, {"olts:read", "onus:read"}))
+
         return SecurityContext(
             caller_type="USER_JWT",
-            role=user.role,
-            scopes={"*"},
+            role=user_role_str,
+            scopes=role_scopes,
             user_id=user.id,
             user_name=user.name,
             user_email=user.email,
