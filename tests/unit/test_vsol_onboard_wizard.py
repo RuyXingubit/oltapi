@@ -77,7 +77,7 @@ def test_endpoint_inspect_aux_only(client, auth_headers):
 
         mock_driver = MagicMock(spec=VSOLV1600Driver)
         mock_driver.get_running_config.return_value = MOCK_VSOL_CFG_AUX_ONLY
-        mock_driver.parse_management_architecture.side_effect = VSOLV1600Driver.parse_management_architecture
+        mock_driver.inspect_management_arch.side_effect = VSOLV1600Driver().inspect_management_arch
         mock_factory.return_value = mock_driver
 
         payload = {
@@ -103,7 +103,7 @@ def test_endpoint_inspect_aux_with_inband(client, auth_headers):
 
         mock_driver = MagicMock(spec=VSOLV1600Driver)
         mock_driver.get_running_config.return_value = MOCK_VSOL_CFG_AUX_WITH_INBAND
-        mock_driver.parse_management_architecture.side_effect = VSOLV1600Driver.parse_management_architecture
+        mock_driver.inspect_management_arch.side_effect = VSOLV1600Driver().inspect_management_arch
         mock_factory.return_value = mock_driver
 
         payload = {
@@ -130,7 +130,7 @@ def test_endpoint_inspect_inband_active(client, auth_headers):
 
         mock_driver = MagicMock(spec=VSOLV1600Driver)
         mock_driver.get_running_config.return_value = MOCK_VSOL_CFG_INBAND_ACTIVE
-        mock_driver.parse_management_architecture.side_effect = VSOLV1600Driver.parse_management_architecture
+        mock_driver.inspect_management_arch.side_effect = VSOLV1600Driver().inspect_management_arch
         mock_factory.return_value = mock_driver
 
         payload = {

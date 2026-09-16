@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.uuid import is_valid_uuid7
-from app.drivers.intelbras.intelbras_8820 import Intelbras8820Driver
+from app.drivers.vsol.vsol_v1600 import VSOLV1600Driver
 from app.models.bootstrap import (
     BootstrapMode,
     BootstrapRequest,
@@ -12,7 +12,7 @@ from app.models.bootstrap import (
 
 
 def test_driver_bootstrap_single_vlan():
-    driver = Intelbras8820Driver()
+    driver = VSOLV1600Driver()
     req = BootstrapRequest(
         mode=BootstrapMode.SINGLE_VLAN,
         uplink_port="1",
@@ -22,24 +22,19 @@ def test_driver_bootstrap_single_vlan():
     commands = driver.generate_bootstrap_commands(req)
 
     assert "enable" in commands
-    assert "config" in commands
-    assert "bridge add 1 downlink vlan 200 tagged" in commands
-    assert "bridge-profile add default downlink vlan 200 tagged eth 1" in commands
-    assert "bridge-profile add default-router downlink vlan 200 tagged router" in commands
-
-    # Binds Intelbras
-    assert "bridge-profile bind add default device intelbras-110b" in commands
-    assert "bridge-profile bind add default-router device intelbras-121w" in commands
-    assert "bridge-profile bind add default-router device intelbras-ax1800v" in commands
-
-    # Ativação do auto-service
-    assert "onu set auto" in commands
-    assert "auto-service enable" in commands
+    assert "configure terminal" in commands
+    assert "profile dba 1 dba-name DBA-DEFAULT type 4 max 1024000" in commands
+    assert "profile line 1 line-name LINE-DEFAULT" in commands
+    assert "gem mapping 1 1 vlan 200" in commands
+    assert "vlan 200" in commands
+    assert "interface ge 0/1" in commands
+    assert "switchport trunk allowed vlan add 200" in commands
+    assert "ont-autofind enable" in commands
     assert "write" in commands
 
 
 def test_driver_bootstrap_vlan_per_pon():
-    driver = Intelbras8820Driver()
+    driver = VSOLV1600Driver()
     req = BootstrapRequest(
         mode=BootstrapMode.VLAN_PER_PON,
         uplink_port="2",
@@ -48,16 +43,17 @@ def test_driver_bootstrap_vlan_per_pon():
     )
     commands = driver.generate_bootstrap_commands(req)
 
-    assert "bridge add 2 downlink vlan 101 tagged" in commands
-    assert "bridge add 2 downlink vlan 108 tagged" in commands
-    assert "bridge-profile add gpon1-default downlink vlan 101 tagged eth 1" in commands
-    assert "bridge-profile add gpon8-default-router downlink vlan 108 tagged router" in commands
-    assert "bridge-profile bind add gpon1-default device intelbras-110b gpon 1" in commands
-    assert "bridge-profile bind add gpon8-default-router device intelbras-ax1800v gpon 8" in commands
+    assert "vlan 101" in commands
+    assert "vlan 108" in commands
+    assert "interface ge 0/2" in commands
+    assert "switchport trunk allowed vlan add 101" in commands
+    assert "switchport trunk allowed vlan add 108" in commands
+    assert "ont-autofind enable" in commands
+    assert "write" in commands
 
 
 def test_driver_bootstrap_sanitization_rejection():
-    driver = Intelbras8820Driver()
+    driver = VSOLV1600Driver()
 
     # Tentativa de injeção na porta de uplink
     req_bad_port = BootstrapRequest(uplink_port="1; reboot;")
@@ -79,7 +75,7 @@ def test_api_bootstrap_preview(client: TestClient, auth_headers, sample_olt_8820
     assert data["olt_id"] == sample_olt_8820.id
     assert data["mode"] == "single_vlan"
     assert len(data["commands"]) > 10
-    assert "bridge add 1 downlink vlan 100 tagged" in data["script_text"]
+    assert "switchport trunk allowed vlan add 100" in data["script_text"]
 
 
 @patch("app.drivers.factory.DriverFactory.get_driver")

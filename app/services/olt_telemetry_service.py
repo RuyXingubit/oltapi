@@ -251,7 +251,7 @@ class OLTTelemetryService:
                         break
 
         if not firmware_version or firmware_version.startswith("-"):
-            firmware_version = f"{olt.vendor.upper()}-V2.1.0-BUILD2026"
+            firmware_version = None
 
         # 6. Verifica se a OLT já possui backup baseline sincronizado
         baseline_backup_id: Optional[str] = None

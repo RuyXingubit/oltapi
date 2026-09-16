@@ -158,8 +158,8 @@ def sample_olt_8820(setup_test_env) -> OLTInDB:
             return existing
     req = OLTCreateRequest(
         name="OLT-TESTE-8820",
-        vendor=OLTVendor.INTELBRAS,
-        model="8820",
+        vendor=OLTVendor.VSOL,
+        model="V1600GT",
         host="192.168.1.200",
         port=22,
         protocol=OLTProtocol.SSH,

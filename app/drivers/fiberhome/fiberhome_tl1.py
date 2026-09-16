@@ -14,8 +14,9 @@ from app.core.security import (
 )
 from app.drivers.base import BaseOLTDriver
 from app.drivers.fiberhome.telnet_client import TelnetClient
+from app.drivers.registry import DriverRegistry
 from app.models.bootstrap import BootstrapMode, BootstrapRequest
-from app.models.olt import OLTInDB, OLTPortStatusItem
+from app.models.olt import OLTInDB, OLTPortStatusItem, OLTVendor
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.models.vlan import VLANItem, VLANCreateRequest, ProfileItem
@@ -24,6 +25,11 @@ from app.services.ftp_service import FTPService
 logger = logging.getLogger(__name__)
 
 
+@DriverRegistry.register(
+    vendor=OLTVendor.FIBERHOME,
+    models=["AN5516-01", "AN5516-04", "AN5516-06", "AN6000", "5516", "6000"],
+    is_default_for_vendor=True,
+)
 class FiberhomeTL1Driver(BaseOLTDriver):
     """
     Driver especializado para OLTs Fiberhome utilizando o protocolo oficial TL1 (Bellcore).
@@ -31,6 +37,8 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     - Família AN5516 (AN5516-01, AN5516-04, AN5516-06)
     - Família AN6000 (AN6000-7, AN6000-15, AN6000-17)
     """
+
+    handles_primary_ftp_upload: bool = True
 
     def __init__(self, timeout: int = 15):
         self.timeout = timeout

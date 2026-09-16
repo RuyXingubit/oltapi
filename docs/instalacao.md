@@ -97,11 +97,16 @@ curl http://localhost:8000/health
 
 ### 5. Interfaces Disponíveis
 
-Com a aplicação rodando, acesse no navegador:
+Com o backend ativo, você tem acesso imediato a:
 
-* 🖥️ **Interface Web de Bancada:** [http://localhost:8000](http://localhost:8000) (Dashboard operacional com dark glassmorphism e assistente de Onboarding Zero-Touch).
+* 🌐 **API REST Operacional (Root):** [http://localhost:8000](http://localhost:8000) (Retorna JSON com o status do serviço e endpoints HATEOAS).
 * 📑 **Documentação Interativa Swagger UI:** [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
 * 📖 **Documentação Interativa ReDoc:** [http://localhost:8000/api/v1/redoc](http://localhost:8000/api/v1/redoc)
+* 🖥️ **Central de Operações NOC (Flutter):** Aplicação executável para Desktop (macOS, Linux, Windows) e Web (Google Chrome) localizada em `frontend/`:
+  ```bash
+  cd frontend
+  flutter run -d macos  # ou -d chrome
+  ```
 
 ---
 

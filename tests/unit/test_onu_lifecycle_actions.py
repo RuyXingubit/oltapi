@@ -3,11 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.drivers.fiberhome.fiberhome_tl1 import FiberhomeTL1Driver
-from app.drivers.huawei.huawei_vrp import HuaweiVRPDriver
-from app.drivers.intelbras.intelbras_8820 import Intelbras8820Driver
-from app.drivers.intelbras.intelbras_gseries import IntelbrasGSeriesDriver
 from app.drivers.vsol.vsol_v1600 import VSOLV1600Driver
-from app.drivers.zte.zte_zxros import ZTEZXROSDriver
 from app.models.onu import ONUDetails, ONUSummary
 from app.models.provision import ONUActionResponse
 
@@ -183,87 +179,6 @@ def test_port_onus_contains_hateoas_shortcuts(mock_get_driver, client: TestClien
 # Testes Unitários de Drivers (Geração de Comandos por Fabricante)
 # ---------------------------------------------------------------------------
 
-def test_intelbras_8820_driver_actions(sample_olt_8820):
-    driver = Intelbras8820Driver()
-    with patch.object(driver, "_execute_cli_commands", return_value="OK") as mock_exec:
-        # Deprovision
-        res_deprov = driver.deprovision_onu(sample_olt_8820, "INCL12345678", port="1/2", onu_id=5)
-        assert res_deprov.success is True
-        assert res_deprov.action == "deprovision"
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "config", "interface gpon-olt_1/2", "no onu 5", "exit", "write memory"],
-        )
-
-        # Reboot
-        res_reboot = driver.reboot_onu(sample_olt_8820, "INCL12345678", port="1/2", onu_id=5)
-        assert res_reboot.action == "reboot"
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "reset gpon onu gpon-onu_1/2:5"],
-        )
-
-        # Suspend
-        res_suspend = driver.suspend_onu(sample_olt_8820, "INCL12345678", port="1/2", onu_id=5)
-        assert res_suspend.action == "suspend"
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "config", "interface gpon-olt_1/2", "onu 5 deactivate", "exit", "write memory"],
-        )
-
-        # Resume
-        res_resume = driver.resume_onu(sample_olt_8820, "INCL12345678", port="1/2", onu_id=5)
-        assert res_resume.action == "resume"
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "config", "interface gpon-olt_1/2", "onu 5 activate", "exit", "write memory"],
-        )
-
-
-def test_intelbras_gseries_driver_actions(sample_olt_8820):
-    driver = IntelbrasGSeriesDriver(model_name="G08")
-    with patch.object(driver, "_execute_cli_commands", return_value="OK") as mock_exec:
-        driver.deprovision_onu(sample_olt_8820, "INCL12345678", port="0/3", onu_id=2)
-        mock_exec.assert_called_with(sample_olt_8820, ["enable", "ont delete 0/3 2", "write"])
-
-        driver.reboot_onu(sample_olt_8820, "INCL12345678", port="0/3", onu_id=2)
-        mock_exec.assert_called_with(sample_olt_8820, ["enable", "ont reset 0/3 2"])
-
-        driver.suspend_onu(sample_olt_8820, "INCL12345678", port="0/3", onu_id=2)
-        mock_exec.assert_called_with(sample_olt_8820, ["enable", "ont deactivate 0/3 2", "write"])
-
-        driver.resume_onu(sample_olt_8820, "INCL12345678", port="0/3", onu_id=2)
-        mock_exec.assert_called_with(sample_olt_8820, ["enable", "ont activate 0/3 2", "write"])
-
-
-def test_huawei_vrp_driver_actions(sample_olt_8820):
-    driver = HuaweiVRPDriver()
-    with patch.object(driver, "_execute_cli_commands", return_value="OK") as mock_exec:
-        driver.deprovision_onu(sample_olt_8820, "HWTC12345678", port="0/1/2", onu_id=4)
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "config", "interface gpon 0/1", "ont delete 2 4", "quit", "save"],
-        )
-
-        driver.reboot_onu(sample_olt_8820, "HWTC12345678", port="0/1/2", onu_id=4)
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "config", "interface gpon 0/1", "ont reset 2 4", "quit"],
-        )
-
-        driver.suspend_onu(sample_olt_8820, "HWTC12345678", port="0/1/2", onu_id=4)
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "config", "interface gpon 0/1", "ont deactivate 2 4", "quit"],
-        )
-
-        driver.resume_onu(sample_olt_8820, "HWTC12345678", port="0/1/2", onu_id=4)
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "config", "interface gpon 0/1", "ont activate 2 4", "quit"],
-        )
-
-
 def test_fiberhome_tl1_driver_actions(sample_olt_8820):
     driver = FiberhomeTL1Driver()
     with patch.object(driver, "_execute_tl1_commands", return_value="COMPLD") as mock_exec:
@@ -286,51 +201,23 @@ def test_vsol_v1600_driver_actions(sample_olt_8820):
         driver.deprovision_onu(sample_olt_8820, "VSOL12345678", port="0/4", onu_id=3)
         mock_exec.assert_called_with(
             sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon 0/4", "no onu 3", "exit", "exit", "write"],
+            ["configure terminal", "interface gpon 0/4", "no onu 3", "exit", "exit", "write"],
         )
 
         driver.reboot_onu(sample_olt_8820, "VSOL12345678", port="0/4", onu_id=3)
         mock_exec.assert_called_with(
             sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon 0/4", "onu 3 reboot", "exit", "exit"],
+            ["configure terminal", "interface gpon 0/4", "onu 3 reboot", "exit", "exit"],
         )
 
         driver.suspend_onu(sample_olt_8820, "VSOL12345678", port="0/4", onu_id=3)
         mock_exec.assert_called_with(
             sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon 0/4", "onu 3 disable", "exit", "exit", "write"],
+            ["configure terminal", "interface gpon 0/4", "onu 3 disable", "exit", "exit", "write"],
         )
 
         driver.resume_onu(sample_olt_8820, "VSOL12345678", port="0/4", onu_id=3)
         mock_exec.assert_called_with(
             sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon 0/4", "onu 3 enable", "exit", "exit", "write"],
-        )
-
-
-def test_zte_zxros_driver_actions(sample_olt_8820):
-    driver = ZTEZXROSDriver()
-    with patch.object(driver, "_execute_cli_commands", return_value="OK") as mock_exec:
-        driver.deprovision_onu(sample_olt_8820, "ZTEG12345678", port="1/2/3", onu_id=6)
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon-olt_1/2/3", "no onu 6", "exit", "exit", "write"],
-        )
-
-        driver.reboot_onu(sample_olt_8820, "ZTEG12345678", port="1/2/3", onu_id=6)
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "reset gpon onu gpon-onu_1/2/3:6"],
-        )
-
-        driver.suspend_onu(sample_olt_8820, "ZTEG12345678", port="1/2/3", onu_id=6)
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon-olt_1/2/3", "onu 6 deactivate", "exit", "exit", "write"],
-        )
-
-        driver.resume_onu(sample_olt_8820, "ZTEG12345678", port="1/2/3", onu_id=6)
-        mock_exec.assert_called_with(
-            sample_olt_8820,
-            ["enable", "configure terminal", "interface gpon-olt_1/2/3", "onu 6 activate", "exit", "exit", "write"],
+            ["configure terminal", "interface gpon 0/4", "onu 3 enable", "exit", "exit", "write"],
         )

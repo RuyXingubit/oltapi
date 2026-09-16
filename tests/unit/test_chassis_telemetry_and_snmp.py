@@ -8,11 +8,7 @@ import pytest
 
 from app.core.uuid import is_valid_uuid7
 from app.drivers.fiberhome.fiberhome_tl1 import FiberhomeTL1Driver
-from app.drivers.huawei.huawei_vrp import HuaweiVRPDriver
-from app.drivers.intelbras.intelbras_8820 import Intelbras8820Driver
-from app.drivers.intelbras.intelbras_gseries import IntelbrasGSeriesDriver
 from app.drivers.vsol.vsol_v1600 import VSOLV1600Driver
-from app.drivers.zte.zte_zxros import ZTEZXROSDriver
 from app.models.olt import OLTInDB, OLTProtocol, OLTVendor
 from app.models.onu import ONUSummary
 from app.services.snmp_collector import SNMPCollector, _build_snmp_get, _decode_snmp_response, _encode_oid
@@ -92,67 +88,6 @@ def test_fiberhome_get_chassis_interfaces_multislot(fake_olt):
         assert slot11_pon8.onu_count == 1
         slot11_pon2 = next(p for p in ports if p.port_id == "gpon 0/11/2")
         assert slot11_pon2.onu_count == 0  # Sem ONU, mas porta física renderizada
-
-
-def test_huawei_get_chassis_interfaces(fake_olt):
-    driver = HuaweiVRPDriver()
-    fake_olt.vendor = OLTVendor.HUAWEI
-    fake_olt.model = "MA5800-X7"
-    mock_onus = [
-        ONUSummary(port="0/1/1", onu_id=1, serial="HWTC11111111", status="online"),
-        ONUSummary(port="0/1/1", onu_id=2, serial="HWTC22222222", status="online"),
-    ]
-    with patch.object(driver, "list_all_authorized_onus", return_value=mock_onus):
-        ports = driver.get_chassis_interfaces(fake_olt)
-        assert len(ports) == 10  # 8 PON + 2 Uplink
-        pon1 = next(p for p in ports if p.port_id == "gpon 0/1/1")
-        assert pon1.oper_status == "up"
-        assert pon1.onu_count == 2
-
-
-def test_zte_get_chassis_interfaces(fake_olt):
-    driver = ZTEZXROSDriver(model_name="C320")
-    fake_olt.vendor = OLTVendor.ZTE
-    fake_olt.model = "C320"
-    mock_onus = [
-        ONUSummary(port="1/1/1", onu_id=1, serial="ZTEG11111111", status="online"),
-    ]
-    with patch.object(driver, "list_all_authorized_onus", return_value=mock_onus):
-        ports = driver.get_chassis_interfaces(fake_olt)
-        assert len(ports) >= 10
-        pon1 = next(p for p in ports if p.port_id == "gpon-olt_1/1/1")
-        assert pon1.oper_status == "up"
-        assert pon1.onu_count == 1
-
-
-def test_intelbras_gseries_get_chassis_interfaces(fake_olt):
-    driver = IntelbrasGSeriesDriver(total_pons=8, model_name="G08")
-    fake_olt.vendor = OLTVendor.INTELBRAS
-    fake_olt.model = "G08"
-    mock_onus = [
-        ONUSummary(port="0/1", onu_id=1, serial="INCL11111111", status="online"),
-    ]
-    with patch.object(driver, "list_all_authorized_onus", return_value=mock_onus):
-        ports = driver.get_chassis_interfaces(fake_olt)
-        assert len(ports) == 10  # 8 PON + 2 Uplink
-        pon1 = next(p for p in ports if p.port_id == "gpon 0/1")
-        assert pon1.oper_status == "up"
-        assert pon1.onu_count == 1
-
-
-def test_intelbras_8820_get_chassis_interfaces(fake_olt):
-    driver = Intelbras8820Driver()
-    fake_olt.vendor = OLTVendor.INTELBRAS
-    fake_olt.model = "8820"
-    mock_onus = [
-        ONUSummary(port="1", onu_id=1, serial="INCL88888888", status="online"),
-    ]
-    with patch.object(driver, "list_all_authorized_onus", return_value=mock_onus):
-        ports = driver.get_chassis_interfaces(fake_olt)
-        assert len(ports) == 10
-        pon1 = next(p for p in ports if p.port_id == "gpon 1")
-        assert pon1.oper_status == "up"
-        assert pon1.onu_count == 1
 
 
 def test_vsol_get_chassis_interfaces(fake_olt):
@@ -238,37 +173,7 @@ def test_telemetry_retention_service(setup_test_env, fake_olt):
 # 4. Testes de Extração de Comunidade e Detecção de Cipher por Fabricante
 # -----------------------------------------------------------------------------
 
-def test_extract_snmp_community_huawei():
-    driver = HuaweiVRPDriver()
-
-    # Cenário A: Cipher / Hash irreversível típico da Huawei VRP
-    config_cipher = """
-    #
-    snmp-server sys-info version v2c
-    snmp-server community read cipher %#%#v9{8!z%5^123456789abcdef#%#%
-    #
-    """
-    comm, is_cipher = driver.extract_snmp_community(config_cipher)
-    assert comm is None
-    assert is_cipher is True
-
-    # Cenário B: Simple / Texto claro explícito
-    config_simple = """
-    #
-    snmp-server community read simple ProvedorNoc2026
-    #
-    """
-    comm, is_cipher = driver.extract_snmp_community(config_simple)
-    assert comm == "ProvedorNoc2026"
-    assert is_cipher is False
-
-    # Cenário C: Sem SNMP configurado
-    comm, is_cipher = driver.extract_snmp_community("sysname OLT-HUAWEI\n")
-    assert comm is None
-    assert is_cipher is False
-
-
-def test_extract_snmp_community_other_vendors():
+def test_extract_snmp_community_fiberhome_and_vsol():
     # Fiberhome
     fh_driver = FiberhomeTL1Driver()
     comm, is_cipher = fh_driver.extract_snmp_community("snmp-server community fh_fibra_ro ro\n")
@@ -285,21 +190,6 @@ def test_extract_snmp_community_other_vendors():
     comm, _ = fh_driver.extract_snmp_community("set snmp community readwrite adsl\n")
     assert comm == "adsl"
 
-    # ZTE
-    zte_driver = ZTEZXROSDriver()
-    comm, is_cipher = zte_driver.extract_snmp_community("snmp-server community zte_read view DefaultView ro\n")
-    assert comm == "zte_read"
-    assert is_cipher is False
-
-    # Intelbras G-Series & 8820
-    intel_g = IntelbrasGSeriesDriver()
-    comm, _ = intel_g.extract_snmp_community("snmp-server community intelbras_g_ro ro\n")
-    assert comm == "intelbras_g_ro"
-
-    intel_8820 = Intelbras8820Driver()
-    comm, _ = intel_8820.extract_snmp_community("snmp-server community intelbras_8820_ro ro\n")
-    assert comm == "intelbras_8820_ro"
-
     # VSOL
     vsol_driver = VSOLV1600Driver()
     comm, _ = vsol_driver.extract_snmp_community("snmp-server community vsol_noc_ro ro\n")
@@ -310,17 +200,7 @@ def test_extract_snmp_community_other_vendors():
 # 5. Testes de Provisionamento CLI e Gravação na Flash (save/write)
 # -----------------------------------------------------------------------------
 
-def test_configure_snmp_cli_all_vendors(fake_olt):
-    # Huawei
-    huawei = HuaweiVRPDriver()
-    with patch.object(huawei, "_execute_cli_commands", return_value="OK") as mock_cli:
-        success = huawei.configure_snmp(fake_olt, "huawei_ro_test")
-        assert success is True
-        calls = mock_cli.call_args[0][1]
-        assert "snmp-server community read simple huawei_ro_test" in calls
-        assert "save" in calls
-        assert "y" in calls
-
+def test_configure_snmp_cli_fiberhome_and_vsol(fake_olt):
     # Fiberhome Telnet CLI
     fh = FiberhomeTL1Driver()
     mock_telnet = MagicMock()
@@ -340,24 +220,6 @@ def test_configure_snmp_cli_all_vendors(fake_olt):
         assert success is True
         calls = mock_tl1.call_args[0][1]
         assert any("fh_tl1_test" in c for c in calls)
-
-    # ZTE
-    zte = ZTEZXROSDriver()
-    with patch.object(zte, "_execute_cli_commands", return_value="OK") as mock_cli:
-        success = zte.configure_snmp(fake_olt, "zte_ro_test")
-        assert success is True
-        calls = mock_cli.call_args[0][1]
-        assert any("zte_ro_test" in c for c in calls)
-        assert "write" in calls
-
-    # Intelbras
-    intel = IntelbrasGSeriesDriver()
-    with patch.object(intel, "_execute_cli_commands", return_value="OK") as mock_cli:
-        success = intel.configure_snmp(fake_olt, "intel_ro_test")
-        assert success is True
-        calls = mock_cli.call_args[0][1]
-        assert any("intel_ro_test" in c for c in calls)
-        assert "write" in calls
 
     # VSOL
     vsol = VSOLV1600Driver()

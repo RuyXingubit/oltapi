@@ -1,20 +1,6 @@
-# Manual do Desenvolvedor: Arquitetura & Criação de Drivers (OLTAPI)
+# Manual do Desenvolvedor: Governança de Drivers & Arquitetura (OLTAPI)
 
-Bem-vindo ao **Manual do Desenvolvedor do OLTAPI**! Este guia foi elaborado para qualquer pessoa da comunidade open-source que queira entender a arquitetura do projeto, contribuir com novas funcionalidades ou adicionar suporte a novos fabricantes e modelos de OLT (como Huawei, Fiberhome, ZTE, Datacom, Parks, Nokia, etc.).
-
----
-
-## 🧭 Sumário
-
-1. [Visão Geral da Arquitetura](#1-visão-geral-da-arquitetura)
-2. [Estrutura de Diretórios](#2-estrutura-de-diretórios)
-3. [O Padrão de Drivers (Driver / Adapter Pattern)](#3-o-padrão-de-drivers-driver--adapter-pattern)
-4. [Passo a Passo: Como Adicionar um Novo Driver de OLT](#4-passo-a-passo-como-adicionar-um-novo-driver-de-olt)
-5. [Boas Práticas de Parsing com Expressões Regulares Puras](#5-boas-práticas-de-parsing-com-expressões-regulares-puras)
-6. [Segurança e Sanitização Defensiva](#6-segurança-e-sanitização-defensiva)
-7. [Padrão de Identificadores: UUIDv7](#7-padrão-de-identificadores-uuidv7)
-8. [Como Escrever Testes Unitários Sem Necessidade de Hardware Físico](#8-como-escrever-testes-unitários-sem-necessidade-de-hardware-físico)
-9. [Executando o Ambiente Local](#9-executando-o-ambiente-local)
+Bem-vindo ao **Manual do Desenvolvedor do OLTAPI**! Este guia foi elaborado para desenvolvedores e arquitetos que queiram entender a arquitetura do projeto, contribuir com novas funcionalidades ou homologar novos fabricantes e modelos de OLT.
 
 ---
 
@@ -22,30 +8,27 @@ Bem-vindo ao **Manual do Desenvolvedor do OLTAPI**! Este guia foi elaborado para
 
 O **OLTAPI** foi projetado com os seguintes princípios:
 
-- **API-First & Agnóstica de Fabricante:** O cliente da API (seja um ERP como IXC Soft, MK-Auth ou um script cURL) nunca precisa saber a sintaxe de terminal (CLI) específica de cada marca. O ERP envia e recebe apenas payloads JSON padronizados.
-- **Isolamento de Complexidade de Terminal:** Toda a interação telnet/ssh, envio de comandos, paginação de terminal (`--More--` ou `terminal length 0`) e expressões regulares de parse residem estritamente dentro da camada de **Drivers**.
+- **API-First & Agnóstica de Fabricante:** O cliente da API (seja um ERP como IXC Soft, MK-Auth ou o Frontend Flutter NOC) nunca precisa saber a sintaxe de terminal (CLI) específica de cada marca. O tráfego ocorre estritamente sobre contratos REST JSON padronizados.
+- **Inversão de Dependência Radical (Ports & Adapters):** Os serviços de negócio conversam exclusivamente com métodos polimórficos da interface `BaseOLTDriver`. É terminantemente proibido utilizar `hasattr(driver, ...)` ou condicionais de fabricante (`if olt.vendor == ...`) nas camadas de serviço.
+- **Isolamento entre Drivers:** Um driver jamais deve importar outro driver ou presumir formatos hardcoded.
 - **Segurança em Primeiro Lugar:** Nenhuma entrada do usuário é passada sem sanitização para o terminal da OLT, prevenindo injeção de comandos CLI.
 
 ```
-[ ERP / Postman / cURL ]
-           │
-           │  JSON + X-API-Key
-           ▼
+[ ERP / Postman / Frontend NOC ]
+               │
+               │  JSON + X-API-Key
+               ▼
 [ FastAPI Application (app/main.py) ]
-           │
-           │  Validação Pydantic v2 + Sanitização Regex
-           ▼
+               │
+               │  Validação Pydantic v2 + Sanitização Regex
+               ▼
 [ API Routers (app/api/v1/*.py) ]
-           │
-           │  DriverFactory.get_driver(vendor, model)
-           ▼
+               │
+               │  DriverFactory.get_driver(olt) -> DriverRegistry
+               ▼
 [ Driver Abstraction (BaseOLTDriver) ]
-           ├──> Intelbras8820Driver (Broadcom CLI)
-           ├──> IntelbrasGSeriesDriver (G08 / G16 CLI)
-           ├──> HuaweiVRPDriver (MA5800 / MA5600T CLI)
-           ├──> FiberhomeTL1Driver (AN5516 / AN6000 TL1)
-           ├──> VSOLV1600Driver (V1600GT / V1600G CLI)
-           └──> ZTEZXROSDriver (C300 / C320 / C600 CLI)
+               ├──> FiberhomeTL1Driver (AN5516 / AN6000 TL1)
+               └──> VSOLV1600Driver (V1600G / V1600GT CLI)
 ```
 
 ---
@@ -58,264 +41,210 @@ oltapi/
 │   ├── api/
 │   │   └── v1/                      # Endpoints REST organizados por domínio
 │   │       ├── endpoints_olts.py        # Cadastro, running-config, backups, audit e diff
-│   │       ├── endpoints_backups.py     # Disparo em lote (run-all) e auditoria global
+│   │       ├── endpoints_backups.py     # Disparo em lote e auditoria global
 │   │       ├── endpoints_diagnostics.py # Portas, ONUs e diagnóstico óptico
-│   │       ├── endpoints_provision.py   # Provisionamento de ONUs e autofind
-│   │       └── endpoints_bootstrap.py   # Inicialização zero-touch de OLT virgem
+│   │       ├── endpoints_provision.py   # Provisionamento, ciclo de vida e autofind
+│   │       ├── endpoints_onu_inventory.py# Inventário global e histórico TR-101
+│   │       └── endpoints_bootstrap.py   # Inicialização zero-touch e preview
 │   ├── core/
 │   │   ├── config.py                # Pydantic Settings (.env, retenção, timeouts)
 │   │   ├── security.py              # Sanitizadores regex e validação de API Key
 │   │   └── uuid.py                  # Gerador e validador nativo de UUIDv7 (RFC 9562)
+│   ├── db/                          # Modelos SQLAlchemy e sessão PostgreSQL
 │   ├── drivers/
 │   │   ├── base.py                  # Interface abstrata BaseOLTDriver
-│   │   ├── factory.py               # DriverFactory com cache e resolução dinâmica
-│   │   ├── intelbras/               # Intelbras 8820 e Concentradores G08/G16
-│   │   ├── huawei/                  # Huawei MA5800 e MA5600T (VRP CLI)
-│   │   ├── fiberhome/               # Fiberhome AN5516 e AN6000 (TL1 Bellcore)
-│   │   ├── vsol/                    # V-SOL V1600GT e série V1600G (CLI)
-│   │   └── zte/                     # ZTE C300, C320 e Titan C600 (ZXROS CLI)
+│   │   ├── registry.py              # DriverRegistry com registro dinâmico via decorador
+│   │   ├── factory.py               # DriverFactory integrada ao Registry
+│   │   ├── fiberhome/               # Fiberhome AN5516 (TL1 Bellcore)
+│   │   └── vsol/                    # V-SOL série V1600 (CLI)
 │   ├── models/                      # Schemas Pydantic v2 tipados
-│   │   ├── olt.py
-│   │   ├── onu.py
-│   │   ├── backup.py                # Metadados, Diff, Auditoria e Expurgo
-│   │   ├── provision.py
-│   │   └── bootstrap.py
-│   ├── services/
-│   │   └── backup_service.py        # Orquestrador de backups em lote e expurgo
-│   ├── storage/                     # Repositórios de dados e persistência
-│   │   ├── olt_repository.py        # Repositório de OLTs (JSON / DB)
-│   │   └── backup_storage.py        # Gestão de arquivos .cfg, SHA-256 e unified diff
-│   └── main.py                      # Ponto de entrada FastAPI e middlewares
-├── docs/                            # Documentação técnica, arquitetura, manuais e PRD
+│   ├── services/                    # Orquestradores de negócio desacoplados
+│   └── main.py                      # Ponto de entrada FastAPI 100% REST JSON
+├── docs/                            # Documentação técnica MkDocs Material
+├── frontend/                        # Central de Operações NOC em Flutter (Desktop/Web)
 ├── tests/
-│   └── unit/                        # 82 testes unitários com parsers regex puros
-├── .github/workflows/ci.yml         # Pipeline GitHub Actions otimizado
-├── Dockerfile                       # Build multi-stage seguro (Python 3.13-slim non-root)
-├── docker-compose.yml               # Orquestração local e produção com healthcheck
-├── .env.example                     # Modelo de variáveis de ambiente
-└── requirements.txt                 # Dependências Python
+│   └── unit/                        # Suíte de 219 testes unitários e de conformidade
+├── docker-compose.yml               # Orquestração local e produção com PostgreSQL 16
+├── requirements.txt                 # Dependências Python
+└── mkdocs.yml                       # Configuração do site de documentação
 ```
 
 ---
 
-## 3. O Padrão de Drivers (Driver / Adapter Pattern)
+## 3. Governança de Drivers: Inversão de Dependência & Dynamic Registry
 
-Todo driver de OLT deve herdar da classe abstrata `BaseOLTDriver` (`app/drivers/base.py`):
+Cada driver se registra de forma autônoma no `DriverRegistry` utilizando o decorador `@DriverRegistry.register`:
 
 ```python
-from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional
-from app.models.olt import OLTInDB
-from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
-from app.models.provision import ProvisionRequest, ProvisionResponse
-from app.models.bootstrap import BootstrapRequest
+from app.drivers.registry import DriverRegistry
+from app.drivers.base import BaseOLTDriver
 
-class BaseOLTDriver(ABC):
-    @abstractmethod
-    def get_running_config(self, olt: OLTInDB) -> str:
-        """Coleta a configuração ativa (running-config) da OLT."""
-        pass
-
-    @abstractmethod
-    def backup_config(self, olt: OLTInDB) -> str:
-        """Gera e retorna o backup completo da OLT."""
-        pass
-
-    @abstractmethod
-    def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
-        """Varre e lista as ONUs pendentes de autorização (autofind)."""
-        pass
-
-    @abstractmethod
-    def get_port_onus(self, olt: OLTInDB, port: str) -> List[ONUSummary]:
-        """Lista todas as ONUs vinculadas a uma porta PON."""
-        pass
-
-    @abstractmethod
-    def get_onu_details(self, olt: OLTInDB, serial_or_id: str) -> ONUDetails:
-        """Coleta detalhes e potências ópticas (Rx/Tx dBm) de uma ONU."""
-        pass
-
-    @abstractmethod
-    def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
-        """Executa a autorização da ONU com VLAN e perfil na OLT."""
-        pass
-
-    @abstractmethod
-    def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:
-        """Gera a lista de comandos CLI para inicialização da OLT virgem."""
-        pass
-
-    @abstractmethod
-    def apply_bootstrap(self, olt: OLTInDB, req: BootstrapRequest) -> int:
-        """Executa os comandos de bootstrap na OLT e retorna a quantidade executada."""
-        pass
+@DriverRegistry.register(vendor="vsol", model_prefix="v1600")
+class VSOLV1600Driver(BaseOLTDriver):
+    ...
 ```
+
+Dessa forma:
+1. Novos drivers se auto-declaram sem modificar o código da `DriverFactory`.
+2. A resolução é feita dinamicamente combinando o fabricante (`vendor`) e o prefixo do modelo (`model_prefix`).
+3. O driver é instanciado em cache de forma lazy e thread-safe.
 
 ---
 
-## 4. Passo a Passo: Como Adicionar um Novo Driver de OLT
+## 4. Proibição de Fabricantes Teóricos & Homologação em Bancada
 
-Exemplo: Adicionando suporte à **Huawei MA5800** (`huawei_ma5800.py`).
+> [!CAUTION]
+> **REGRA DE OURO DO PROJETO:** É TERMINANTEMENTE PROIBIDO adicionar novos drivers de fabricantes sem acesso a hardware físico de bancada para homologação real.
 
-### Passo 1: Criar o arquivo do Driver
-Crie `app/drivers/huawei/huawei_ma5800.py` herdando de `BaseOLTDriver`:
+Drivers criados apenas na teoria ou a partir de suposições de IA foram completamente removidos da árvore do projeto. Novos drivers só entram na árvore após:
+1. Ter acesso à OLT física conectada e energizada.
+2. Homologação com tráfego real nos modos Bridge e Router (PPPoE).
+3. Aprovação explícita em todos os testes da suíte de conformidade.
+
+---
+
+## 5. Como Adicionar e Homologar um Novo Driver de OLT
+
+### Passo 1: Implementar a Interface `BaseOLTDriver`
+Crie o novo driver herdando de `BaseOLTDriver` e decorando a classe:
 
 ```python
-from typing import List, Tuple, Optional
-import re
+from app.drivers.registry import DriverRegistry
 from app.drivers.base import BaseOLTDriver
 from app.models.olt import OLTInDB
-from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
+from app.models.onu import ONUDetails, UnauthorizedONU
 from app.models.provision import ProvisionRequest, ProvisionResponse
-from app.models.bootstrap import BootstrapRequest
-from app.core.security import (
-    sanitize_port, sanitize_serial, sanitize_vlan, sanitize_safe_string, sanitize_description
-)
 
-class HuaweiMA5800Driver(BaseOLTDriver):
+@DriverRegistry.register(vendor="novo_fabricante", model_prefix="modelo_x")
+class NovoFabricanteDriver(BaseOLTDriver):
+    def handles_primary_ftp_upload(self) -> bool:
+        return True  # True se suportar upload nativo por FTP, False se for captura de terminal
+
     def get_running_config(self, olt: OLTInDB) -> str:
-        # 1. Conecta via SSH (Paramiko)
-        # 2. Desativa paginação: "smart" e "scroll"
-        # 3. Executa "display current-configuration"
         ...
 
-    @staticmethod
-    def parse_unauthorized_onus(output: str) -> List[UnauthorizedONU]:
-        # Regex puro sobre a saída do comando "display ont autofind all"
-        results = []
-        pattern = re.compile(
-            r"F/S/P\s*:\s*(?P<fsp>\d+/\d+/\d+).*?Ont SN\s*:\s*(?P<sn>[A-Za-z0-9]+)",
-            re.DOTALL
-        )
-        for match in pattern.finditer(output):
-            results.append(UnauthorizedONU(
-                port=match.group("fsp"),
-                serial=match.group("sn"),
-                discovered_at="now"
-            ))
-        return results
-```
+    def backup_config(self, olt: OLTInDB, ftp_destination: Optional[FTPDestinationConfig] = None) -> str:
+        ...
 
-### Passo 2: Registrar na Factory
-Edite `app/drivers/factory.py` para instanciar o driver quando `vendor == "huawei"`:
+    def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
+        ...
 
-```python
-elif vendor == "huawei":
-    driver = HuaweiMA5800Driver()
-    cls._drivers_cache[key] = driver
-    return driver
+    def get_onu_details(self, olt: OLTInDB, serial_or_id: str) -> ONUDetails:
+        ...
+
+    def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
+        ...
 ```
 
 ---
 
-## 5. Boas Práticas de Parsing com Expressões Regulares Puras
+## 6. Padrão Canônico de Backup & Disaster Recovery
 
-Para garantir alta testabilidade e manutenibilidade:
-
-1. **Métodos Estáticos Puros (`@staticmethod`):**
-   - Nunca misture o envio de comandos SSH com o parseamento de texto.
-   - O método `parse_*` deve receber apenas uma string `output: str` e retornar modelos Pydantic tipados.
-2. **Defensividade contra espaços e quebras de linha:**
-   - Terminais de OLT sofrem com quebras de linha arbitrárias dependendo da largura do terminal.
-   - Use flags `re.MULTILINE` e `re.IGNORECASE` quando apropriado.
-   - Use `\s+` em vez de espaços fixos para tolerar variações de tabulação entre versões de firmware.
-3. **Conversão Segura de Tipos:**
-   - Potências ópticas devem ser convertidas com `try: float(val) except ValueError: None`.
+Todo driver ativo deve seguir o padrão canônico em duas etapas:
+1. **Prioridade 1 (Nativo por FTP):** Se a OLT suportar comando nativo de upload (ex: `copy startup-config ftp://...` ou upload via TL1), o driver deve enviar diretamente ao servidor FTP configurado.
+2. **Prioridade 2 (Fallback Gracioso):** Caso nenhum servidor FTP esteja vinculado ou o upload falhe, o driver DEVE capturar o `running-config` pelo terminal (SSH/Telnet) e salvar com criptografia local Fernet AES-256 e hash SHA-256.
 
 ---
 
-## 6. Segurança e Sanitização Defensiva
+## 7. Suíte de Conformidade Obrigatória (`BaseDriverComplianceTest`)
 
-O **OLTAPI** adota uma política rigorosa de **Zero Confiança em Entradas de Usuário** para mitigar riscos de **CLI Command Injection**.
+Todo driver ativo deve passar na suíte de conformidade em `tests/unit/test_driver_compliance.py`. Os 12 métodos obrigatórios são:
 
-Em `app/core/security.py`, você encontrará sanitizadores pré-construídos:
+1. `get_running_config`: Retorna a configuração sem truncamento.
+2. `backup_config` (com FTP): Realiza upload com sucesso.
+3. `backup_config` (sem FTP / fallback): Captura texto completo do terminal.
+4. `get_chassis_interfaces`: Lista interfaces físicas reais sem dados falsos.
+5. `get_onu_details`: Extrai potências ópticas reais em dBm (Rx OLT, Rx ONU, Tx ONU).
+6. `provision_onu`: Provisiona com VLAN e perfil sem injeção de comandos.
+7. `deprovision_onu`: Desprovisiona a ONU e libera a porta PON.
+8. `suspend_onu`: Bloqueia tráfego por inadimplência.
+9. `resume_onu`: Desbloqueia a ONU.
+10. `reboot_onu`: Envia comando de reinício remoto.
+11. `list_all_authorized_onus`: Lista o inventário da OLT.
+12. `inspect_management_arch`: Classifica o cenário de gerência (AUX_ONLY, INBAND, etc.).
+
+---
+
+## 8. Boas Práticas de Parsing com Expressões Regulares Puras
+
+1. **Métodos Estáticos Puros (`@staticmethod`):** Nunca misture o envio de comandos SSH com o parseamento de texto. O método `parse_*` deve receber apenas uma string `output: str` e retornar modelos Pydantic tipados.
+2. **Defensividade contra quebras de linha de terminal:** Use flags `re.MULTILINE`, `re.IGNORECASE` e `\s+` em vez de espaços fixos.
+3. **Conversão Segura de Tipos:** Potências ópticas devem ser convertidas com tratamento de exceções:
+   ```python
+   try:
+       rx_power = float(raw_val)
+   except (ValueError, TypeError):
+       rx_power = None
+   ```
+
+---
+
+## 9. Segurança e Sanitização Defensiva
+
+O **OLTAPI** adota uma política rigorosa de **Zero Confiança em Entradas de Usuário** para mitigar riscos de **CLI Command Injection**:
 
 ```python
 from app.core.security import (
     sanitize_port,          # Garante formato seguro como "0/1", "1/1/1", "gpon 0/1"
-    sanitize_serial,        # Garante alfanumérico seguro (ex: "ITBS12345678", "HWTC12345678")
+    sanitize_serial,        # Garante alfanumérico seguro (ex: "VSOL12345678")
     sanitize_vlan,          # Garante range numérico válido 1 a 4094
     sanitize_safe_string,   # Rejeita caracteres perigosos como ; | & ` $ > < \r \n
-    sanitize_description,   # Limita tamanho e caracteres de descrição
     verify_api_key          # Comparação em tempo constante (hmac.compare_digest)
 )
 ```
 
-> [!IMPORTANT]
-> **NUNCA** concatene strings diretamente em comandos CLI sem passar pelo respectivo sanitizador. Qualquer tentativa de injeção deve disparar `HTTPException(status_code=400)`.
-
 ---
 
-## 7. Padrão de Identificadores: UUIDv7
+## 10. Padrão de Identificadores: UUIDv7
 
-Seguindo a **RFC 9562**, o OLTAPI utiliza **UUID versão 7** para todas as entidades persistidas (OLTs, Backups, Tarefas de Provisionamento):
-
+Seguindo a **RFC 9562**, o OLTAPI utiliza **UUID versão 7** para todas as entidades persistidas:
 - Os primeiros 48 bits contêm o timestamp Unix em milissegundos.
-- Garante ordenação temporal nativa (ótimo para indexação em B-Tree no PostgreSQL/SQLite).
-- No código Python:
-
-```python
-from app.core.uuid import generate_uuid7, is_valid_uuid7
-
-novo_id = generate_uuid7() # Ex: '018e3c45-6789-7abc-def0-123456789abc'
-assert is_valid_uuid7(novo_id) is True
-```
+- Garante ordenação temporal nativa no banco de dados relacional.
+- Gerador implementado em `app/core/uuid.py`:
+  ```python
+  from app.core.uuid import generate_uuid7
+  novo_id = generate_uuid7()
+  ```
 
 ---
 
-## 8. Como Escrever Testes Unitários Sem Necessidade de Hardware Físico
+## 11. Frontend NOC em Flutter: Estrutura e Execução
 
-Ninguém na comunidade precisa ter uma OLT física de R$ 50.000 para contribuir ou validar código!
+A Central de Operações de Rede está localizada em `frontend/`:
+- **Design System NOC:** Cores semânticas de alto contraste (`AppColors`) e tema escuro (`AppTheme`).
+- **Gerenciamento de Estado:** Reativo via `provider` (`SettingsProvider` e `AppState`).
+- **Execução:**
+  ```bash
+  cd frontend
+  flutter pub get
+  flutter run -d macos  # Modo Desktop macOS
+  flutter run -d chrome # Modo Web
+  ```
+- **Testes:**
+  ```bash
+  flutter analyze # Análise estática
+  flutter test    # Suíte de testes unitários e de widgets
+  ```
 
-Basta capturar a saída textual real de um comando da OLT e criar um teste unitário em `tests/unit/`:
+---
 
-```python
-# tests/unit/test_huawei_ma5800.py
-from app.drivers.huawei.huawei_ma5800 import HuaweiMA5800Driver
+## 12. Executando o Ambiente Local e Testes
 
-MOCK_AUTOFIND_OUTPUT = """
------------------------------------------------------------------------------
-Number F/S/P   Autofind   Password           Vendor-ID Equipment-ID Ont
-               Time                                                 SN
------------------------------------------------------------------------------
-1      0/1/0   2026-09-10 0000000000         HWTC      5678         HWTC12345678
------------------------------------------------------------------------------
-"""
-
-def test_parse_unauthorized_onus_huawei():
-    onus = HuaweiMA5800Driver.parse_unauthorized_onus(MOCK_AUTOFIND_OUTPUT)
-    assert len(onus) == 1
-    assert onus[0].serial == "HWTC12345678"
-    assert onus[0].port == "0/1/0"
-```
-
-Execute os testes com:
+### Executar Testes do Backend (Pytest):
 ```bash
-pytest tests/ -v
+source .venv/bin/activate
+pytest tests/unit -v
 ```
 
----
+### Sincronização Obrigatória do OpenAPI antes de Commit & Push:
+```bash
+python -m scripts.export_openapi
+```
 
-## 9. Executando o Ambiente Local
-
-### Via Docker Compose (Recomendado - Stack com PostgreSQL 16):
-Garante paridade de 100% com produção, executando tanto o banco relacional PostgreSQL 16 oficial quanto a API:
+### Executar Stack Completa via Docker Compose:
 ```bash
 docker compose up -d --build
 ```
-- **OLTAPI (FastAPI):** `http://localhost:8000` (Swagger em `/api/v1/docs`).
-- **PostgreSQL 16:** Porta `5432` exposta no host, volume `postgres_data`, credenciais padrão `oltuser` / `oltpassword` e database `oltapi`.
-- **Inspecionar Banco via terminal:** `docker exec -it oltapi_postgres psql -U oltuser -d oltapi`.
-
-### Via Python venv (Modo Standalone com SQLite WAL):
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Documentação OpenAPI interativa:
-- `http://localhost:8000/api/v1/docs` (Swagger)
-- `http://localhost:8000/api/v1/redoc` (ReDoc)
+- **API REST & Healthcheck:** `http://localhost:8000/health`
+- **Swagger UI:** `http://localhost:8000/api/v1/docs`
+- **ReDoc:** `http://localhost:8000/api/v1/redoc`

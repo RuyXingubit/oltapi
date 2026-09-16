@@ -10,13 +10,14 @@ A API foi projetada sobre três pilares essenciais:
 ```
 +-----------------------------------------------------------------------------+
 |                             Camada de Clientes                              |
-|                (ERP IXC / MK-Auth / Voalle / Postman / cURL)                |
+|  - ERPs do Provedor (IXC Soft / MK-Auth / Voalle / SGP / Postman / cURL)    |
+|  - Frontend NOC Flutter Multi-plataforma (macOS Desktop / Linux / Web)      |
 +--------------------------------------+--------------------------------------+
                                        | HTTPS + X-API-Key
                                        v
 +-----------------------------------------------------------------------------+
 |                              Camada API REST                                |
-|  - FastAPI Router (v1)                                                      |
+|  - FastAPI Router (v1) - 100% Desacoplada e Agnóstica                       |
 |  - Middleware de Segurança, Rate Limiting & Validação de Entrada            |
 |  - Injeção de Dependências (Deps: DB Session, Auth, Settings)              |
 +--------------------------------------+--------------------------------------+
@@ -24,26 +25,27 @@ A API foi projetada sobre três pilares essenciais:
                                        v
 +-----------------------------------------------------------------------------+
 |                         Camada de Negócio & Storage                         |
-|  - OLT Repository (Gestão de Credenciais Seguras com Fernet AES-128)        |
+|  - OLT Repository (Gestão de Credenciais Seguras com Fernet AES-256)        |
 |  - Backup & Disaster Recovery Service (Integridade SHA-256, Diff e Purge)   |
-|  - Storage Local / Volumes Docker Protegidos (backups/{olt_id}/)            |
+|  - ONU Inventory & Reconciliation Engine (Broadband Forum TR-101)           |
 +--------------------------------------+--------------------------------------+
                                        |
                                        v
 +-----------------------------------------------------------------------------+
-|                           Driver Factory & Registry                         |
+|               Driver Factory & Dynamic Inversion of Control                 |
+|       (DriverRegistry via @DriverRegistry.register & BaseOLTDriver)         |
 +--------------------------------------+--------------------------------------+
                                        |
-         +-------------+---------------+-------------+-------------+
-         |             |               |             |             |
-         v             v               v             v             v
-   +-----------+ +-----------+   +-----------+ +-----------+ +-----------+
-   | Intelbras | |  Huawei   |   | Fiberhome | |   V-SOL   | |    ZTE    |
-   | 8820 / G  | | SmartAX   |   |   AN5516  | |  V1600G   | | C300/C320 |
-   |   (CLI)   | | VRP (CLI) |   |   (TL1)   | |   (CLI)   | |   ZXROS   |
-   +-----+-----+ +-----+-----+   +-----+-----+ +-----+-----+ +-----+-----+
-         |             |               |             |             |
-         +-------------+---------------+-------------+-------------+
+                         +-------------+-------------+
+                         |                           |
+                         v                           v
+                   +-----------+               +-----------+
+                   | Fiberhome |               |   V-SOL   |
+                   |  AN5516   |               |  V1600G   |
+                   |   (TL1)   |               |   (CLI)   |
+                   +-----+-----+               +-----+-----+
+                         |                           |
+                         +-------------+-------------+
                                        |
                                        v
 +-----------------------------------------------------------------------------+

@@ -145,5 +145,29 @@ class BaseOLTDriver(ABC):
         """
         return None, False
 
+    handles_primary_ftp_upload: bool = False
+    """Indica se o próprio driver realiza upload direto ao primeiro servidor FTP primário."""
 
+    def inspect_management_arch(self, olt: OLTInDB, running_cfg: str, access_host: str) -> dict:
+        """
+        Inspeciona a arquitetura de gerência e acesso da OLT (SVIs, porta auxiliar e cenário).
+        Implementação padrão agnóstica para OLTs em produção.
+        """
+        protocol_str = olt.protocol.value.upper() if hasattr(olt.protocol, "value") else str(olt.protocol).upper()
+        vendor_str = olt.vendor.value.upper() if hasattr(olt.vendor, "value") else str(olt.vendor).upper()
+        return {
+            "aux_ip": None,
+            "gateway": None,
+            "existing_svis": [],
+            "existing_vlans": [],
+            "total_onus": 0,
+            "access_scenario": "inband_active",
+            "prompt_message": f"Conectado à OLT {vendor_str} {olt.model.upper()} via {protocol_str}.",
+        }
 
+    def execute_wizard_commissioning(self, olt: OLTInDB, req: object) -> List[str]:
+        """
+        Aplica o comissionamento assistido na OLT e grava permanentemente na flash.
+        Retorna a lista de comandos CLI executados.
+        """
+        return []

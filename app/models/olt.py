@@ -124,7 +124,7 @@ class OLTXRayResponse(BaseModel):
     host: str
     uptime_seconds: int = Field(..., description="Tempo de uptime da OLT em segundos")
     uptime_human: str = Field(..., description="Tempo de uptime legível (ex: 142 dias, 8 horas, 12 min)")
-    firmware_version: str = Field(..., description="Versão do software/firmware em execução")
+    firmware_version: Optional[str] = Field(default=None, description="Versão do software/firmware em execução")
     cpu_usage_pct: Optional[float] = Field(default=None, description="Percentual de uso de CPU")
     memory_usage_pct: Optional[float] = Field(default=None, description="Percentual de uso de memória")
     temperature_celsius: Optional[float] = Field(default=None, description="Temperatura média das placas em °C")

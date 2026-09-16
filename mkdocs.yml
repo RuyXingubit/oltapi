@@ -58,6 +58,7 @@ markdown_extensions:
 nav:
   - 🚀 Início: index.md
   - 🐳 Instalação & Setup: instalacao.md
+  - 🖥️ Frontend NOC (Flutter): frontend_noc.md
   - 📡 Manual Operacional (ERPs): MANUAL_OPERACIONAL.md
   - 🛠️ Manual do Desenvolvedor: MANUAL_DESENVOLVEDOR.md
   - 🏛️ Arquitetura & Padrões: ARCHITECTURE.md

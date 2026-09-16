@@ -13,21 +13,29 @@ from app.core.security import (
     sanitize_vlan,
 )
 from app.drivers.base import BaseOLTDriver
+from app.drivers.registry import DriverRegistry
 from app.models.bootstrap import BootstrapMode, BootstrapRequest
 from app.models.olt import (
     ExistingSVIItem,
     ManagementAccessScenario,
     OLTInDB,
     OLTPortStatusItem,
+    OLTVendor,
     OLTWizardOnboardRequest,
     VLANServicePurpose,
 )
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
+from app.services.ftp_service import FTPService
 
 logger = logging.getLogger(__name__)
 
 
+@DriverRegistry.register(
+    vendor=OLTVendor.VSOL,
+    models=["V1600GT", "V1600G", "V1600G-04", "V1600G-08", "V1600G-16", "V1600D", "V1600"],
+    is_default_for_vendor=True,
+)
 class VSOLV1600Driver(BaseOLTDriver):
     """
     Driver especializado para OLTs V-SOL da família V1600 (especificamente V1600GT e V1600G GPON).
@@ -80,18 +88,33 @@ class VSOLV1600Driver(BaseOLTDriver):
             channel = client.invoke_shell()
             time.sleep(0.5)
 
-            # Entra no modo enable com suporte a prompt de senha
-            channel.send("enable\n")
-            time.sleep(0.3)
+            # Consome banner inicial e verifica o prompt
             init_buf = ""
-            while channel.recv_ready():
-                init_buf += channel.recv(4096).decode("utf-8", errors="ignore")
-            if "password:" in init_buf.lower():
-                channel.send(f"{olt.password}\n")
-                time.sleep(0.3)
-                while channel.recv_ready():
-                    channel.recv(4096)
+            start_init = time.time()
+            while (time.time() - start_init) < 3.0:
+                if channel.recv_ready():
+                    init_buf += channel.recv(4096).decode("utf-8", errors="ignore")
+                    if ">" in init_buf or "#" in init_buf or "password:" in init_buf.lower():
+                        break
+                time.sleep(0.2)
 
+            # Se estiver em modo não-privilegiado (>), eleva para enable
+            if "#" not in init_buf:
+                channel.send("enable\n")
+                enable_buf = ""
+                start_enable = time.time()
+                while (time.time() - start_enable) < 3.0:
+                    if channel.recv_ready():
+                        enable_buf += channel.recv(4096).decode("utf-8", errors="ignore")
+                        if "password:" in enable_buf.lower():
+                            channel.send(f"{olt.password}\n")
+                            time.sleep(0.5)
+                            break
+                        if "#" in enable_buf:
+                            break
+                    time.sleep(0.2)
+
+            # Desativa paginação para capturar outputs completos
             channel.send("terminal length 0\n")
             time.sleep(0.3)
             while channel.recv_ready():
@@ -110,7 +133,9 @@ class VSOLV1600Driver(BaseOLTDriver):
                 output += channel.recv(65535).decode("utf-8", errors="ignore")
                 time.sleep(0.2)
 
-            return output
+            # Sanitiza sequências de controle ANSI VT100
+            clean_output = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", " ", output)
+            return clean_output
 
         except Exception as e:
             logger.error(f"Erro de comunicação SSH com OLT V-SOL {olt.name} ({olt.host}): {e}")
@@ -171,24 +196,25 @@ class VSOLV1600Driver(BaseOLTDriver):
         Suporta formato tabular e formato compacto nativo de firmware.
         """
         results: List[ONUSummary] = []
-        lines = output.splitlines()
+        normalized = (output or "").replace("\r\n", "\n").replace("\r", " ")
+        lines = normalized.splitlines()
 
         for line in lines:
-            line_str = line.strip()
+            line_str = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", " ", line).strip()
             if not line_str or "---" in line_str or "Serial-Number" in line_str or "Distance" in line_str or "total:" in line_str:
                 continue
 
             # Formato compacto nativo do show onu state: 2:1enableenableworkingHWTC073545b7
             compact_m = re.search(
-                r"(\d+):(\d+)\s*(enable|disable)\s*(enable|disable)\s*(working|syncmib|initial|dormant|offline|dyinggasp|[a-zA-Z]+?)\s*([A-Za-z0-9]{8,24})$",
+                r"(\d+):(\d+)\s*(?:enable|disable)\s*(?:enable|disable)\s*(working|syncmib|initial|dormant|offline|dyinggasp|[a-zA-Z]+?)\s*([A-Za-z0-9]{8,24})",
                 line_str,
                 re.IGNORECASE,
             )
             if compact_m:
                 p_num = compact_m.group(1)
                 o_id = int(compact_m.group(2))
-                phase = compact_m.group(5).lower()
-                sn = compact_m.group(6)
+                phase = compact_m.group(3).lower()
+                sn = compact_m.group(4)
                 status = "online" if phase in ["working", "syncmib", "online", "up", "active"] else "offline"
                 results.append(
                     ONUSummary(
@@ -434,14 +460,14 @@ class VSOLV1600Driver(BaseOLTDriver):
         rx_power: Optional[float] = None
         tx_power: Optional[float] = None
 
-        rx_match = re.search(r"Rx\s*(?:optical)?\s*power(?:\(dBm\))?\s*[:=]?\s*([-\d.]+)", output, re.IGNORECASE)
+        rx_match = re.search(r"Rx\s*(?:optical)?\s*(?:power|level)(?:\(dBm\))?\s*[:=]?\s*([-\d.]+)", output, re.IGNORECASE)
         if rx_match:
             try:
                 rx_power = float(rx_match.group(1))
             except ValueError:
                 pass
 
-        tx_match = re.search(r"Tx\s*(?:optical)?\s*power(?:\(dBm\))?\s*[:=]?\s*([-\d.]+)", output, re.IGNORECASE)
+        tx_match = re.search(r"Tx\s*(?:optical)?\s*(?:power|level)(?:\(dBm\))?\s*[:=]?\s*([-\d.]+)", output, re.IGNORECASE)
         if tx_match:
             try:
                 tx_power = float(tx_match.group(1))
@@ -456,20 +482,80 @@ class VSOLV1600Driver(BaseOLTDriver):
 
     def get_running_config(self, olt: OLTInDB) -> str:
         commands = [
-            "enable",
-            "terminal length 0",
             "show running-config",
         ]
         return self._execute_cli_commands(olt, commands)
 
     def backup_config(self, olt: OLTInDB, ftp_servers: Optional[List[object]] = None, **kwargs) -> str:
+        """
+        Gera o backup da configuração da OLT VSOL.
+        Tentativa 1 (Prioritária): Upload via FTP nativo caso servidores FTP estejam vinculados.
+        Tentativa 2 (Fallback): Captura direta do running-config pelo terminal (SSH/Telnet).
+        """
+        if ftp_servers:
+            primary_ftp = ftp_servers[0]
+            ftp_host = getattr(primary_ftp, "host", None)
+            ftp_port = getattr(primary_ftp, "port", 21)
+            ftp_user = getattr(primary_ftp, "username", None)
+            ftp_pass = getattr(primary_ftp, "password", None)
+            base_path = getattr(primary_ftp, "base_path", "/") or "/"
+
+            if ftp_host and ftp_user and ftp_pass:
+                try:
+                    return self._backup_via_ftp(
+                        olt=olt,
+                        ftp_host=ftp_host,
+                        ftp_user=ftp_user,
+                        ftp_pass=ftp_pass,
+                        ftp_port=ftp_port,
+                        base_path=base_path,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Aviso no envio de backup via FTP para VSOL '{olt.name}' ({e}). "
+                        "Executando fallback automático para captura via display do terminal..."
+                    )
+
+        # Fallback canônico via terminal
         return self.get_running_config(olt)
 
-    def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
+    def _backup_via_ftp(
+        self,
+        olt: OLTInDB,
+        ftp_host: str,
+        ftp_user: str,
+        ftp_pass: str,
+        ftp_port: int = 21,
+        base_path: str = "/",
+    ) -> str:
+        temp_filename = f"vsol_bkp_{int(time.time()) % 100000}.cfg"
         commands = [
-            "enable",
-            "show ont autofind all",
+            f"copy running-config ftp {ftp_host} {ftp_user} {ftp_pass} {temp_filename}",
         ]
+        output = self._execute_cli_commands(olt, commands)
+        if "error" in output.lower() or "fail" in output.lower():
+            raise RuntimeError(f"Comando FTP falhou na OLT VSOL: {output}")
+
+        time.sleep(1)
+        content = FTPService.download_file(
+            host=ftp_host,
+            port=ftp_port,
+            username=ftp_user,
+            password=ftp_pass,
+            remote_filename=temp_filename,
+            base_path=base_path,
+        )
+        return content
+
+    def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
+        commands = ["configure terminal"]
+        for pon in range(1, 9):
+            commands.extend([
+                f"interface gpon 0/{pon}",
+                "show onu auto-find detail-info",
+                "exit",
+            ])
+        commands.append("exit")
         output = self._execute_cli_commands(olt, commands)
         return self.parse_unauthorized_onus(output)
 
@@ -477,17 +563,38 @@ class VSOLV1600Driver(BaseOLTDriver):
         safe_port = sanitize_port(port)
         slot, pon = self.parse_port_components(safe_port)
         commands = [
-            "enable",
-            f"show ont info 0/{pon} all",
+            "configure terminal",
+            f"interface gpon 0/{pon}",
+            "show onu state",
+            "exit",
+            "exit",
         ]
         output = self._execute_cli_commands(olt, commands)
         return self.parse_port_onus(output, f"0/{pon}")
 
     def get_onu_details(self, olt: OLTInDB, serial_or_id: str) -> ONUDetails:
         safe_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        target_pon = "1"
+        target_idx = 1
+
+        try:
+            all_onus = self.list_all_authorized_onus(olt)
+            for o in all_onus:
+                if o.serial.upper() == safe_id.upper() or str(o.onu_id) == str(safe_id):
+                    nums = re.findall(r"\d+", o.port)
+                    if nums:
+                        target_pon = str(nums[-1])
+                    target_idx = o.onu_id
+                    break
+        except Exception as e:
+            logger.debug(f"Aviso ao localizar porta da ONU {safe_id}: {e}")
+
         commands = [
-            "enable",
-            f"show ont optical-info 0/1 {safe_id}",
+            "configure terminal",
+            f"interface gpon 0/{target_pon}",
+            f"show onu optical-info {target_idx}",
+            "exit",
+            "exit",
         ]
         output = self._execute_cli_commands(olt, commands)
         rx, tx = self.parse_optical_info(output)
@@ -495,8 +602,8 @@ class VSOLV1600Driver(BaseOLTDriver):
         status = "online" if rx is not None else "offline"
 
         return ONUDetails(
-            port="0/1",
-            onu_id=1,
+            port=f"0/{target_pon}",
+            onu_id=target_idx,
             serial=serial_or_id,
             status=status,
             rx_power_dbm=rx,
@@ -527,7 +634,6 @@ class VSOLV1600Driver(BaseOLTDriver):
             onu_id += 1
 
         commands = [
-            "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
             f"onu add {onu_id} profile default sn {safe_serial}",
@@ -561,7 +667,6 @@ class VSOLV1600Driver(BaseOLTDriver):
         onu_idx = onu_id if onu_id is not None else 1
 
         commands = [
-            "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
             f"no onu {onu_idx}",
@@ -595,7 +700,6 @@ class VSOLV1600Driver(BaseOLTDriver):
         onu_idx = onu_id if onu_id is not None else 1
 
         commands = [
-            "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
             f"onu {onu_idx} reboot",
@@ -628,7 +732,6 @@ class VSOLV1600Driver(BaseOLTDriver):
         onu_idx = onu_id if onu_id is not None else 1
 
         commands = [
-            "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
             f"onu {onu_idx} disable",
@@ -662,7 +765,6 @@ class VSOLV1600Driver(BaseOLTDriver):
         onu_idx = onu_id if onu_id is not None else 1
 
         commands = [
-            "enable",
             "configure terminal",
             f"interface gpon 0/{pon}",
             f"onu {onu_idx} enable",
@@ -900,7 +1002,6 @@ class VSOLV1600Driver(BaseOLTDriver):
     def configure_snmp(self, olt: OLTInDB, community: str, port: int = 161) -> bool:
         """Provisiona comunidade SNMP Read-Only (RO) na VSOL V1600, liberando ACL e salvando via 'write'."""
         commands = [
-            "enable",
             "configure terminal",
             "no login-access-list deny snmp 0.0.0.0 0.0.0.0",
             "login-access-list permit snmp 0.0.0.0 0.0.0.0",
@@ -982,4 +1083,8 @@ class VSOLV1600Driver(BaseOLTDriver):
         commands = self.generate_wizard_commissioning_commands(req)
         self._execute_cli_commands(olt, commands)
         return commands
+
+    def inspect_management_arch(self, olt: OLTInDB, running_cfg: str, access_host: str) -> dict:
+        """Inspeciona a arquitetura de gerência e acesso da OLT VSOL física."""
+        return self.parse_management_architecture(running_cfg, access_host)
 

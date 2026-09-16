@@ -203,19 +203,8 @@ class OLTOnboardingService:
         driver = DriverFactory.get_driver(temp_olt)
         running_cfg = driver.get_running_config(temp_olt)
 
-        # Se for VSOL ou compatível, usa o parser arquitetural
-        if hasattr(driver, "parse_management_architecture"):
-            arch = driver.parse_management_architecture(running_cfg, request.host.strip())
-        else:
-            arch = {
-                "aux_ip": None,
-                "gateway": None,
-                "existing_svis": [],
-                "existing_vlans": [],
-                "total_onus": len(re.findall(r"onu\s+add", running_cfg, re.IGNORECASE)),
-                "access_scenario": ManagementAccessScenario.INBAND_ACTIVE,
-                "prompt_message": f"Conectado à OLT {vendor.value.upper()} {model.upper()} via {protocol.value.upper()}.",
-            }
+        # Inspeciona a arquitetura de gerência e acesso polimorficamente via Driver
+        arch = driver.inspect_management_arch(temp_olt, running_cfg, request.host.strip())
 
         links = {
             "wizard": Link(href="/api/v1/olts/onboard-wizard", rel="wizard", method="POST"),
@@ -519,9 +508,9 @@ class OLTOnboardingService:
 
         # 5. Execução do Comissionamento Wizard via Driver
         driver = DriverFactory.get_driver(created_olt)
-        if hasattr(driver, "execute_wizard_commissioning"):
-            try:
-                cmd_list = driver.execute_wizard_commissioning(created_olt, request)
+        try:
+            cmd_list = driver.execute_wizard_commissioning(created_olt, request)
+            if cmd_list:
                 steps.append(
                     OnboardingStepItem(
                         step_key="wizard_commissioning",
@@ -530,16 +519,16 @@ class OLTOnboardingService:
                         details=f"{len(cmd_list)} comandos de comissionamento aplicados e persistidos na flash.",
                     )
                 )
-            except Exception as e:
-                logger.error(f"Erro ao aplicar comissionamento wizard na OLT {created_olt.name}: {e}")
-                steps.append(
-                    OnboardingStepItem(
-                        step_key="wizard_commissioning",
-                        title="Comissionamento Wizard",
-                        status="warning",
-                        details=f"Aviso na aplicação de regras da OLT: {e}",
-                    )
+        except Exception as e:
+            logger.error(f"Erro ao aplicar comissionamento wizard na OLT {created_olt.name}: {e}")
+            steps.append(
+                OnboardingStepItem(
+                    step_key="wizard_commissioning",
+                    title="Comissionamento Wizard",
+                    status="warning",
+                    details=f"Aviso na aplicação de regras da OLT: {e}",
                 )
+            )
 
         # 6. SNMP Telemetry Discovery
         snmp_active, final_community, step_snmp = self._discover_and_configure_snmp(
@@ -767,18 +756,17 @@ class OLTOnboardingService:
         Deriva total de portas reais, portas ativas e telemetria básica a partir do driver de hardware
         e do inventário sincronizado, sem inventar portas nem presumir capacidades genéricas.
         """
-        firmware_ver = f"{created_olt.vendor.value.upper()}_{created_olt.model.upper()}"
+        firmware_ver = None
         uptime_str = None
         ports_count = 0
         active_ports_count = 0
 
         try:
             driver = DriverFactory.get_driver(created_olt)
-            if hasattr(driver, "get_chassis_interfaces"):
-                chassis_ports = driver.get_chassis_interfaces(created_olt)
-                if chassis_ports:
-                    ports_count = len(chassis_ports)
-                    active_ports_count = len([p for p in chassis_ports if getattr(p, "oper_status", "") == "up"])
+            chassis_ports = driver.get_chassis_interfaces(created_olt)
+            if chassis_ports:
+                ports_count = len(chassis_ports)
+                active_ports_count = len([p for p in chassis_ports if getattr(p, "oper_status", "") == "up"])
 
             if ports_count == 0:
                 onus_discovered = self.sync_service.onu_repo.list_all(olt_id=created_olt.id)

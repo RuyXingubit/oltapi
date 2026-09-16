@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-229%20passed%20(100%25)-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-219%20backend%20%2B%208%20flutter%20passed-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Testcontainers-PostgreSQL%2016-blue.svg" alt="Testcontainers PostgreSQL 16">
   <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg" alt="SQLAlchemy 2.0">
   <img src="https://img.shields.io/badge/Alembic-Migrations-orange.svg" alt="Alembic Migrations">
@@ -57,43 +57,44 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 
 ---
 
-## 🖥️ Matriz de Equipamentos Suportados
+## 🖥️ Matriz de Concentradores Homologados
 
 > [!NOTE]
-> **Critério Rigoroso de Homologação:** O status **🟢 Homologado em Campo / Bancada** é atribuído única e exclusivamente após validação com tráfego real em bancada ou hardware físico em produção (leitura, escrita e provisionamento ponta a ponta com ONU). Drivers validados via suíte de testes unitários automatizados constam com precisão como **🔵 Driver Implementado (Aguardando Hardware Físico)**.
+> **Critério Rigoroso de Homologação em Bancada Física:** Drivers de OLT só são adicionados e mantidos no repositório mediante acesso a hardware físico real para homologação completa (leitura, gravação atômica, backup e provisionamento com tráfego real em bancada). Drivers teóricos foram extirpados do projeto.
 
-| Fabricante | Modelo | Portas PON | Protocolo | Status de Validação | Suporte |
+| Fabricante | Modelo | Portas PON | Protocolo | Status de Homologação | Suporte |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Fiberhome** | AN5516-01 / 04 / 06 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟢 Homologado em Campo | 100% Homologado em hardware real: Leitura de VLANs, perfis, ONUs ativas, running-config, backup FTP, telemetria óptica dupla (ONU/OLT RX), ciclo de vida e provisionamento ponta a ponta (Router PPPoE, Bridge e VEIP). |
+| **Fiberhome** | AN5516-01 / 04 / 06 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟢 Homologado em Campo | 100% Homologado em hardware real: Leitura de VLANs, perfis, ONUs ativas, running-config, backup FTP com fallback, telemetria óptica dupla (ONU/OLT RX), ciclo de vida e provisionamento ponta a ponta (Router PPPoE, Bridge e VEIP). |
 | **V-SOL** | V1600GT / Série V1600G | 4 a 16 GPON | SSH / Telnet | 🟢 Homologado em Bancada Física | 100% Homologado em hardware real: Onboarding Wizard em 2 fases, detecção determinística AUX vs In-Band, VLANs híbridas, comutação inter-ONU LAN-to-LAN (`p2p enable`), porta de teste untagged, compilação de perfis com submodo `commit`, persistência na flash (`write`) e provisionamento com tráfego real de ONUs Huawei Wi-Fi 6 e Intelbras Bridge. |
-| **Intelbras** | 8820 / 8820i | 8 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (CLI Broadcom) - Validação unitária com mocks |
-| **Intelbras** | OLT G08 / G16 | 8 e 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (G-Series CLI) - Validação unitária com mocks |
-| **Huawei** | SmartAX MA5800 / MA5600T | 8 a 16 GPON/XGS | SSH | 🔵 Driver Implementado | Completo (VRP CLI) - Validação unitária com mocks |
-| **ZTE** | C300 / C320 / C600 | 8 a 16 GPON | SSH / Telnet | 🔵 Driver Implementado | Completo (ZXROS CLI) - Validação unitária com mocks |
-| **Parks / Datacom / Nokia** | Vários | GPON | SSH | ⚪ Em Roadmap | [Ajude a Contribuir!](CONTRIBUTING.md) |
+| **Novos Fabricantes** | Bancada Física Requerida | GPON / EPON | Telnet / SSH / TL1 | ⚪ Sob Demanda de Hardware | [Contribuição com Hardware de Bancada](CONTRIBUTING.md) |
 
 ---
 
-## 🏛️ Arquitetura (Driver / Adapter Pattern)
+## 🏛️ Arquitetura & Inversão de Dependência (DriverRegistry)
 
 ```
-[ ERP de Provedor / Postman / cURL / App Mobile ]
-                        │
-                        │  JSON Padronizado + Header X-API-Key
-                        ▼
-             [ OLTAPI Core (FastAPI) ]
-                        │
-  ┌───────────────┬────────────────┬────────────────┬────────────────┬────────────────┬────────────────┐
-  ▼               ▼                ▼                ▼                ▼                ▼                ▼
-[ Intelbras 8820 ][ Intelbras G08 ] [ Huawei VRP ]  [ Fiberhome TL1 ] [ V-SOL V1600 ]  [ ZTE ZXROS ]   [ Em Roadmap... ]
- (Broadcom CLI)    (G08 / G16)      (MA5800/MA5600) (AN5516/AN6000)   (V1600G/GT)      (C300/C320/C600) (Parks/Datacom)
-  │               │                │                │                │                │                │
-  ▼               ▼                ▼                ▼                ▼                ▼                ▼
-[ OLT Física ]    [ OLT Física ]    [ OLT Física ]    [ OLT Física ]    [ OLT Física ]    [ OLT Física ]    [ OLT Física ]
+[ ERP de Provedor (IXC, MK-Auth, Voalle) ]    [ Frontend NOC Flutter (Desktop & Web) ]
+                     │                                        │
+                     └───────────────────┬────────────────────┘
+                                         │ JSON Padronizado + Header X-API-Key
+                                         ▼
+                             [ OLTAPI Core (FastAPI) ]
+                                         │
+                                         ▼
+                            [ DriverRegistry Dinâmico ]
+                                         │
+                         ┌───────────────┴───────────────┐
+                         ▼                               ▼
+                 [ Fiberhome TL1 ]                [ V-SOL V1600 ]
+                  (AN5516/AN6000)                  (V1600G / GT)
+                         │                               │
+                         ▼                               ▼
+                   [ OLT Física ]                  [ OLT Física ]
 ```
 
-- **Isolamento de Sintaxe:** Quem consome a API nunca precisa saber se o comando é `show gpon onu unauth`, `ont-find` ou `display ont autofind`.
-- **Drivers Testáveis:** Parsers regex desacoplados da conexão SSH, permitindo testes unitários rápidos e sem dependência de hardware físico.
+- **Inversão de Dependência Radical:** A camada de serviço conversa exclusivamente com métodos polimórficos da interface `BaseOLTDriver`. Cada driver se auto-registra com `@DriverRegistry.register`.
+- **Isolamento de Sintaxe:** Quem consome a API ou opera o Frontend NOC nunca precisa saber os dialetos de baixo nível dos fabricantes.
+- **Padrão Canônico de Backup:** Prioridade nativa por FTP com fallback transparente para terminal.
 
 ---
 
@@ -152,6 +153,21 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+### 🖥️ Opção 3: Frontend NOC (Flutter Desktop & Web)
+
+Para operar a central de rede com painel de autorização, inventário, diagnósticos ópticos e gestão de backups:
+
+```bash
+# 1. Navegue até a pasta do frontend
+cd frontend
+
+# 2. Obtenha as dependências
+flutter pub get
+
+# 3. Execute no macOS Desktop ou no navegador
+flutter run -d macos  # ou: flutter run -d chrome
+```
+
 ---
 
 ## 📖 Documentação Interativa da API
@@ -160,6 +176,7 @@ Com a aplicação rodando, acesse a documentação interativa com Swagger e ReDo
 - **Swagger UI:** [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
 - **ReDoc:** [http://localhost:8000/api/v1/redoc](http://localhost:8000/api/v1/redoc)
 - **Contrato OpenAPI 3.1.0 Raw:** [`docs/api_contracts/openapi.yaml`](docs/api_contracts/openapi.yaml)
+- **Portal de Documentação no GitHub Pages:** [https://ruyxingubit.github.io/oltapi/](https://ruyxingubit.github.io/oltapi/)
 
 ---
 

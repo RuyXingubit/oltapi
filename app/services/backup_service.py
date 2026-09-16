@@ -37,11 +37,10 @@ class BackupService:
             logger.warning(f"Erro ao obter destinos FTP para OLT {olt_id}: {e}")
             return []
 
-    def _mirror_backup(self, olt, backup_id: str, content: str, raw_ftps: List[Any]) -> None:
+    def _mirror_backup(self, olt, driver, backup_id: str, content: str, raw_ftps: List[Any]) -> None:
         if not raw_ftps:
             return
-        vendor_str = olt.vendor.value if hasattr(olt.vendor, "value") else str(olt.vendor)
-        targets_to_mirror = raw_ftps[1:] if vendor_str.lower() == "fiberhome" else raw_ftps
+        targets_to_mirror = raw_ftps[1:] if getattr(driver, "handles_primary_ftp_upload", False) else raw_ftps
         for target in targets_to_mirror:
             try:
                 remote_name = f"backup_{olt.id}_{backup_id}.cfg"
@@ -67,7 +66,7 @@ class BackupService:
         driver = DriverFactory.get_driver(olt)
         content = driver.backup_config(olt, ftp_servers=raw_ftps)
         meta = self.storage.save_backup(olt_id=olt.id, content=content)
-        self._mirror_backup(olt, meta.backup_id, content, raw_ftps)
+        self._mirror_backup(olt, driver, meta.backup_id, content, raw_ftps)
         return meta
 
     def run_all_backups(
@@ -92,7 +91,7 @@ class BackupService:
                 driver = DriverFactory.get_driver(olt)
                 content = driver.backup_config(olt, ftp_servers=raw_ftps)
                 meta = self.storage.save_backup(olt_id=olt.id, content=content)
-                self._mirror_backup(olt, meta.backup_id, content, raw_ftps)
+                self._mirror_backup(olt, driver, meta.backup_id, content, raw_ftps)
                 result.backups.append(meta)
                 result.successful += 1
                 logger.info(f"Backup concluído com sucesso para OLT '{olt.name}' ({olt.id}): {meta.backup_id}")

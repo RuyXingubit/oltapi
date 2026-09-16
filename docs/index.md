@@ -6,31 +6,29 @@
 
 ## 🎯 Visão Geral
 
-O **OLTAPI** foi concebido para resolver um dos gargalos mais críticos enfrentados por Provedores de Internet (ISPs): a **heterogeneidade das redes ópticas**. Cada fabricante de OLT (Fiberhome, Intelbras, Huawei, V-SOL, ZTE) adota dialetos de terminal (CLI) distintos, formatos proprietários e particularidades operacionais.
+O **OLTAPI** foi concebido para resolver um dos gargalos mais críticos enfrentados por Provedores de Internet (ISPs): a **heterogeneidade das redes ópticas**. Cada fabricante de OLT adota dialetos de terminal (CLI) distintos, formatos proprietários e particularidades operacionais.
 
-O OLTAPI atua como uma **camada de abstração de alta performance**, permitindo que ERPs de telecomunicações (IXC, MK-Auth, SGP, Voalle, etc.), sistemas de auto-atendimento ou técnicos de campo executem operações completas através de um **único contrato JSON padronizado**.
+O OLTAPI atua como uma **camada de abstração de alta performance e desacoplada**, permitindo que ERPs de telecomunicações (IXC, MK-Auth, SGP, Voalle, etc.), centros de operações (NOC) ou técnicos de campo executem operações completas através de um **único contrato JSON padronizado** ou através da moderna **interface frontend Flutter NOC**.
 
 ```mermaid
 graph LR
-    ERP[ERP do Provedor / App Técnico] -->|REST JSON + API-Key| API[OLTAPI Core]
-    API -->|Telnet CLI / TL1| FH[Fiberhome AN5516 / AN6000]
-    API -->|SSH / Telnet CLI| ITB[Intelbras 8820 / G-Series]
-    API -->|SSH VRP CLI| HW[Huawei MA5800 / MA5600]
-    API -->|SSH / Telnet CLI| VS[V-SOL V1600G / GT]
-    API -->|SSH ZXROS CLI| ZTE[ZTE C300 / C320 / C600]
+    ERP[ERP do Provedor / App Técnico] -->|REST JSON + API-Key| API[OLTAPI Core FastAPI]
+    NOC[Frontend NOC Flutter Desktop/Web] -->|REST JSON + API-Key| API
+    API -->|Telnet TL1 Bellcore| FH[Fiberhome AN5516 / AN6000]
+    API -->|Telnet / SSH CLI| VS[V-SOL V1600G / GT]
 ```
 
 ---
 
 ## 🚀 Principais Capacidades
 
-* 🟢 **Concentrador 100% Homologado em Campo:** Driver Fiberhome AN5516 validado com tráfego real em bancada nos modos **Router (PPPoE oficial)**, **Bridge** e **VEIP (para ONUs de terceiros como Huawei/ZTE)**.
-* ⚡ **Onboarding Zero-Touch:** Detecção automática de protocolo (SSH / Telnet), fingerprint de fabricante e modelo, backup Baseline v0 e ingestão de inventário em segundos.
-* 📊 **Telemetria Óptica Dupla:** Leitura em tempo real de **ONU RX** (potência recebida pelo cliente) e **OLT RX** (potência recebida na porta PON da OLT).
-* 🔄 **Auto-Recuperação Reativa (Broadband Forum TR-101):** Rastreamento perpétuo de hardware vinculado ao contrato comercial do ERP, resolvendo fusões invertidas e cutovers com desprovisionamento da posição fantasma e recálculo dinâmico do Circuit ID.
-* 💾 **Disaster Recovery & Detecção de Drift:** Coleta automatizada com upload FTP remoto, cálculo de hash criptográfico SHA-256, comparador de unified diff (estilo git) e auditoria de integridade.
-* 🔔 **Webhooks Criptografados (HMAC SHA-256):** Notificações push assíncronas para sincronização em tempo real de eventos de rede com ERPs.
-* 🛡️ **Segurança em Primeiro Lugar:** Prevenção ativa contra injeção de comandos de terminal em todos os parâmetros, autenticação em tempo constante e criptografia AES-256 de credenciais em repouso.
+* 🟢 **Concentradores 100% Homologados em Bancada:** Drivers homologados em hardware físico com tráfego real para **Fiberhome** (AN5516/AN6000 via TL1) e **V-SOL** (série V1600 via CLI).
+* 🖥️ **Central de Operações NOC em Flutter:** Interface gráfica moderna (Desktop macOS/Linux/Windows e Web) com tema Dark NOC de alto contraste, telemetria óptica colorimétrica, aprovação de ONUs em 1-clique e ações operacionais com proteção defensiva de segurança.
+* ⚡ **Onboarding Zero-Touch & Wizard Guiado:** Detecção de protocolos, inspeção não-destrutiva de portas AUX e In-Band, comissionamento de VLANs com gravação atômica na flash e backup Baseline v0 obrigatório.
+* 📊 **Telemetria Óptica Dupla em Tempo Real:** Leitura direta de **ONU RX** (potência recebida pelo assinante), **ONU TX** e **OLT RX** (potência recebida na porta PON da OLT) em dBm.
+* 🔄 **Auto-Recuperação Reativa (Broadband Forum TR-101):** Rastreamento perpétuo de hardware vinculado ao contrato comercial do ERP, resolvendo cutovers com desprovisionamento da posição fantasma e recálculo dinâmico do Circuit ID.
+* 💾 **Disaster Recovery & Padrão Canônico de Backup:** Envio direto via FTP com a sintaxe nativa da OLT, com fallback gracioso para captura do running-config, hash criptográfico SHA-256 e comparador de unified diff.
+* 🛡️ **Segurança e Hardening:** Criptografia de credenciais em repouso com Fernet AES-256, controle de acesso RBAC multi-tenant, sanitização defensiva contra injeção CLI e validação estrita de tokens.
 
 ---
 
@@ -41,10 +39,12 @@ Explore as seções da documentação:
 ::: cards
 - [🐳 **Guia de Instalação**](instalacao.md)  
   Como inicializar a stack de produção com Docker Compose e PostgreSQL 16.
+- [🖥️ **Frontend NOC (Flutter)**](frontend_noc.md)  
+  Conheça a aplicação de operações de rede com painel de autorização, inventário e diagnósticos.
 - [📡 **Manual Operacional (ERPs)**](MANUAL_OPERACIONAL.md)  
   Exemplos práticos de chamadas via cURL, Python, PHP e Node.js para integrar com seu sistema.
 - [🛠️ **Manual do Desenvolvedor**](MANUAL_DESENVOLVEDOR.md)  
-  Como a arquitetura de drivers funciona por dentro e como adicionar novos fabricantes.
+  Entenda a arquitetura de drivers baseada em Inversão de Dependência e conformidade de testes.
 - [📖 **Referência da API (ReDoc)**](referencia-api.md)  
-  Especificação interativa e detalhada de todos os 66 endpoints da API REST.
+  Especificação interativa e detalhada de todos os 68 endpoints da API REST.
 :::

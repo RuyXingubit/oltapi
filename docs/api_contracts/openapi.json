@@ -6744,7 +6744,14 @@
             "description": "Tempo de uptime legível (ex: 142 dias, 8 horas, 12 min)"
           },
           "firmware_version": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Firmware Version",
             "description": "Versão do software/firmware em execução"
           },
@@ -6888,8 +6895,7 @@
           "model",
           "host",
           "uptime_seconds",
-          "uptime_human",
-          "firmware_version"
+          "uptime_human"
         ],
         "title": "OLTXRayResponse"
       },
