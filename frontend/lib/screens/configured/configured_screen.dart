@@ -17,6 +17,36 @@ class _ConfiguredScreenState extends State<ConfiguredScreen> {
   String _selectedStatus = 'ALL'; // ALL, ACTIVE, SUSPENDED
 
   @override
+  void initState() {
+    super.initState();
+    final qParam = Uri.base.queryParameters['q'];
+    if (qParam != null && qParam.isNotEmpty) {
+      _searchController.text = qParam;
+    }
+    final onuParam = Uri.base.queryParameters['onu'];
+    if (onuParam != null && onuParam.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndOpenOnuParam(onuParam);
+      });
+    }
+  }
+
+  void _checkAndOpenOnuParam(String serial) async {
+    for (int i = 0; i < 25; i++) {
+      if (!mounted) return;
+      final appState = context.read<AppState>();
+      if (appState.configuredOnus.isNotEmpty) {
+        final matches = appState.configuredOnus.where((o) => o.serial.toUpperCase() == serial.toUpperCase());
+        if (matches.isNotEmpty) {
+          _openDetailDialog(context, matches.first);
+          break;
+        }
+      }
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();

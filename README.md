@@ -33,6 +33,28 @@ O **OLTAPI** resolve esse problema criando uma **camada intermediária de abstra
 
 ---
 
+## 🖥️ Central de Operações NOC (Flutter Web & Desktop)
+
+O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em **Flutter** (Web e Desktop macOS/Linux/Windows) com tema escuro de alto contraste, homologada com telemetria óptica real e equipamentos físicos de bancada:
+
+<p align="center">
+  <img src="docs/assets/screenshots/02_configured_vsol_onus.png" alt="Inventário de ONUs e Telemetria em Tempo Real" width="950">
+</p>
+
+### 🌟 Destaques da Central Operacional:
+* **Varredura Autofind & Ativação em 1-Clique:** Identificação contínua de ONUs recém-conectadas na rede PON aguardando homologação, permitindo provisioná-las instantaneamente.
+* **Telemetria Óptica em Tempo Real:** Leitura direta de potência via hardware físico (`Rx -15.22 dBm`, `Tx 2.06 dBm`) com alertas colorimétricos automáticos de atenuação ou saturação.
+* **Ciclo de Vida do Assinante:** Comandos defensivos para reinício remoto (Reboot OMCI), suspensão por inadimplência, reativação e exclusão atômica com confirmação de serial.
+* **Gestão de Concentradores & Backups Criptográficos:** Extração imediata de running-config, teste de conectividade TCP em tempo real (latência em ms) e download seguro de backups com hash SHA-256.
+
+| Diagnóstico Óptico em Tempo Real | Gestão de OLTs & Backups |
+| :---: | :---: |
+| <img src="docs/assets/screenshots/03_onu_optical_diagnostic_real.png" width="460" alt="Diagnóstico Óptico em Tempo Real"> | <img src="docs/assets/screenshots/05_olts_and_backups_screen.png" width="460" alt="Gestão de OLTs e Backups"> |
+
+> 📖 **Quer ver todos os fluxos e telas detalhadas?** Acesse a [Documentação Completa do Frontend NOC](docs/frontend_noc.md) no portal oficial.
+
+---
+
 ## 🚀 Principais Funcionalidades
 
 1. **Visualizar Configurações da OLT:** Coleta e exibição em tempo real do *running-config* ativo via SSH/CLI ou TL1.

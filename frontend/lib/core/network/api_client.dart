@@ -147,7 +147,7 @@ class ApiClient {
   // Unconfigured ONUs
   Future<List<UnauthorizedOnu>> getUnauthorizedOnus(String oltId) async {
     final response = await _client
-        .get(Uri.parse(_cleanUrl('/api/v1/provision/$oltId/unauthorized')), headers: _headers)
+        .get(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/unauthorized')), headers: _headers)
         .timeout(const Duration(seconds: 15));
     final data = await _handleResponse(response);
     if (data is List) {
@@ -160,7 +160,7 @@ class ApiClient {
   Future<Map<String, dynamic>> provisionOnu(String oltId, ProvisionRequestModel request) async {
     final response = await _client
         .post(
-          Uri.parse(_cleanUrl('/api/v1/provision/$oltId/onus')),
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/onus')),
           headers: _headers,
           body: jsonEncode(request.toJson()),
         )
@@ -184,7 +184,7 @@ class ApiClient {
   // Diagnostics (Optical Signal)
   Future<OnuDiagnostics> getOnuDiagnostics(String oltId, String serialOrId) async {
     final response = await _client
-        .get(Uri.parse(_cleanUrl('/api/v1/diagnostics/$oltId/onus/$serialOrId')), headers: _headers)
+        .get(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/onus/$serialOrId')), headers: _headers)
         .timeout(const Duration(seconds: 15));
     final data = await _handleResponse(response);
     return OnuDiagnostics.fromJson(data as Map<String, dynamic>);
@@ -193,7 +193,7 @@ class ApiClient {
   // Lifecycle Actions
   Future<OnuActionResponse> rebootOnu(String oltId, String serialOrId) async {
     final response = await _client
-        .post(Uri.parse(_cleanUrl('/api/v1/provision/$oltId/onus/$serialOrId/reboot')), headers: _headers)
+        .post(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/onus/$serialOrId/reboot')), headers: _headers)
         .timeout(const Duration(seconds: 20));
     final data = await _handleResponse(response);
     return OnuActionResponse.fromJson(data as Map<String, dynamic>);
@@ -201,7 +201,7 @@ class ApiClient {
 
   Future<OnuActionResponse> suspendOnu(String oltId, String serialOrId) async {
     final response = await _client
-        .post(Uri.parse(_cleanUrl('/api/v1/provision/$oltId/onus/$serialOrId/suspend')), headers: _headers)
+        .post(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/onus/$serialOrId/suspend')), headers: _headers)
         .timeout(const Duration(seconds: 20));
     final data = await _handleResponse(response);
     return OnuActionResponse.fromJson(data as Map<String, dynamic>);
@@ -209,7 +209,7 @@ class ApiClient {
 
   Future<OnuActionResponse> resumeOnu(String oltId, String serialOrId) async {
     final response = await _client
-        .post(Uri.parse(_cleanUrl('/api/v1/provision/$oltId/onus/$serialOrId/resume')), headers: _headers)
+        .post(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/onus/$serialOrId/resume')), headers: _headers)
         .timeout(const Duration(seconds: 20));
     final data = await _handleResponse(response);
     return OnuActionResponse.fromJson(data as Map<String, dynamic>);
@@ -217,7 +217,7 @@ class ApiClient {
 
   Future<OnuActionResponse> deprovisionOnu(String oltId, String serialOrId) async {
     final response = await _client
-        .delete(Uri.parse(_cleanUrl('/api/v1/provision/$oltId/onus/$serialOrId')), headers: _headers)
+        .delete(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/onus/$serialOrId')), headers: _headers)
         .timeout(const Duration(seconds: 20));
     final data = await _handleResponse(response);
     return OnuActionResponse.fromJson(data as Map<String, dynamic>);

@@ -26,8 +26,21 @@ Dois modelos de assinante foram testados e provisionados simultaneamente na mesm
 
 | ONU ID | Fabricante | Modelo | Tipo | Serial | Sinal Óptico RX | Perfil Linha | Perfil Serviço | Modo Portvlan |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | **Huawei** | `EG8041X6-10` | HGU (Wi-Fi 6) | `HWTC073545b7` | `-15.32 dBm` | `line_internet` (ID 10) | `srv_hgu` (ID 10) | `portvlan veip 1 mode transparent` |
-| 2 | **Intelbras** | `110GB` | SFU (Bridge) | `ITBS5f44ca50` | `-16.02 dBm` | `line_internet` (ID 10) | `srv_bridge` (ID 20) | `portvlan eth 1 mode transparent` |
+| 1 | **Huawei** | `EG8041X6-10` | HGU (Wi-Fi 6) | `HWTC073545b7` | `-15.22 dBm` | `line_internet` (ID 10) | `srv_hgu` (ID 10) | `portvlan veip 1 mode transparent` |
+| 2 | **Intelbras** | `110GB` | SFU (Bridge) | `ITBS5f44ca50` | `-14.66 dBm` | `line_internet` (ID 10) | `srv_bridge` (ID 20) | `portvlan eth 1 mode transparent` |
+
+### 📸 Evidências de Diagnóstico Óptico em Tempo Real (Bancada Física):
+
+A telemetria óptica das duas ONUs ativas na porta `gpon 0/2` foi validada via SSH e renderizada na Central NOC:
+
+=== "ONU Huawei Wi-Fi 6 (`HWTC073545b7`)"
+    ![Diagnóstico Óptico Huawei](assets/screenshots/03_onu_optical_diagnostic_real.png)
+
+=== "ONU Intelbras Bridge (`ITBS5f44ca50`)"
+    ![Diagnóstico Óptico Intelbras](assets/screenshots/04_onu_intelbras_diagnostic_real.png)
+
+=== "Filtro Isolado da Porta 0/2 no Inventário"
+    ![Porta 0/2 no Inventário](assets/screenshots/02_configured_vsol_onus.png)
 
 ---
 

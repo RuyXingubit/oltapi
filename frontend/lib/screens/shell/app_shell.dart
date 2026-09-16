@@ -27,6 +27,21 @@ class _AppShellState extends State<AppShell> {
     SettingsScreen(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    final tabParam = Uri.base.queryParameters['tab'];
+    if (tabParam != null) {
+      if (tabParam == 'configured' || tabParam == '1') {
+        _currentIndex = 1;
+      } else if (tabParam == 'olts' || tabParam == '2') {
+        _currentIndex = 2;
+      } else if (tabParam == 'settings' || tabParam == '3') {
+        _currentIndex = 3;
+      }
+    }
+  }
+
   Future<void> _handleRefresh() async {
     setState(() => _isRefreshing = true);
     final settings = context.read<SettingsProvider>();

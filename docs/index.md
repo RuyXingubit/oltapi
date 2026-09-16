@@ -20,6 +20,33 @@ graph LR
 
 ---
 
+## 🖥️ Central de Operações NOC (Desktop & Web)
+
+Além dos endpoints RESTful de alta performance, o projeto disponibiliza uma **Central de Operações NOC (Flutter)** completa, homologada diretamente contra hardware físico de bancada (V-SOL e Fiberhome) com tráfego e potências ópticas reais:
+
+![Inventário de ONUs e Telemetria em Tempo Real](assets/screenshots/02_configured_vsol_onus.png)
+
+### ⚡ Fluxos Operacionais em Destaque
+
+=== "📊 Diagnóstico Óptico & Ciclo de Vida"
+    Consulta instantânea de telemetria física direto da fibra óptica (Rx/Tx em dBm) com alertas semânticos de atenuação ou saturação, além de comandos defensivos de **Reboot Remoto (OMCI)**, **Suspensão por Inadimplência**, **Reativação** e **Exclusão Atômica**:
+    
+    ![Telemetria Óptica em Tempo Real](assets/screenshots/03_onu_optical_diagnostic_real.png)
+
+=== "🔍 Autofind & Provisionamento Imediato"
+    Varredura contínua de novas ONUs conectadas fisicamente que aguardam autorização (Autofind GPON), permitindo homologação e provisionamento imediato em 1-clique sem necessidade de acesso ao terminal:
+    
+    ![Aguardando Autorização](assets/screenshots/01_unconfigured_screen.png)
+
+=== "💾 Concentradores & Backups com SHA-256"
+    Gestão de todo o parque de OLTs ativas, teste de conectividade TCP em tempo real (latência em ms), histórico de backups com cálculo de hash SHA-256 e visualizador integrado de running-config:
+    
+    ![Gestão de OLTs e Backups](assets/screenshots/05_olts_and_backups_screen.png)
+
+> 📖 Confira o detalhamento de cada tela, paleta de cores e arquitetura no [Guia Completo do Frontend NOC](frontend_noc.md).
+
+---
+
 ## 🚀 Principais Capacidades
 
 * 🟢 **Concentradores 100% Homologados em Bancada:** Drivers homologados em hardware físico com tráfego real para **Fiberhome** (AN5516/AN6000 via TL1) e **V-SOL** (série V1600 via CLI).

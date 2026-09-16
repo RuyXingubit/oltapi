@@ -38,62 +38,76 @@ graph TD
 
 ---
 
-### 1. Barra Superior NOC (`AppShell`)
+### 1. Barra Superior NOC (`AppShell`) & Aguardando Autorização (`UnconfiguredScreen`)
+A tela inicial conecta-se diretamente ao hardware e monitora novas ONUs conectadas fisicamente que aguardam autorização (Autofind GPON).
 - **Identidade Visual:** Logo OLTAPI com chip semântico `NOC`.
 - **Abas de Navegação:** Navegação rápida com contadores dinâmicos de ONUs pendentes de autorização.
 - **Seletor Rápido de OLT:** Dropdown que permite alternar a OLT ativa em 1 clique.
-- **Indicador de Conectividade do Backend:** Ponto luminoso pulsante com telemetria de latência em milissegundos (`Online • 8ms` ou `Offline`).
-- **Sincronização Global:** Botão de recarga com spinner animado para re-sincronizar OLTs, pendências e inventário.
+- **Indicador de Conectividade do Backend:** Ponto luminoso pulsante com telemetria de latência em milissegundos (`Online • 10ms`).
+- **Empty State Seguro:** Exibe estado limpo e informativo quando todas as ONUs já estão homologadas.
+
+![Tela de Aguardando Autorização](assets/screenshots/01_unconfigured_screen.png)
 
 ---
 
-### 2. Aguardando Autorização (`UnconfiguredScreen`)
-Exibe em tempo real as ONUs recém-conectadas na rede PON da OLT selecionada (Autofind):
-- **Colunas:** Porta PON, Número de Série (SN) em tipografia monospace, Modelo detectado e Timestamp de descoberta.
-- **Autorização em 1-Clique:** Botão "Autorizar" que abre o modal seguro solicitando:
-  - Nome do Assinante / Descrição do Cliente
-  - VLAN de Serviço (validação estrita 1 a 4094)
-  - Perfil de Tráfego (ex: `DEFAULT`, `PLAN_200M`)
-- **Empty State Informativo:** Exibe estado limpo e neutro quando todas as ONUs da porta PON já estiverem homologadas.
-
----
-
-### 3. ONUs Autorizadas (`ConfiguredScreen`)
+### 2. ONUs Autorizadas (`ConfiguredScreen`) — Inventário FTTH
 Inventário unificado de clientes ativos e suspensos na rede FTTH:
 - **Busca Instantânea:** Filtro em tempo real por Número de Série, Nome do Assinante, Porta PON ou VLAN.
 - **Filtro de Status:** Seleção rápida entre *Todas*, *Ativas (Online)* e *Suspensas / Bloqueadas*.
 - **Tabela de Dados:** Exibe Serial, Assinante, Porta PON, ONU ID, VLAN e badge de status contratual.
-- **Ação Diagnóstico:** Abre o painel completo de detalhes da ONU.
+- **Ação Diagnóstico:** Abre o painel completo de telemetria da ONU.
+
+![Inventário Global de ONUs](assets/screenshots/02_configured_inventory_screen.png)
+
+#### Filtro por Porta Física da OLT V-SOL (Porta `0/2`)
+Isolamento instantâneo das ONUs ativas na porta GPON 0/2 da OLT V-SOL física na bancada de testes:
+
+![ONUs Reais da OLT V-SOL na Porta 0/2](assets/screenshots/02_configured_vsol_onus.png)
 
 ---
 
-### 4. Diagnóstico Óptico & Ciclo de Vida (`OnuDetailDialog`)
-Painel completo de saúde da fibra e operações remotas:
-- **Potência Óptica em Tempo Real:**
-  - **Rx ONU (Downlink):** Medição da potência recebida pela ONU vinda da OLT.
-  - **Tx ONU (Uplink):** Potência transmitida pelo laser da ONU.
-  - **Rx OLT:** Potência recebida na porta PON da OLT vinda da ONU.
-- **Ações de Ciclo de Vida:**
-  - 🔄 **Reiniciar ONU:** Envia comando de reboot remoto OMCI com diálogo de confirmação.
-  - ⏸️ / ▶️ **Suspender / Reativar:** Altera o estado do provisionamento para suspensão por inadimplência ou desbloqueio.
-  - 🛑 **Desprovisionar / Excluir:** Operação de alto risco com **dupla confirmação obrigatória**, exigindo a digitação do número de série alfanumérico exato da ONU antes de habilitar a remoção na OLT.
+### 3. Diagnóstico Óptico em Tempo Real & Ciclo de Vida (`OnuDetailDialog`)
+Ao clicar no botão **Diagnóstico** em qualquer ONU, o frontend consulta em tempo real a potência do laser via SSH na OLT:
+
+#### Telemetria Óptica da ONU Huawei (`HWTC073545b7`)
+- **Porta / ID:** GPON `0/2` : ID `2`
+- **Rx ONU (Downlink):** `-15.22 dBm` *(Classificação: Excelente)*
+- **Tx ONU (Uplink):** `2.06 dBm` *(Alerta / Nível Crítico de Potência)*
+- **Ações Rápidas:** Reiniciar ONU, suspender por inadimplência e excluir.
+
+![Diagnóstico Óptico da ONU Huawei](assets/screenshots/03_onu_optical_diagnostic_real.png)
+
+#### Telemetria Óptica da ONU Intelbras (`ITBS5f44ca50`)
+- **Porta / ID:** GPON `0/2` : ID `1`
+- **Rx ONU (Downlink):** `-14.66 dBm` *(Classificação: Excelente)*
+- **Tx ONU (Uplink):** `3.49 dBm`
+
+![Diagnóstico Óptico da ONU Intelbras](assets/screenshots/04_onu_intelbras_diagnostic_real.png)
 
 ---
 
-### 5. OLTs & Gestão de Backups (`OltsScreen`)
+### 4. OLTs & Gestão de Backups (`OltsScreen`)
 Controle do parque de hardware físico e políticas de disaster recovery:
 - **Tabela de Concentradores:** Nome da OLT, Fabricante (`FIBERHOME`, `VSOL`), IP, Porta e Protocolo (`Telnet`/`SSH`).
 - **Teste de Conectividade:** Dispara ping/teste de socket contra a porta de gerência da OLT, exibindo a latência real em ms.
 - **Novo Backup:** Dispara a extração imediata da configuração e geração de hash SHA-256.
 - **Visualizador de Running-Config:** Exibe a configuração ativa da OLT em modal com tipografia monospace e botão para copiar todo o texto.
-- **Histórico de Backups (`OltBackupsDialog`):** Lista todos os arquivos `.cfg` gerados, tamanho formatado (B/KB/MB), hash SHA-256 e opção de visualização/download.
+
+![Gestão de OLTs e Backups](assets/screenshots/05_olts_and_backups_screen.png)
+
+#### Histórico de Backups com Hashes Criptográficos (`OltBackupsDialog`)
+Visualização dos snapshots preventivos gerados com verificação de integridade SHA-256 e download do arquivo `.cfg`:
+
+![Histórico de Backups da OLT V-SOL](assets/screenshots/06_olt_backups_history_modal.png)
 
 ---
 
-### 6. Configurações (`SettingsScreen`)
+### 5. Configurações & Conectividade (`SettingsScreen`)
 - **Parâmetros da Conexão:** URL base da API (padrão: `http://localhost:8000`) e chave `X-API-Key`.
 - **Armazenamento Persistente:** Gravação segura no cliente via `SharedPreferences`.
-- **Teste & Validação:** Botão "Testar e Salvar Configurações" com feedback imediato de sucesso ou diagnóstico de falha.
+- **Healthcheck Automático:** Ponto de checagem com feedback em tempo real de latência de resposta (`Conectado ao Backend • 10 ms`).
+
+![Configurações de Conexão do NOC](assets/screenshots/07_settings_connectivity_screen.png)
 
 ---
 

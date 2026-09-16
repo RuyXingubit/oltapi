@@ -103,35 +103,47 @@ class VSOLV1600Driver(BaseOLTDriver):
                 channel.send("enable\n")
                 enable_buf = ""
                 start_enable = time.time()
-                while (time.time() - start_enable) < 3.0:
+                while (time.time() - start_enable) < 5.0:
                     if channel.recv_ready():
                         enable_buf += channel.recv(4096).decode("utf-8", errors="ignore")
                         if "password:" in enable_buf.lower():
                             channel.send(f"{olt.password}\n")
-                            time.sleep(0.5)
                             break
+                        if "#" in enable_buf:
+                            break
+                    time.sleep(0.2)
+
+                # Aguarda o prompt privilegiado '#' ser estabelecido
+                start_prompt = time.time()
+                while (time.time() - start_prompt) < 5.0:
+                    if "#" in enable_buf:
+                        break
+                    if channel.recv_ready():
+                        enable_buf += channel.recv(4096).decode("utf-8", errors="ignore")
                         if "#" in enable_buf:
                             break
                     time.sleep(0.2)
 
             # Desativa paginação para capturar outputs completos
             channel.send("terminal length 0\n")
-            time.sleep(0.3)
+            time.sleep(0.4)
             while channel.recv_ready():
                 channel.recv(4096)
 
             output = ""
             for cmd in commands:
                 channel.send(f"{cmd}\n")
-                time.sleep(0.3)
+                time.sleep(0.25)
+                while channel.recv_ready():
+                    output += channel.recv(65535).decode("utf-8", errors="ignore")
 
             start_time = time.time()
-            while not channel.recv_ready() and (time.time() - start_time) < self.timeout:
-                time.sleep(0.2)
+            while not channel.recv_ready() and (time.time() - start_time) < 2.0:
+                time.sleep(0.1)
 
             while channel.recv_ready():
                 output += channel.recv(65535).decode("utf-8", errors="ignore")
-                time.sleep(0.2)
+                time.sleep(0.1)
 
             # Sanitiza sequências de controle ANSI VT100
             clean_output = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", " ", output)
@@ -548,11 +560,20 @@ class VSOLV1600Driver(BaseOLTDriver):
         return content
 
     def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
+        active_pons = [1, 2]
+        try:
+            cfg = self.get_running_config(olt)
+            found_pons = sorted(list({int(p) for p in re.findall(r"interface\s+gpon\s+0/(\d+)", cfg, re.IGNORECASE)}))
+            if found_pons:
+                active_pons = found_pons
+        except Exception as e:
+            logger.debug(f"Falha ao detectar portas GPON do running-config da VSOL {olt.name}: {e}")
+
         commands = ["configure terminal"]
-        for pon in range(1, 9):
+        for pon in active_pons:
             commands.extend([
                 f"interface gpon 0/{pon}",
-                "show onu auto-find detail-info",
+                "show onu auto-find",
                 "exit",
             ])
         commands.append("exit")
@@ -880,17 +901,26 @@ class VSOLV1600Driver(BaseOLTDriver):
             logger.debug(f"Falha ao extrair ONUs do running-config da VSOL {olt.name}: {e}")
 
         # 2. Fallback: Consulta via CLI em cada porta PON ativa
+        active_pons = [1, 2]
+        try:
+            cfg_p = config_text or self.get_running_config(olt)
+            found_pons = sorted(list({int(p) for p in re.findall(r"interface\s+gpon\s+0/(\d+)", cfg_p, re.IGNORECASE)}))
+            if found_pons:
+                active_pons = found_pons
+        except Exception:
+            pass
+
         commands = [
             "terminal length 0",
             "configure terminal",
         ]
-        for p in range(1, 5):
+        for p in active_pons:
             commands.extend([
                 f"interface gpon 0/{p}",
                 "show onu state",
                 "exit",
             ])
-        commands.append("end")
+        commands.append("exit")
 
         try:
             output = self._execute_cli_commands(olt, commands)

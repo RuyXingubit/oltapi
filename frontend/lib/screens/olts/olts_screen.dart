@@ -19,6 +19,35 @@ class _OltsScreenState extends State<OltsScreen> {
   final Map<String, String> _connectionResults = {};
   final Map<String, bool> _isBackingUp = {};
 
+  @override
+  void initState() {
+    super.initState();
+    final backupParam = Uri.base.queryParameters['backup'];
+    if (backupParam != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndOpenBackupModal(backupParam);
+      });
+    }
+  }
+
+  void _checkAndOpenBackupModal(String oltNameOrId) async {
+    for (int i = 0; i < 25; i++) {
+      if (!mounted) return;
+      final appState = context.read<AppState>();
+      if (appState.olts.isNotEmpty) {
+        final matches = appState.olts.where((o) =>
+            o.name.toLowerCase().contains(oltNameOrId.toLowerCase()) ||
+            o.id.toLowerCase() == oltNameOrId.toLowerCase() ||
+            oltNameOrId == '1');
+        if (matches.isNotEmpty) {
+          _showBackups(matches.first);
+          break;
+        }
+      }
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+  }
+
   Future<void> _testConnection(OltModel olt) async {
     setState(() => _isTestingConnection[olt.id] = true);
     final settings = context.read<SettingsProvider>();
@@ -245,8 +274,10 @@ class _OltsScreenState extends State<OltsScreen> {
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 950),
+                              constraints: const BoxConstraints(minWidth: 1100),
                               child: DataTable(
+                                dataRowMinHeight: 60,
+                                dataRowMaxHeight: 60,
                                 columns: const [
                                   DataColumn(label: Text('NOME DA OLT')),
                                   DataColumn(label: Text('FABRICANTE / MODELO')),
@@ -356,8 +387,8 @@ class _OltsScreenState extends State<OltsScreen> {
                                                   ),
                                       ),
                                       DataCell(
-                                        Wrap(
-                                          spacing: 8,
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
                                             OutlinedButton.icon(
                                               style: OutlinedButton.styleFrom(
@@ -378,6 +409,7 @@ class _OltsScreenState extends State<OltsScreen> {
                                               label: const Text('Novo Backup',
                                                   style: TextStyle(fontSize: 11)),
                                             ),
+                                            const SizedBox(width: 6),
                                             OutlinedButton.icon(
                                               style: OutlinedButton.styleFrom(
                                                 padding: const EdgeInsets.symmetric(
@@ -388,6 +420,7 @@ class _OltsScreenState extends State<OltsScreen> {
                                               label: const Text('Backups',
                                                   style: TextStyle(fontSize: 11)),
                                             ),
+                                            const SizedBox(width: 6),
                                             OutlinedButton.icon(
                                               style: OutlinedButton.styleFrom(
                                                 padding: const EdgeInsets.symmetric(
