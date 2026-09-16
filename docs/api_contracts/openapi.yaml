@@ -2901,6 +2901,300 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/provisioning-schema:
+    get:
+      tags:
+      - Políticas de PON & Auto-Provisionamento
+      summary: Get Olt Provisioning Schema
+      description: 'Retorna a especificação dinâmica de parâmetros de provisionamento
+        do concentrador,
+
+        incluindo portas detectadas, campos aceitos e listas reais de VLANs e perfis
+        configurados.'
+      operationId: get_olt_provisioning_schema_api_v1_olts__olt_id__provisioning_schema_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningSchemaResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/pon-policies:
+    get:
+      tags:
+      - Políticas de PON & Auto-Provisionamento
+      summary: List Pon Policies
+      description: Lista todas as configurações padrão das portas PON da OLT.
+      operationId: list_pon_policies_api_v1_olts__olt_id__pon_policies_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PonPolicyItem'
+                title: Response List Pon Policies Api V1 Olts  Olt Id  Pon Policies
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/pon-policies/{port}:
+    get:
+      tags:
+      - Políticas de PON & Auto-Provisionamento
+      summary: Get Pon Policy
+      description: Obtém a política padrão de uma porta PON específica.
+      operationId: get_pon_policy_api_v1_olts__olt_id__pon_policies__port__get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: port
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Port
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PonPolicyItem'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - Políticas de PON & Auto-Provisionamento
+      summary: Update Pon Policy
+      description: Cria ou atualiza a política padrão de uma porta PON específica.
+      operationId: update_pon_policy_api_v1_olts__olt_id__pon_policies__port__put
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: port
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Port
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PonPolicyCreateOrUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PonPolicyItem'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Políticas de PON & Auto-Provisionamento
+      summary: Delete Pon Policy
+      description: Remove a política customizada de uma porta PON.
+      operationId: delete_pon_policy_api_v1_olts__olt_id__pon_policies__port__delete
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: port
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Port
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/tasks/auto-provision:
+    post:
+      tags:
+      - Políticas de PON & Auto-Provisionamento
+      summary: Create Auto Provision Task
+      description: 'Cria e inicializa uma janela temporizada de auto-provisionamento
+        (Cutover Zero-Touch).
+
+        Enquanto ativa, o worker do OLTAPI autoriza automaticamente as ONUs que surgirem
+        naquela porta PON.'
+      operationId: create_auto_provision_task_api_v1_olts__olt_id__tasks_auto_provision_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutoProvisionTaskCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoProvisionTaskItem'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Políticas de PON & Auto-Provisionamento
+      summary: List Auto Provision Tasks
+      description: Lista as janelas de auto-provisionamento (ativas e finalizadas)
+        da OLT.
+      operationId: list_auto_provision_tasks_api_v1_olts__olt_id__tasks_auto_provision_get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AutoProvisionTaskItem'
+                title: Response List Auto Provision Tasks Api V1 Olts  Olt Id  Tasks
+                  Auto Provision Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/tasks/auto-provision/{task_id}/cancel:
+    post:
+      tags:
+      - Políticas de PON & Auto-Provisionamento
+      summary: Cancel Auto Provision Task
+      description: Interrompe imediatamente uma janela de auto-provisionamento ativa
+        (Kill Switch).
+      operationId: cancel_auto_provision_task_api_v1_olts__olt_id__tasks_auto_provision__task_id__cancel_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoProvisionTaskItem'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /health:
     get:
       tags:
@@ -3035,6 +3329,135 @@ components:
       - is_active
       - created_at
       title: APIKeyResponse
+    AutoProvisionTaskCreate:
+      properties:
+        pon_port:
+          type: string
+          title: Pon Port
+          description: Porta PON alvo ou 'ALL' para todas as portas
+          default: ALL
+        target_vlan:
+          anyOf:
+          - type: integer
+            maximum: 4094.0
+            minimum: 1.0
+          - type: 'null'
+          title: Target Vlan
+          description: VLAN alvo (se omitido, herda da política da PON)
+        duration_minutes:
+          type: integer
+          maximum: 1440.0
+          minimum: 5.0
+          title: Duration Minutes
+          description: Duração da janela em minutos (5min a 24h)
+          default: 120
+        default_mode:
+          type: string
+          title: Default Mode
+          description: 'Modo de operação: transparent, bridge ou router'
+          default: transparent
+        default_line_profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Line Profile
+          description: Perfil de linha padrão
+        default_srv_profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Srv Profile
+          description: Perfil de serviço padrão
+        vendor_parameters:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Vendor Parameters
+        created_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created By
+          description: Operador ou técnico responsável
+      type: object
+      title: AutoProvisionTaskCreate
+    AutoProvisionTaskItem:
+      properties:
+        id:
+          type: string
+          title: Id
+        olt_id:
+          type: string
+          title: Olt Id
+        pon_port:
+          type: string
+          title: Pon Port
+        target_vlan:
+          type: integer
+          title: Target Vlan
+        default_mode:
+          type: string
+          title: Default Mode
+          default: transparent
+        default_line_profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Line Profile
+        default_srv_profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Srv Profile
+        vendor_parameters:
+          additionalProperties: true
+          type: object
+          title: Vendor Parameters
+        status:
+          type: string
+          title: Status
+          default: RUNNING
+        starts_at:
+          type: string
+          format: date-time
+          title: Starts At
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+        remaining_seconds:
+          type: integer
+          title: Remaining Seconds
+          default: 0
+        provisioned_count:
+          type: integer
+          title: Provisioned Count
+          default: 0
+        created_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created By
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - id
+      - olt_id
+      - pon_port
+      - target_vlan
+      - starts_at
+      - expires_at
+      - created_at
+      title: AutoProvisionTaskItem
     BackupAuditReport:
       properties:
         olt_id:
@@ -4808,6 +5231,112 @@ components:
       - title
       - status
       title: OnboardingStepItem
+    PonPolicyCreateOrUpdate:
+      properties:
+        port:
+          type: string
+          title: Port
+          description: 'Porta PON (ex: 0/1 ou 1)'
+          example: 0/1
+        default_vlan:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Default Vlan
+          description: VLAN de serviço padrão
+          example: 300
+        default_mode:
+          type: string
+          title: Default Mode
+          description: 'Modo padrão: transparent, bridge ou router'
+          default: transparent
+        default_line_profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Line Profile
+          description: Perfil de linha (DBA) padrão
+        default_srv_profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Srv Profile
+          description: Perfil de serviço padrão
+        vendor_parameters:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Vendor Parameters
+          description: Parâmetros específicos do fabricante
+        auto_authorize_enabled:
+          type: boolean
+          title: Auto Authorize Enabled
+          description: Habilitar auto-autorização contínua nesta porta
+          default: false
+      type: object
+      required:
+      - port
+      - default_vlan
+      title: PonPolicyCreateOrUpdate
+    PonPolicyItem:
+      properties:
+        id:
+          type: string
+          title: Id
+        olt_id:
+          type: string
+          title: Olt Id
+        port:
+          type: string
+          title: Port
+        default_vlan:
+          type: integer
+          title: Default Vlan
+        default_mode:
+          type: string
+          title: Default Mode
+          default: transparent
+        default_line_profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Line Profile
+        default_srv_profile:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Srv Profile
+        vendor_parameters:
+          additionalProperties: true
+          type: object
+          title: Vendor Parameters
+        auto_authorize_enabled:
+          type: boolean
+          title: Auto Authorize Enabled
+          default: false
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - id
+      - olt_id
+      - port
+      - default_vlan
+      - created_at
+      - updated_at
+      title: PonPolicyItem
     ProfileItem:
       properties:
         name:
@@ -4937,6 +5466,82 @@ components:
       - serial
       - message
       title: ProvisionResponse
+    ProvisioningSchemaField:
+      properties:
+        key:
+          type: string
+          title: Key
+        label:
+          type: string
+          title: Label
+        type:
+          type: string
+          title: Type
+        required:
+          type: boolean
+          title: Required
+          default: false
+        default_value:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Default Value
+        options:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Options
+      type: object
+      required:
+      - key
+      - label
+      - type
+      title: ProvisioningSchemaField
+    ProvisioningSchemaResponse:
+      properties:
+        olt_id:
+          type: string
+          title: Olt Id
+        vendor:
+          type: string
+          title: Vendor
+        model:
+          type: string
+          title: Model
+        ports:
+          items:
+            type: string
+          type: array
+          title: Ports
+        fields:
+          items:
+            $ref: '#/components/schemas/ProvisioningSchemaField'
+          type: array
+          title: Fields
+        available_vlans:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Available Vlans
+        available_profiles:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Available Profiles
+        _links:
+          additionalProperties:
+            $ref: '#/components/schemas/Link'
+          type: object
+          title: Links
+      type: object
+      required:
+      - olt_id
+      - vendor
+      - model
+      title: ProvisioningSchemaResponse
     PurgePolicy:
       properties:
         max_backups_per_olt:

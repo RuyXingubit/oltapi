@@ -171,3 +171,79 @@ class BaseOLTDriver(ABC):
         Retorna a lista de comandos CLI executados.
         """
         return []
+
+    def get_provisioning_schema(self, olt: OLTInDB) -> dict:
+        """
+        Retorna a especificação dinâmica de parâmetros de provisionamento aceitos pelo concentrador,
+        incluindo portas detectadas, campos aceitos e listas de VLANs e perfis configurados.
+        """
+        vlans = []
+        try:
+            vlans = [{"id": getattr(v, "vlan_id", v), "name": getattr(v, "name", f"VLAN_{v}")} for v in self.list_vlans(olt)]
+        except Exception:
+            vlans = []
+
+        profiles = []
+        try:
+            profiles = [{"name": getattr(p, "name", str(p)), "type": getattr(p, "type", "generic")} for p in self.list_profiles(olt)]
+        except Exception:
+            profiles = []
+        
+        # Mapeia portas PON
+        pon_ports = []
+        try:
+            interfaces = self.get_chassis_interfaces(olt)
+            pon_ports = [iface.port for iface in interfaces if "gpon" in iface.port.lower() or "pon" in iface.port.lower()]
+        except Exception:
+            pon_ports = []
+
+        if not pon_ports:
+            pon_ports = ["0/1", "0/2", "0/3", "0/4"]
+
+        vendor_str = olt.vendor.value.upper() if hasattr(olt.vendor, "value") else str(olt.vendor).upper()
+        return {
+            "olt_id": olt.id,
+            "vendor": vendor_str,
+            "model": olt.model,
+            "ports": pon_ports,
+            "fields": [
+                {
+                    "key": "vlan",
+                    "label": "VLAN de Serviço",
+                    "type": "int",
+                    "required": True,
+                    "default_value": vlans[0]["id"] if vlans else 100,
+                    "options": [{"label": f"VLAN {v['id']} ({v['name']})", "value": v["id"]} for v in vlans],
+                },
+                {
+                    "key": "mode",
+                    "label": "Modo de Operação",
+                    "type": "select",
+                    "required": True,
+                    "default_value": "transparent",
+                    "options": [
+                        {"label": "Transparente (Bridge/HGU)", "value": "transparent"},
+                        {"label": "Bridge (SFU)", "value": "bridge"},
+                        {"label": "Router (PPPoE/IPoE)", "value": "router"},
+                    ],
+                },
+                {
+                    "key": "line_profile",
+                    "label": "Perfil de Linha (DBA)",
+                    "type": "select",
+                    "required": False,
+                    "default_value": "DEFAULT",
+                    "options": [{"label": p["name"], "value": p["name"]} for p in profiles if "line" in p.get("type", "").lower() or "dba" in p.get("type", "").lower()] or [{"label": "DEFAULT", "value": "DEFAULT"}],
+                },
+                {
+                    "key": "srv_profile",
+                    "label": "Perfil de Serviço",
+                    "type": "select",
+                    "required": False,
+                    "default_value": "DEFAULT",
+                    "options": [{"label": p["name"], "value": p["name"]} for p in profiles if "srv" in p.get("type", "").lower() or "service" in p.get("type", "").lower()] or [{"label": "DEFAULT", "value": "DEFAULT"}],
+                },
+            ],
+            "available_vlans": vlans,
+            "available_profiles": profiles,
+        }

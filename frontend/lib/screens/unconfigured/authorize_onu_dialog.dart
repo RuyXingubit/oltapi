@@ -4,11 +4,15 @@ import '../../models/onu_model.dart';
 
 class AuthorizeOnuDialog extends StatefulWidget {
   final UnauthorizedOnu onu;
+  final int? initialVlan;
+  final String? initialProfile;
   final Function(int vlan, String profile, String description) onAuthorize;
 
   const AuthorizeOnuDialog({
     super.key,
     required this.onu,
+    this.initialVlan,
+    this.initialProfile,
     required this.onAuthorize,
   });
 
@@ -19,9 +23,16 @@ class AuthorizeOnuDialog extends StatefulWidget {
 class _AuthorizeOnuDialogState extends State<AuthorizeOnuDialog> {
   final _formKey = GlobalKey<FormState>();
   final _subscriberController = TextEditingController();
-  final _vlanController = TextEditingController(text: '100');
-  final _profileController = TextEditingController(text: 'DEFAULT');
+  late final TextEditingController _vlanController;
+  late final TextEditingController _profileController;
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _vlanController = TextEditingController(text: (widget.initialVlan ?? 100).toString());
+    _profileController = TextEditingController(text: widget.initialProfile ?? 'DEFAULT');
+  }
 
   @override
   void dispose() {

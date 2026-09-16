@@ -410,3 +410,72 @@ class APIKeyModel(Base):
     tenant = relationship("TenantModel", back_populates="api_keys")
     user = relationship("UserModel", back_populates="api_keys")
 
+
+class OLTPonPolicyModel(Base):
+    __tablename__ = "olt_pon_policies"
+    __table_args__ = (
+        UniqueConstraint("olt_id", "port", name="uq_olt_pon_policy_port"),
+    )
+
+    id = Column(String(36), primary_key=True)
+    olt_id = Column(
+        String(36),
+        ForeignKey("olts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    port = Column(String(32), nullable=False, index=True)
+    default_vlan = Column(Integer, nullable=False)
+    default_mode = Column(String(32), nullable=False, default="transparent")
+    default_line_profile = Column(String(64), nullable=True)
+    default_srv_profile = Column(String(64), nullable=True)
+    vendor_parameters = Column(Text, nullable=True)
+    auto_authorize_enabled = Column(Boolean, nullable=False, default=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    olt = relationship("OLTModel")
+
+
+class AutoProvisionTaskModel(Base):
+    __tablename__ = "auto_provision_tasks"
+
+    id = Column(String(36), primary_key=True)
+    olt_id = Column(
+        String(36),
+        ForeignKey("olts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    pon_port = Column(String(32), nullable=False, default="ALL")
+    target_vlan = Column(Integer, nullable=False)
+    default_mode = Column(String(32), nullable=False, default="transparent")
+    default_line_profile = Column(String(64), nullable=True)
+    default_srv_profile = Column(String(64), nullable=True)
+    vendor_parameters = Column(Text, nullable=True)
+    status = Column(String(16), nullable=False, default="RUNNING", index=True)
+    starts_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    provisioned_count = Column(Integer, nullable=False, default=0)
+    created_by = Column(String(64), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    olt = relationship("OLTModel")
+

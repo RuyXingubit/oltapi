@@ -14,6 +14,7 @@ from app.api.v1.endpoints_tenants import router as tenants_router
 from app.api.v1.endpoints_users import router as users_router
 from app.api.v1.endpoints_api_keys import router as api_keys_router
 from app.api.v1.endpoints_setup import router as setup_router
+from app.api.v1.endpoints_pon_policies import router as pon_policies_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(setup_router, prefix="/setup", tags=["Setup Inicial"])
@@ -31,5 +32,6 @@ api_v1_router.include_router(webhooks_router)
 api_v1_router.include_router(scanner_router)
 api_v1_router.include_router(vlans_router)
 api_v1_router.include_router(ftp_router)
+api_v1_router.include_router(pon_policies_router)
 
 

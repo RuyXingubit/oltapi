@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../models/olt_model.dart';
 import '../../models/onu_model.dart';
 import '../../models/backup_model.dart';
+import '../../models/pon_policy_model.dart';
 import 'api_exception.dart';
 
 class ApiClient {
@@ -221,5 +222,77 @@ class ApiClient {
         .timeout(const Duration(seconds: 20));
     final data = await _handleResponse(response);
     return OnuActionResponse.fromJson(data as Map<String, dynamic>);
+  }
+
+  // PON Policies & Dynamic Schemas
+  Future<ProvisioningSchemaModel> getProvisioningSchema(String oltId) async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/provisioning-schema')), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return ProvisioningSchemaModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<List<PonPolicyModel>> getPonPolicies(String oltId) async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/pon-policies')), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data.map((e) => PonPolicyModel.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return [];
+  }
+
+  Future<PonPolicyModel> getPonPolicy(String oltId, String port) async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/pon-policies/$port')), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return PonPolicyModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<PonPolicyModel> savePonPolicy(String oltId, String port, Map<String, dynamic> policyData) async {
+    final response = await _client
+        .put(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/pon-policies/$port')),
+          headers: _headers,
+          body: jsonEncode(policyData),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return PonPolicyModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // Auto-Provision Tasks (Cutover Mode)
+  Future<AutoProvisionTaskModel> createAutoProvisionTask(String oltId, Map<String, dynamic> taskData) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/tasks/auto-provision')),
+          headers: _headers,
+          body: jsonEncode(taskData),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return AutoProvisionTaskModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<List<AutoProvisionTaskModel>> listAutoProvisionTasks(String oltId) async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/tasks/auto-provision')), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data.map((e) => AutoProvisionTaskModel.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return [];
+  }
+
+  Future<AutoProvisionTaskModel> cancelAutoProvisionTask(String oltId, String taskId) async {
+    final response = await _client
+        .post(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/tasks/auto-provision/$taskId/cancel')), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return AutoProvisionTaskModel.fromJson(data as Map<String, dynamic>);
   }
 }

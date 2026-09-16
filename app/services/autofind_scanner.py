@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
 from app.core.uuid import generate_uuid7
@@ -38,11 +38,13 @@ class AutofindScannerService:
         reconciliation_service: ONUReconciliationService,
         webhook_dispatcher: Optional[WebhookDispatcher] = None,
         interval_seconds: Optional[int] = None,
+        policy_repo: Optional[Any] = None,
     ):
         self.olt_repo = olt_repo
         self.onu_repo = onu_repo
         self.reconciliation_service = reconciliation_service
         self.webhook_dispatcher = webhook_dispatcher
+        self.policy_repo = policy_repo
         self.interval_seconds = max(
             interval_seconds or settings.SCANNER_INTERVAL_SECONDS,
             settings.SCANNER_MIN_INTERVAL_SECONDS,
@@ -189,6 +191,90 @@ class AutofindScannerService:
 
                             # 2. ONU Virgem: sem cadastro prévio no inventário
                             elif inv_item is None:
+                                # Verifica se há uma Task temporizada ativa ou Política com auto-autorização
+                                active_task = (
+                                    self.policy_repo.get_active_task_for_port(olt.id, unauth.port)
+                                    if self.policy_repo
+                                    else None
+                                )
+                                port_policy = (
+                                    self.policy_repo.get_policy(olt.id, unauth.port)
+                                    if (self.policy_repo and not active_task)
+                                    else None
+                                )
+
+                                should_auto_provision = False
+                                auto_vlan = None
+                                auto_profile = "DEFAULT"
+                                auto_mode = "transparent"
+
+                                if active_task:
+                                    should_auto_provision = True
+                                    auto_vlan = active_task.target_vlan
+                                    auto_profile = active_task.default_line_profile or "DEFAULT"
+                                    auto_mode = active_task.default_mode or "transparent"
+                                elif port_policy and port_policy.auto_authorize_enabled:
+                                    should_auto_provision = True
+                                    auto_vlan = port_policy.default_vlan
+                                    auto_profile = port_policy.default_line_profile or "DEFAULT"
+                                    auto_mode = port_policy.default_mode or "transparent"
+
+                                if should_auto_provision and auto_vlan:
+                                    try:
+                                        from app.models.provision import ProvisionRequest
+                                        prov_req = ProvisionRequest(
+                                            port=unauth.port,
+                                            serial=unauth.serial,
+                                            vlan=auto_vlan,
+                                            profile=auto_profile,
+                                            mode=auto_mode,
+                                            description=f"AUTO_{unauth.serial}",
+                                        )
+                                        prov_res = await asyncio.to_thread(driver.provision_onu, olt, prov_req)
+                                        if prov_res and prov_res.success:
+                                            from app.models.onu_inventory import ONUInventoryItem
+                                            source_tag = f"Task {active_task.id[:8]}" if active_task else "PON Policy"
+                                            new_inv = ONUInventoryItem(
+                                                id=generate_uuid7(),
+                                                serial=unauth.serial,
+                                                subscriber_name=f"Cliente {unauth.serial[-4:]}",
+                                                contract_status="ACTIVE",
+                                                current_olt_id=olt.id,
+                                                current_port=unauth.port,
+                                                current_onu_id=prov_res.onu_id,
+                                                circuit_id=f"{olt.name} eth {unauth.port}:{prov_res.onu_id}:{auto_vlan}",
+                                                vlan=auto_vlan,
+                                                profile=auto_profile,
+                                                description=f"Auto-provisionado via {source_tag}",
+                                            )
+                                            self.onu_repo.upsert(new_inv)
+                                            if active_task:
+                                                self.policy_repo.increment_task_counter(active_task.id)
+
+                                            cycle_reconciled += 1
+                                            summary.reconciled_serials.append(unauth.serial)
+                                            logger.info(
+                                                f"AutofindScanner: ONU {unauth.serial} auto-provisionada na OLT {olt.name} porta {unauth.port} (VLAN {auto_vlan}, {source_tag})!"
+                                            )
+
+                                            if self.webhook_dispatcher:
+                                                self.webhook_dispatcher.dispatch(
+                                                    "onu.auto_provisioned",
+                                                    {
+                                                        "serial": unauth.serial,
+                                                        "olt_id": olt.id,
+                                                        "olt_name": olt.name,
+                                                        "port": unauth.port,
+                                                        "onu_id": prov_res.onu_id,
+                                                        "vlan": auto_vlan,
+                                                        "task_id": active_task.id if active_task else None,
+                                                    },
+                                                )
+                                            continue
+                                    except Exception as pe:
+                                        logger.warning(f"AutofindScanner: erro no auto-provisionamento de {unauth.serial}: {pe}")
+
+                                # Fluxo padrão de ONU Virgem sem auto-provisionamento ativo
                                 cycle_virgin += 1
                                 summary.virgin_serials.append(unauth.serial)
                                 logger.info(

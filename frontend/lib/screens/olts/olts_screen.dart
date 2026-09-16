@@ -6,6 +6,7 @@ import '../../models/olt_model.dart';
 import '../../providers/app_state.dart';
 import '../../providers/settings_provider.dart';
 import 'olt_backups_dialog.dart';
+import 'pon_policies_dialog.dart';
 
 class OltsScreen extends StatefulWidget {
   const OltsScreen({super.key});
@@ -103,6 +104,13 @@ class _OltsScreenState extends State<OltsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => OltBackupsDialog(olt: olt),
+    );
+  }
+
+  void _showPonPolicies(OltModel olt) {
+    showDialog(
+      context: context,
+      builder: (ctx) => PonPoliciesDialog(olt: olt),
     );
   }
 
@@ -274,7 +282,7 @@ class _OltsScreenState extends State<OltsScreen> {
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 1100),
+                              constraints: const BoxConstraints(minWidth: 1250),
                               child: DataTable(
                                 dataRowMinHeight: 60,
                                 dataRowMaxHeight: 60,
@@ -429,6 +437,17 @@ class _OltsScreenState extends State<OltsScreen> {
                                               onPressed: () => _showLiveConfig(olt),
                                               icon: const Icon(Icons.terminal, size: 14),
                                               label: const Text('Running-Config',
+                                                  style: TextStyle(fontSize: 11)),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            OutlinedButton.icon(
+                                              style: OutlinedButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(
+                                                    horizontal: 8, vertical: 6),
+                                              ),
+                                              onPressed: () => _showPonPolicies(olt),
+                                              icon: const Icon(Icons.tune, size: 14),
+                                              label: const Text('Políticas PON',
                                                   style: TextStyle(fontSize: 11)),
                                             ),
                                           ],

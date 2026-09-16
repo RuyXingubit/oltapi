@@ -34,6 +34,7 @@ from app.services.olt_xray_service import OLTXRayService
 from app.services.olt_onboarding_service import OLTOnboardingService
 from app.services.onu_enrichment_service import ONUEnrichmentService
 from app.storage.sql.ftp_repository import SQLFTPRepository
+from app.storage.sql.pon_policy_repository import SQLPonPolicyRepository
 
 # Instâncias singleton padrão (persistência relacional via SQLAlchemy)
 _olt_repo = SQLOLTRepository()
@@ -41,6 +42,7 @@ _backup_storage = SQLBackupStorage()
 _onu_repo = SQLONUInventoryRepository()
 _webhook_repo = SQLWebhookRepository()
 _ftp_repo = SQLFTPRepository()
+_pon_policy_repo = SQLPonPolicyRepository()
 
 
 def get_olt_repo() -> Union[SQLOLTRepository, OLTRepository]:
@@ -57,6 +59,10 @@ def get_webhook_repo() -> Union[SQLWebhookRepository, WebhookRepository]:
 
 def get_ftp_repo() -> SQLFTPRepository:
     return _ftp_repo
+
+
+def get_pon_policy_repo() -> SQLPonPolicyRepository:
+    return _pon_policy_repo
 
 
 def get_webhook_dispatcher(
@@ -99,6 +105,7 @@ def get_scanner_service() -> AutofindScannerService:
             onu_repo=_onu_repo,
             reconciliation_service=_reconciliation_service,
             webhook_dispatcher=get_webhook_dispatcher(_webhook_repo),
+            policy_repo=_pon_policy_repo,
         )
     return _scanner_service
 

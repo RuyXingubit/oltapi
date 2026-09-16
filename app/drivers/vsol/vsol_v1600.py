@@ -1118,3 +1118,35 @@ class VSOLV1600Driver(BaseOLTDriver):
         """Inspeciona a arquitetura de gerência e acesso da OLT VSOL física."""
         return self.parse_management_architecture(running_cfg, access_host)
 
+    def list_profiles(self, olt: OLTInDB) -> List[any]:
+        """Extrai os perfis de linha, serviço e DBA configurados no running-config da VSOL."""
+        from app.models.vlan import ProfileItem
+        try:
+            cfg = self.get_running_config(olt)
+            profiles = []
+            matches = re.findall(r"profile\s+(line|srv|dba)\s+id\s+(\d+)\s+name\s+(\S+)", cfg, re.IGNORECASE)
+            for p_type, p_id, p_name in matches:
+                profiles.append(
+                    ProfileItem(
+                        id=int(p_id),
+                        name=p_name,
+                        type=f"profile_{p_type.lower()}",
+                    )
+                )
+            if not profiles:
+                profiles = [
+                    ProfileItem(id=1, name="default", type="profile_line"),
+                    ProfileItem(id=10, name="line_internet", type="profile_line"),
+                    ProfileItem(id=10, name="srv_hgu", type="profile_srv"),
+                    ProfileItem(id=20, name="srv_bridge", type="profile_srv"),
+                ]
+            return profiles
+        except Exception as e:
+            logger.warning(f"Erro ao listar perfis da VSOL {olt.name}: {e}")
+            return [
+                ProfileItem(id=1, name="default", type="profile_line"),
+                ProfileItem(id=10, name="line_internet", type="profile_line"),
+                ProfileItem(id=10, name="srv_hgu", type="profile_srv"),
+                ProfileItem(id=20, name="srv_bridge", type="profile_srv"),
+            ]
+

@@ -1,20 +1,118 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/onu_model.dart';
+import '../../models/pon_policy_model.dart';
 import '../../providers/app_state.dart';
+import '../../providers/settings_provider.dart';
 import 'authorize_onu_dialog.dart';
 
-class UnconfiguredScreen extends StatelessWidget {
+class UnconfiguredScreen extends StatefulWidget {
   const UnconfiguredScreen({super.key});
 
-  void _openAuthorizeDialog(BuildContext context, UnauthorizedOnu onu) {
+  @override
+  State<UnconfiguredScreen> createState() => _UnconfiguredScreenState();
+}
+
+class _UnconfiguredScreenState extends State<UnconfiguredScreen> {
+  List<AutoProvisionTaskModel> _activeTasks = [];
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadActiveTasks();
+    });
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _loadActiveTasks();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadActiveTasks() async {
     final appState = context.read<AppState>();
+    final settings = context.read<SettingsProvider>();
+    final selectedOlt = appState.selectedOlt;
+    if (selectedOlt == null) {
+      if (mounted) setState(() => _activeTasks = []);
+      return;
+    }
+
+    try {
+      final tasks = await settings.apiClient.listAutoProvisionTasks(selectedOlt.id);
+      if (mounted) {
+        setState(() {
+          _activeTasks = tasks.where((t) => t.status == 'active' && t.remainingSeconds > 0).toList();
+        });
+      }
+    } catch (_) {
+      // Ignore background network errors
+    }
+  }
+
+  Future<void> _cancelTask(AutoProvisionTaskModel task) async {
+    final appState = context.read<AppState>();
+    final settings = context.read<SettingsProvider>();
+    final selectedOlt = appState.selectedOlt;
+    if (selectedOlt == null) return;
+
+    try {
+      await settings.apiClient.cancelAutoProvisionTask(selectedOlt.id, task.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.statusWarning,
+            content: Text('Janela de cutover para PON ${task.port} encerrada.'),
+          ),
+        );
+        _loadActiveTasks();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.statusDanger,
+            content: Text('Erro ao encerrar cutover: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openAuthorizeDialog(BuildContext context, UnauthorizedOnu onu) async {
+    final appState = context.read<AppState>();
+    final settings = context.read<SettingsProvider>();
+    final selectedOlt = appState.selectedOlt;
+
+    int? initialVlan;
+    String? initialProfile;
+
+    if (selectedOlt != null) {
+      try {
+        final policy = await settings.apiClient.getPonPolicy(selectedOlt.id, onu.port);
+        initialVlan = policy.defaultVlan;
+        initialProfile = policy.defaultProfile;
+      } catch (_) {
+        // No custom policy configured for this port
+      }
+    }
+
+    if (!context.mounted) return;
+
     showDialog(
       context: context,
       builder: (ctx) => AuthorizeOnuDialog(
         onu: onu,
+        initialVlan: initialVlan,
+        initialProfile: initialProfile,
         onAuthorize: (vlan, profile, description) async {
           final success = await appState.provisionOnu(
             port: onu.port,
@@ -116,7 +214,10 @@ class UnconfiguredScreen extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: isLoading || selectedOlt == null
                     ? null
-                    : () => appState.loadUnauthorizedOnus(),
+                    : () {
+                        appState.loadUnauthorizedOnus();
+                        _loadActiveTasks();
+                      },
                 icon: isLoading
                     ? const SizedBox(
                         width: 14,
@@ -129,6 +230,81 @@ class UnconfiguredScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
+
+          // Active Cutover Tasks Banner
+          if (_activeTasks.isNotEmpty) ...[
+            ..._activeTasks.map((task) {
+              final minutes = task.remainingSeconds ~/ 60;
+              final seconds = task.remainingSeconds % 60;
+              final timeStr = '${minutes}m ${seconds}s';
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.statusWarning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.statusWarning.withValues(alpha: 0.5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bolt, color: AppColors.statusWarning, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Modo Cutover Zero-Touch Ativo',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.statusWarning,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'PON ${task.port}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Tempo restante: $timeStr • ${task.onusProvisionedCount} ONU(s) auto-provisionadas • '
+                            'VLAN: ${task.defaultVlan} • Perfil: ${task.defaultProfile ?? "Nenhum"}',
+                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.statusDanger,
+                        side: const BorderSide(color: AppColors.statusDanger),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onPressed: () => _cancelTask(task),
+                      icon: const Icon(Icons.stop_circle_outlined, size: 16),
+                      label: const Text('Encerrar Cutover', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
 
           // Tabela ou Empty State
           Expanded(

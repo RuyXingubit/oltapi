@@ -102,7 +102,18 @@ Visualização dos snapshots preventivos gerados com verificação de integridad
 
 ---
 
-### 5. Configurações & Conectividade (`SettingsScreen`)
+### 5. Políticas PON & Modo Cutover Zero-Touch (`PonPoliciesDialog`)
+Para otimizar implantações em campo e migrações de clientes (ex: rotas rurais com VLAN pré-definida como 621), o NOC conta com duas ferramentas de alta produtividade:
+
+1. **Smart Pre-fill por Porta PON:** O operador define a VLAN e o perfil padrão daquela porta PON. Quando uma nova ONU aparece no Autofind, a janela de autorização já abre pré-preenchida com esses valores, permitindo ao operador autorizar com 1 clique ou customizar antes de salvar.
+2. **Modo Cutover Zero-Touch (Tasks Temporizadas):**
+   - Criação de janelas operacionais temporizadas (30min a 4h) para auto-aprovação de todas as ONUs que subirem na rota/porta especificada.
+   - **Expiração Automática por Segurança:** O worker monitora o tempo e encerra a janela automaticamente, impedindo que portas fiquem desprotegidas indefinidamente.
+   - **Banner de Status em Tempo Real:** A tela de *Aguardando Autorização* exibe o tempo restante regressivo, o total de ONUs já homologadas na janela e permite encerrar o cutover a qualquer momento com o botão *Encerrar Cutover*.
+
+---
+
+### 6. Configurações & Conectividade (`SettingsScreen`)
 - **Parâmetros da Conexão:** URL base da API (padrão: `http://localhost:8000`) e chave `X-API-Key`.
 - **Armazenamento Persistente:** Gravação segura no cliente via `SharedPreferences`.
 - **Healthcheck Automático:** Ponto de checagem com feedback em tempo real de latência de resposta (`Conectado ao Backend • 10 ms`).
@@ -151,6 +162,6 @@ flutter test
 ```
 
 **Cobertura de Testes:**
-- Deserialização e serialização de modelos (`OltModel`, `UnauthorizedOnu`, `ConfiguredOnu`, `OnuDiagnostics`, `BackupModel`).
+- Deserialização e serialização de modelos (`OltModel`, `UnauthorizedOnu`, `ConfiguredOnu`, `OnuDiagnostics`, `BackupModel`, `PonPolicyModel`, `AutoProvisionTaskModel`, `ProvisioningSchemaModel`).
 - Lógica semântica de classificação de sinal óptico em dBm.
 - Testes de renderização de widgets com `MockClient` HTTP garantindo navegação sem falhas e tolerância zero a pixel overflow.
