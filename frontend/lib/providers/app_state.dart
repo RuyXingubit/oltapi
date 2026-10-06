@@ -73,6 +73,43 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<OltModel?> createOlt(Map<String, dynamic> data) async {
+    try {
+      final newOlt = await apiClient.createOlt(data);
+      await loadOlts();
+      return newOlt;
+    } catch (e) {
+      _errorMessage = 'Falha ao criar OLT: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<OltModel?> updateOlt(String oltId, Map<String, dynamic> data) async {
+    try {
+      final updatedOlt = await apiClient.updateOlt(oltId, data);
+      await loadOlts();
+      return updatedOlt;
+    } catch (e) {
+      _errorMessage = 'Falha ao atualizar OLT: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> deleteOlt(String oltId) async {
+    try {
+      await apiClient.deleteOlt(oltId);
+      if (_selectedOlt?.id == oltId) _selectedOlt = null;
+      await loadOlts();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Falha ao remover OLT: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> loadUnauthorizedOnus() async {
     if (_selectedOlt == null) {
       _unauthorizedOnus = [];

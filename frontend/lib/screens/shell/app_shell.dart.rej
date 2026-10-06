@@ -1,0 +1,18 @@
+@@ -83,9 +86,16 @@
+                 _NavTab(
+-                  label: 'OLTs & Backups',
++                  label: 'Gerenciar OLTs',
+                   isSelected: _currentIndex == 2,
+                   icon: Icons.developer_board,
+                   onTap: () => setState(() => _currentIndex = 2),
+                 ),
+                 const SizedBox(width: 8),
+                 _NavTab(
++                  label: 'Gestão de Backups',
++                  isSelected: _currentIndex == 3,
++                  icon: Icons.save,
++                  onTap: () => setState(() => _currentIndex = 3),
++                ),
++                const SizedBox(width: 8),
++                _NavTab(
+                   label: 'Configurações',

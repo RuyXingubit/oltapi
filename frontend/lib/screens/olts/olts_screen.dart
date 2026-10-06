@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/olt_model.dart';
 import '../../providers/app_state.dart';
-import '../../providers/settings_provider.dart';
-import 'olt_backups_dialog.dart';
-import 'pon_policies_dialog.dart';
+import 'olt_form_dialog.dart';
 
 class OltsScreen extends StatefulWidget {
   const OltsScreen({super.key});
@@ -18,156 +15,68 @@ class OltsScreen extends StatefulWidget {
 class _OltsScreenState extends State<OltsScreen> {
   final Map<String, bool> _isTestingConnection = {};
   final Map<String, String> _connectionResults = {};
-  final Map<String, bool> _isBackingUp = {};
 
-  @override
-  void initState() {
-    super.initState();
-    final backupParam = Uri.base.queryParameters['backup'];
-    if (backupParam != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _checkAndOpenBackupModal(backupParam);
-      });
-    }
+  void _showOltForm([OltModel? olt]) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => OltFormDialog(olt: olt),
+    );
   }
 
-  void _checkAndOpenBackupModal(String oltNameOrId) async {
-    for (int i = 0; i < 25; i++) {
-      if (!mounted) return;
-      final appState = context.read<AppState>();
-      if (appState.olts.isNotEmpty) {
-        final matches = appState.olts.where((o) =>
-            o.name.toLowerCase().contains(oltNameOrId.toLowerCase()) ||
-            o.id.toLowerCase() == oltNameOrId.toLowerCase() ||
-            oltNameOrId == '1');
-        if (matches.isNotEmpty) {
-          _showBackups(matches.first);
-          break;
-        }
+  Future<void> _deleteOlt(OltModel olt) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Excluir OLT', style: TextStyle(color: AppColors.statusDanger)),
+        content: Text('Tem certeza que deseja excluir a OLT ${olt.name}? Isso removerá a OLT do inventário.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Excluir', style: TextStyle(color: AppColors.statusDanger)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final success = await context.read<AppState>().deleteOlt(olt.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'OLT removida com sucesso' : 'Falha ao remover OLT'),
+            backgroundColor: success ? AppColors.statusOnline : AppColors.statusDanger,
+          ),
+        );
       }
-      await Future.delayed(const Duration(milliseconds: 200));
     }
   }
 
   Future<void> _testConnection(OltModel olt) async {
-    setState(() => _isTestingConnection[olt.id] = true);
-    final settings = context.read<SettingsProvider>();
+    setState(() {
+      _isTestingConnection[olt.id] = true;
+      _connectionResults.remove(olt.id);
+    });
 
     try {
-      final res = await settings.apiClient.testOltConnection(olt.id);
-      if (mounted) {
-        setState(() {
-          _isTestingConnection[olt.id] = false;
-          _connectionResults[olt.id] = res.reachable
-              ? 'OK (${res.latencyMs?.toStringAsFixed(1) ?? "--"} ms)'
-              : 'Falha: ${res.message}';
-        });
-      }
+      final result = await context.read<AppState>().apiClient.testOltConnection(olt.id);
+      setState(() {
+        _connectionResults[olt.id] = result.reachable ? 'Online (${result.latencyMs?.toStringAsFixed(1)}ms)' : 'Offline';
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isTestingConnection[olt.id] = false;
-          _connectionResults[olt.id] = 'Erro: $e';
-        });
-      }
+      setState(() {
+        _connectionResults[olt.id] = 'Falha no teste';
+      });
+    } finally {
+      setState(() {
+        _isTestingConnection[olt.id] = false;
+      });
     }
-  }
-
-  Future<void> _triggerBackup(OltModel olt) async {
-    setState(() => _isBackingUp[olt.id] = true);
-    final appState = context.read<AppState>();
-
-    final backup = await appState.triggerBackup(olt.id);
-    if (!mounted) return;
-    setState(() => _isBackingUp[olt.id] = false);
-
-    if (backup != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.statusOnline,
-          content: Text(
-            'Backup de ${olt.name} concluído com sucesso! (${backup.formattedSize})',
-          ),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.statusDanger,
-          content: Text(appState.errorMessage ?? 'Falha ao realizar backup'),
-        ),
-      );
-    }
-  }
-
-  void _showBackups(OltModel olt) {
-    showDialog(
-      context: context,
-      builder: (ctx) => OltBackupsDialog(olt: olt),
-    );
-  }
-
-  void _showPonPolicies(OltModel olt) {
-    showDialog(
-      context: context,
-      builder: (ctx) => PonPoliciesDialog(olt: olt),
-    );
-  }
-
-  Future<void> _showLiveConfig(OltModel olt) async {
-    final settings = context.read<SettingsProvider>();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => FutureBuilder<String>(
-        future: settings.apiClient.getOltConfig(olt.id),
-        builder: (context, snapshot) {
-          return AlertDialog(
-            title: Text('Running-Config: ${olt.name}'),
-            content: SizedBox(
-              width: 750,
-              height: 480,
-              child: snapshot.connectionState == ConnectionState.waiting
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primaryLight))
-                  : snapshot.hasError
-                      ? Center(
-                          child: Text(
-                            'Erro ao obter config: ${snapshot.error}',
-                            style: const TextStyle(color: AppColors.statusDanger),
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          child: SelectableText(
-                            snapshot.data ?? 'Sem conteúdo',
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-            ),
-            actions: [
-              if (snapshot.hasData)
-                TextButton.icon(
-                  icon: const Icon(Icons.copy, size: 16),
-                  label: const Text('Copiar'),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: snapshot.data!));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Configuração copiada!')),
-                    );
-                  },
-                ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Fechar'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
   }
 
   @override
@@ -181,287 +90,146 @@ class _OltsScreenState extends State<OltsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'OLTs & Gestão de Backups',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceHover,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.surfaceBorder),
-                        ),
-                        child: Text(
-                          '${olts.length} registradas',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Hardware físico ativo e políticas de backup automatizadas',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-                  ),
-                ],
+              const Text(
+                'Inventário de OLTs',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
               ElevatedButton.icon(
-                onPressed: isLoading ? null : () => appState.loadOlts(),
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.refresh, size: 16),
-                label: const Text('Recarregar OLTs'),
+                onPressed: () => _showOltForm(),
+                icon: const Icon(Icons.add),
+                label: const Text('Nova OLT'),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-
-          // Tabela ou Lista de OLTs
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.surfaceBorder),
+          const SizedBox(height: 24),
+          if (isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (olts.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.only(top: 60),
+                child: Text('Nenhuma OLT cadastrada.', style: TextStyle(color: AppColors.textSecondary)),
               ),
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primaryLight))
-                  : olts.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+            )
+          else
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 400,
+                  childAspectRatio: 1.5,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                ),
+                itemCount: olts.length,
+                itemBuilder: (context, index) {
+                  final olt = olts[index];
+                  final isTesting = _isTestingConnection[olt.id] ?? false;
+                  final testResult = _connectionResults[olt.id];
+
+                  return Card(
+                    color: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: AppColors.surfaceBorder),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Icon(
-                                Icons.developer_board_off,
-                                size: 54,
-                                color: AppColors.textMuted.withValues(alpha: 0.5),
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Nenhuma OLT cadastrada',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textSecondary,
+                              Expanded(
+                                child: Text(
+                                  olt.name,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Cadastre uma OLT via API para iniciar o gerenciamento.',
-                                style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                              PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
+                                color: AppColors.surfaceHover,
+                                onSelected: (val) {
+                                  if (val == 'edit') _showOltForm(olt);
+                                  if (val == 'delete') _deleteOlt(olt);
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit, size: 18, color: AppColors.textPrimary),
+                                        SizedBox(width: 8),
+                                        Text('Editar OLT', style: TextStyle(color: AppColors.textPrimary)),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete, size: 18, color: AppColors.statusDanger),
+                                        SizedBox(width: 8),
+                                        Text('Excluir OLT', style: TextStyle(color: AppColors.statusDanger)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        )
-                      : SingleChildScrollView(
-                          scrollDirection: Axis.vertical,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 1250),
-                              child: DataTable(
-                                dataRowMinHeight: 60,
-                                dataRowMaxHeight: 60,
-                                columns: const [
-                                  DataColumn(label: Text('NOME DA OLT')),
-                                  DataColumn(label: Text('FABRICANTE / MODELO')),
-                                  DataColumn(label: Text('IP & PORTA')),
-                                  DataColumn(label: Text('PROTOCOLO')),
-                                  DataColumn(label: Text('CONECTIVIDADE')),
-                                  DataColumn(label: Text('AÇÕES DE GESTÃO')),
-                                ],
-                                rows: olts.map((olt) {
-                                  final isTesting = _isTestingConnection[olt.id] ?? false;
-                                  final connResult = _connectionResults[olt.id];
-                                  final isBackingUp = _isBackingUp[olt.id] ?? false;
-
-                                  return DataRow(
-                                    cells: [
-                                      DataCell(
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              width: 8,
-                                              height: 8,
-                                              decoration: BoxDecoration(
-                                                color: olt.status == 'online'
-                                                    ? AppColors.statusOnline
-                                                    : AppColors.statusDanger,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              olt.name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.textPrimary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          '${olt.vendor.toUpperCase()} • ${olt.model}',
-                                          style: const TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        SelectableText(
-                                          '${olt.host}:${olt.port}',
-                                          style: const TextStyle(
-                                            fontFamily: 'monospace',
-                                            color: AppColors.accentCyan,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.surfaceHover,
-                                            borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(color: AppColors.surfaceBorder),
-                                          ),
-                                          child: Text(
-                                            olt.protocol.toUpperCase(),
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        isTesting
-                                            ? const SizedBox(
-                                                width: 14,
-                                                height: 14,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: AppColors.primaryLight,
-                                                ),
-                                              )
-                                            : connResult != null
-                                                ? Text(
-                                                    connResult,
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: connResult.startsWith('OK')
-                                                          ? AppColors.statusOnline
-                                                          : AppColors.statusDanger,
-                                                    ),
-                                                  )
-                                                : OutlinedButton(
-                                                    style: OutlinedButton.styleFrom(
-                                                      padding: const EdgeInsets.symmetric(
-                                                          horizontal: 8, vertical: 4),
-                                                    ),
-                                                    onPressed: () => _testConnection(olt),
-                                                    child: const Text('Testar Ping',
-                                                        style: TextStyle(fontSize: 11)),
-                                                  ),
-                                      ),
-                                      DataCell(
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            OutlinedButton.icon(
-                                              style: OutlinedButton.styleFrom(
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8, vertical: 6),
-                                              ),
-                                              onPressed: isBackingUp ? null : () => _triggerBackup(olt),
-                                              icon: isBackingUp
-                                                  ? const SizedBox(
-                                                      width: 12,
-                                                      height: 12,
-                                                      child: CircularProgressIndicator(
-                                                        strokeWidth: 1.5,
-                                                        color: Colors.white,
-                                                      ),
-                                                    )
-                                                  : const Icon(Icons.backup_outlined, size: 14),
-                                              label: const Text('Novo Backup',
-                                                  style: TextStyle(fontSize: 11)),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            OutlinedButton.icon(
-                                              style: OutlinedButton.styleFrom(
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8, vertical: 6),
-                                              ),
-                                              onPressed: () => _showBackups(olt),
-                                              icon: const Icon(Icons.folder_open, size: 14),
-                                              label: const Text('Backups',
-                                                  style: TextStyle(fontSize: 11)),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            OutlinedButton.icon(
-                                              style: OutlinedButton.styleFrom(
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8, vertical: 6),
-                                              ),
-                                              onPressed: () => _showLiveConfig(olt),
-                                              icon: const Icon(Icons.terminal, size: 14),
-                                              label: const Text('Running-Config',
-                                                  style: TextStyle(fontSize: 11)),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            OutlinedButton.icon(
-                                              style: OutlinedButton.styleFrom(
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8, vertical: 6),
-                                              ),
-                                              onPressed: () => _showPonPolicies(olt),
-                                              icon: const Icon(Icons.tune, size: 14),
-                                              label: const Text('Políticas PON',
-                                                  style: TextStyle(fontSize: 11)),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
+                          const SizedBox(height: 8),
+                          Text('Fabricante: ${olt.vendor.toUpperCase()} | Modelo: ${olt.model}',
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                          Text('Gerência: ${olt.host}:${olt.port} (${olt.protocol.toUpperCase()})',
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                          const Spacer(),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              if (isTesting)
+                                const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              else if (testResult != null)
+                                Text(
+                                  testResult,
+                                  style: TextStyle(
+                                    color: testResult.startsWith('Online') ? AppColors.statusOnline : AppColors.statusDanger,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              else
+                                const SizedBox(),
+                              TextButton.icon(
+                                onPressed: isTesting ? null : () => _testConnection(olt),
+                                icon: const Icon(Icons.wifi, size: 16),
+                                label: const Text('Testar Conexão'),
                               ),
-                            ),
+                            ],
                           ),
-                        ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
         ],
       ),
     );

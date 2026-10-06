@@ -102,6 +102,37 @@ class ApiClient {
     return [];
   }
 
+  Future<OltModel> createOlt(Map<String, dynamic> oltData) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts')),
+          headers: _headers,
+          body: jsonEncode(oltData),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return OltModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<OltModel> updateOlt(String oltId, Map<String, dynamic> oltData) async {
+    final response = await _client
+        .put(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId')),
+          headers: _headers,
+          body: jsonEncode(oltData),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return OltModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteOlt(String oltId) async {
+    final response = await _client
+        .delete(Uri.parse(_cleanUrl('/api/v1/olts/$oltId')), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
   Future<ConnectionTestResult> testOltConnection(String oltId) async {
     final response = await _client
         .post(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/test-connection')), headers: _headers)
