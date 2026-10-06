@@ -157,6 +157,7 @@ docker compose -f docker-compose.prod.yml up -d
 A stack inicializa automaticamente:
 - **`oltapi_postgres` (PostgreSQL 16 Alpine):** Porta `5432`, com volume persistente `postgres_data` e healthcheck `pg_isready`.
 - **`oltapi` (FastAPI Core - Imagem Oficial Docker Hub):** Porta `8000`, aguarda o banco estar saudável, aplica as migrações do **Alembic** e inicia o serviço com usuário não-root (UID 1000).
+- **`oltapi_watchtower` (Containrrr Watchtower):** Atualizações automáticas noturnas às 03:30 da madrugada (`0 30 3 * * *`) com expurgo automático de imagens antigas.
 
 Verifique o status:
 ```bash

@@ -22,6 +22,7 @@ graph TD
         subgraph Docker_Network["Docker Bridge Network (oltapi-net)"]
             API["Container OLTAPI (xingubit/oltapi)<br>FastAPI + Uvicorn (Porta 8000)<br>Usuário não-root (UID 1000)"]
             DB["Container PostgreSQL 16 Alpine<br>(oltapi_postgres:5432)"]
+            WT["Container Watchtower<br>(containrrr/watchtower)<br>Auto-Update às 03:30 da madrugada"]
         end
         
         VOL_DATA["Volume: ./data"]
@@ -129,12 +130,27 @@ services:
       retries: 3
       start_period: 10s
 
+  watchtower:
+    image: containrrr/watchtower
+    container_name: oltapi_watchtower
+    restart: unless-stopped
+    environment:
+      # Executa diariamente às 03:30 da madrugada (formato cron de 6 campos: s m h d m d)
+      - WATCHTOWER_SCHEDULE=0 30 3 * * *
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_ROLLING_RESTART=true
+      - TZ=${TZ:-America/Sao_Paulo}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: oltapi
+
 volumes:
   postgres_data:
 ```
 
 > [!TIP]
-> Para fixar uma versão específica e evitar upgrades acidentais, substitua `image: xingubit/oltapi:latest` por uma tag de versão, como `image: xingubit/oltapi:v1.0.0`.
+> **Watchtower Embutido:** O serviço `watchtower` monitora o registro Docker Hub e aplica automaticamente novas versões do container `oltapi` todas as noites às **03:30 da madrugada**, limpando imagens antigas (`WATCHTOWER_CLEANUP=true`) para poupar disco.
+> Se preferir fixar uma versão e desativar o auto-update, basta comentar o serviço `watchtower` e fixar uma tag de versão (ex: `image: xingubit/oltapi:v1.0.0`).
 
 ---
 
@@ -360,9 +376,23 @@ Em produção, nunca exponha a porta HTTP `8000` diretamente para a internet. Ut
 
 ---
 
-## 🔄 Rotina de Atualização da Imagem (Zero-Downtime)
+## 🔄 Rotina de Atualização da Imagem
 
-Quando uma nova versão for publicada no Docker Hub, atualize a stack com apenas dois comandos:
+### 🕒 1. Atualizações Automáticas com Watchtower (Recomendado)
+
+O arquivo `docker-compose.yml` de produção já vem configurado com o **Watchtower**, que atua de forma autônoma:
+
+* **Janela Noturna Segura:** O agendamento é disparado diariamente às **03:30 da madrugada** (`WATCHTOWER_SCHEDULE: "0 30 3 * * *"`), horário de menor atividade operacional em provedores.
+* **Fuso Horário Local:** A variável `TZ=America/Sao_Paulo` garante a execução precisa no horário de Brasília (ou no fuso configurado no servidor).
+* **Escopo Cirúrgico:** O parâmetro `command: oltapi` restringe as atualizações exclusivamente ao container da aplicação, deixando o banco de dados PostgreSQL intacto.
+* **Limpeza de Disco Automática:** O parâmetro `WATCHTOWER_CLEANUP=true` remove as camadas das imagens antigas do Docker após a atualização, prevenindo o esgotamento do armazenamento em servidores e VPS.
+* **Migrações Automáticas pós-Deploy:** Na subida do novo container às 03:30, o OLTAPI executa o `alembic upgrade head`, atualizando o schema do banco antes de liberar as requisições na porta 8000.
+
+---
+
+### ⚡ 2. Atualização Manual Sob Demanda (Zero-Downtime)
+
+Se você preferir antecipar uma atualização ou não utilizar o Watchtower, execute os comandos manuais:
 
 ```bash
 cd /opt/oltapi

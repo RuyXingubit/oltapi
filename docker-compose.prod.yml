@@ -68,5 +68,18 @@ services:
       retries: 3
       start_period: 10s
 
+  watchtower:
+    image: containrrr/watchtower
+    container_name: oltapi_watchtower
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_SCHEDULE=0 30 3 * * *
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_ROLLING_RESTART=true
+      - TZ=${TZ:-America/Sao_Paulo}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: oltapi
+
 volumes:
   postgres_data:
