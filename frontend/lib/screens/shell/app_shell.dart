@@ -1,3 +1,5 @@
+import "../../providers/auth_provider.dart" as import_auth;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -256,6 +258,16 @@ class _AppShellState extends State<AppShell> {
                           : const Icon(Icons.refresh, size: 20, color: AppColors.textSecondary),
                       onPressed: _isRefreshing ? null : _handleRefresh,
                       tooltip: 'Sincronizar dados',
+                      splashRadius: 20,
+                    ),
+                    const SizedBox(width: 4),
+                    // Logout Button
+                    IconButton(
+                      icon: const Icon(Icons.logout, size: 20, color: AppColors.statusDanger),
+                      onPressed: () {
+                        context.read<import_auth.AuthProvider>().logout();
+                      },
+                      tooltip: 'Sair do Sistema',
                       splashRadius: 20,
                     ),
                   ],

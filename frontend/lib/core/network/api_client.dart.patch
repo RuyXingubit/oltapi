@@ -1,0 +1,38 @@
+--- frontend/lib/core/network/api_client.dart
++++ frontend/lib/core/network/api_client.dart
+@@ -10,19 +10,25 @@
+ 
+ class ApiClient {
+   String baseUrl;
+-  String apiKey;
++  String? apiKey;
++  String? token;
+   final http.Client _client;
+ 
+   ApiClient({
+     required this.baseUrl,
+-    required this.apiKey,
++    this.apiKey,
++    this.token,
+     http.Client? client,
+   }) : _client = client ?? http.Client();
+ 
+-  Map<String, String> get _headers => {
+-        'Content-Type': 'application/json',
+-        'Accept': 'application/json',
+-        'X-API-Key': apiKey,
+-      };
++  Map<String, String> get _headers {
++    final headers = {
++      'Content-Type': 'application/json',
++      'Accept': 'application/json',
++    };
++    if (token != null && token!.isNotEmpty) {
++      headers['Authorization'] = 'Bearer $token';
++    } else if (apiKey != null && apiKey!.isNotEmpty) {
++      headers['X-API-Key'] = apiKey!;
++    }
++    return headers;
++  }
+ 
+   String _cleanUrl(String path) {

@@ -9,20 +9,29 @@ import 'api_exception.dart';
 
 class ApiClient {
   String baseUrl;
-  String apiKey;
+  String? apiKey;
+  String? token;
   final http.Client _client;
 
   ApiClient({
     required this.baseUrl,
-    required this.apiKey,
+    this.apiKey,
+    this.token,
     http.Client? client,
   }) : _client = client ?? http.Client();
 
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-API-Key': apiKey,
-      };
+  Map<String, String> get _headers {
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (token != null && token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    } else if (apiKey != null && apiKey!.isNotEmpty) {
+      headers['X-API-Key'] = apiKey!;
+    }
+    return headers;
+  }
 
   String _cleanUrl(String path) {
     final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -294,5 +303,49 @@ class ApiClient {
         .timeout(const Duration(seconds: 15));
     final data = await _handleResponse(response);
     return AutoProvisionTaskModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // Setup & Auth
+  Future<Map<String, dynamic>> checkSetupStatus() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/setup/status')))
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> initSetup(Map<String, dynamic> req, String masterKey) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/setup/init')),
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': masterKey,
+          },
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> login(String email, String password) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/auth/login')),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getMe() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/auth/me')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
   }
 }

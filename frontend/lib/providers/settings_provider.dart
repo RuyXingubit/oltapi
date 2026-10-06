@@ -6,7 +6,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _keyBaseUrl = 'oltapi_base_url';
   static const String _keyApiKey = 'oltapi_api_key';
 
-  static const String defaultBaseUrl = 'http://localhost:8000';
+  static const String defaultBaseUrl = '';
   static const String defaultApiKey = 'oltapi_secret_default_key_change_me';
 
   String _baseUrl = defaultBaseUrl;

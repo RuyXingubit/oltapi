@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/app_state.dart';
+import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/setup_screen.dart';
 import 'screens/shell/app_shell.dart';
 
 void main() {
@@ -18,11 +21,14 @@ class OltApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        ChangeNotifierProxyProvider<SettingsProvider, AppState>(
-          create: (ctx) => AppState(apiClient: ctx.read<SettingsProvider>().apiClient),
-          update: (ctx, settings, previous) {
-            final appState = previous ?? AppState(apiClient: settings.apiClient);
-            // Se as credenciais mudaram, atualiza e recarrega
+        ChangeNotifierProxyProvider<SettingsProvider, AuthProvider>(
+          create: (ctx) => AuthProvider(settingsProvider: ctx.read<SettingsProvider>()),
+          update: (ctx, settings, previous) => previous ?? AuthProvider(settingsProvider: settings),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, AppState>(
+          create: (ctx) => AppState(apiClient: ctx.read<AuthProvider>().apiClient),
+          update: (ctx, auth, previous) {
+            final appState = previous ?? AppState(apiClient: auth.apiClient);
             return appState;
           },
         ),
@@ -31,40 +37,56 @@ class OltApp extends StatelessWidget {
         title: 'OLTAPI - Central de Operações de Rede',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
-        home: const _AppInitializer(),
+        home: const _AppRouter(),
       ),
     );
   }
 }
 
-class _AppInitializer extends StatefulWidget {
-  const _AppInitializer();
+class _AppRouter extends StatefulWidget {
+  const _AppRouter();
 
   @override
-  State<_AppInitializer> createState() => _AppInitializerState();
+  State<_AppRouter> createState() => _AppRouterState();
 }
 
-class _AppInitializerState extends State<_AppInitializer> {
+class _AppRouterState extends State<_AppRouter> {
+  bool _initialized = false;
+
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initApp();
-    });
-  }
-
-  Future<void> _initApp() async {
-    final settings = context.read<SettingsProvider>();
-    final appState = context.read<AppState>();
-
-    await settings.checkBackendHealth();
-    if (settings.isConnected) {
-      await appState.refreshAll();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      final auth = context.watch<AuthProvider>();
+      if (!auth.isLoading && auth.isAuthenticated) {
+        _initialized = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.read<AppState>().refreshAll();
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    if (auth.isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (auth.isSetupRequired) {
+      return const SetupScreen();
+    }
+
+    if (!auth.isAuthenticated) {
+      return const LoginScreen();
+    }
+
     return const AppShell();
   }
 }

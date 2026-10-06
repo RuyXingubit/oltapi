@@ -171,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   TextField(
                     controller: _urlController,
                     decoration: const InputDecoration(
-                      hintText: 'http://localhost:8000',
+                      hintText: 'Deixe em branco para mesma origem, ou http://localhost:8000',
                       prefixIcon: Icon(Icons.link, size: 20, color: AppColors.textSecondary),
                     ),
                   ),
