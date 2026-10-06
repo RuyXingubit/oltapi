@@ -308,7 +308,7 @@ class _PonPoliciesDialogState extends State<PonPoliciesDialog> {
                           )
                         : ListView.separated(
                             itemCount: ports.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 12),
+                            separatorBuilder: (context, index) => const SizedBox(height: 12),
                             itemBuilder: (ctx, index) {
                               final port = ports[index];
                               final policy = _policies.firstWhere(
