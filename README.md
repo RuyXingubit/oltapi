@@ -134,25 +134,28 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
 ### Pré-requisitos
 - Docker e Docker Compose **OU** Python 3.11+ instalado.
 
-### Opção 1: Via Docker Compose (Stack Completa com PostgreSQL 16)
+### Opção 1: Via Docker Compose (Recomendado para Produção e Testes)
 
-Esta é a opção recomendada tanto para desenvolvimento quanto para produção, garantindo **paridade absoluta** com o banco de dados oficial:
+Nossa imagem oficial é publicada automaticamente no Docker Hub (`xingubit/oltapi`). Esta opção baixa a imagem pronta e sobe a stack (API + PostgreSQL 16), sendo a forma mais fácil e estável de colocar a aplicação no ar.
 
 ```bash
-# 1. Clone o repositório
+# 1. Baixe os arquivos essenciais
 git clone https://github.com/RuyXingubit/oltapi.git
 cd oltapi
 
-# 2. Configure as variáveis de ambiente (opcional, defaults seguros inclusos)
+# 2. Configure as variáveis de ambiente (obrigatório para produção)
 cp .env.example .env
+# Edite o .env para colocar senhas fortes (API_KEY, DB_ENCRYPTION_KEY, POSTGRES_PASSWORD)
 
-# 3. Inicie a stack (PostgreSQL 16 oficial + OLTAPI com migrações automáticas)
-docker compose up -d --build
+# 3. Inicie a stack (baixa as imagens e aplica as migrações automáticas)
+docker compose up -d
 ```
+
+> **Dica para Devs:** Se quiser realizar o build local usando o código fonte ao invés de baixar do Docker Hub, rode `docker compose up -d --build`.
 
 A stack inicializa automaticamente:
 - **`oltapi_postgres` (PostgreSQL 16 Alpine):** Porta `5432`, com volume persistente `postgres_data` e healthcheck `pg_isready`.
-- **`oltapi` (FastAPI Core):** Porta `8000`, aguarda o banco estar saudável, aplica as migrações do **Alembic** (`Context impl PostgresqlImpl`) e inicia o serviço.
+- **`oltapi` (FastAPI Core - Imagem do Docker Hub):** Porta `8000`, aguarda o banco estar saudável, aplica as migrações do **Alembic** e inicia o serviço.
 
 Verifique os serviços ativos:
 ```bash
