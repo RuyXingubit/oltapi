@@ -69,6 +69,17 @@ def list_supported_vendors(
     ctx.enforce_scope("olts:read")
     return DriverRegistry.list_supported_vendors()
 
+@router.get("/supported-vendors/{vendor}/models", response_model=List[str])
+def list_supported_models(
+    vendor: str,
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Retorna a lista dinâmica de modelos suportados para um fabricante específico.
+    """
+    ctx.enforce_scope("olts:read")
+    return DriverRegistry.list_supported_models(vendor)
+
 @router.get("", response_model=List[OLTResponse])
 def list_olts(
     repo: OLTRepository = Depends(get_olt_repo),

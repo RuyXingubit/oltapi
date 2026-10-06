@@ -788,6 +788,61 @@
         ]
       }
     },
+    "/api/v1/olts/supported-vendors/{vendor}/models": {
+      "get": {
+        "tags": [
+          "OLTs & Backups"
+        ],
+        "summary": "List Supported Models",
+        "description": "Retorna a lista dinâmica de modelos suportados para um fabricante específico.",
+        "operationId": "list_supported_models_api_v1_olts_supported_vendors__vendor__models_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vendor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Vendor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response List Supported Models Api V1 Olts Supported Vendors  Vendor  Models Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/olts": {
       "get": {
         "tags": [

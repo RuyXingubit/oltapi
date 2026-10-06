@@ -31,6 +31,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
   String? _error;
 
   late List<String> _vendors;
+  List<String> _currentModels = [];
   final List<String> _protocols = ['ssh', 'telnet'];
 
   @override
@@ -58,6 +59,18 @@ class _OltFormDialogState extends State<OltFormDialog> {
       if (_protocols.contains(widget.olt!.protocol.toLowerCase())) {
         _protocol = widget.olt!.protocol.toLowerCase();
       }
+    }
+    
+    _loadModelsForVendor(_vendor);
+  }
+
+  Future<void> _loadModelsForVendor(String vendor) async {
+    final appState = context.read<AppState>();
+    final models = await appState.apiClient.getSupportedModels(vendor);
+    if (mounted) {
+      setState(() {
+        _currentModels = models;
+      });
     }
   }
 
@@ -161,11 +174,66 @@ class _OltFormDialogState extends State<OltFormDialog> {
                               dropdownColor: AppColors.surfaceHover,
                               decoration: const InputDecoration(labelText: 'Fabricante', prefixIcon: Icon(Icons.precision_manufacturing, color: AppColors.textSecondary)),
                               items: _vendors.map((v) => DropdownMenuItem(value: v, child: Text(v.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary)))).toList(),
-                              onChanged: (v) => setState(() => _vendor = v!),
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setState(() => _vendor = v);
+                                  _loadModelsForVendor(v);
+                                }
+                              },
                             ),
                           ),
                           const SizedBox(width: 16),
-                          Expanded(child: _buildTextField(_modelCtrl, 'Modelo (Ex: MA5800)', Icons.memory, required: true)),
+                          Expanded(
+                            child: Autocomplete<String>(
+                              initialValue: TextEditingValue(text: _modelCtrl.text),
+                              optionsBuilder: (TextEditingValue textEditingValue) {
+                                if (textEditingValue.text == '') return _currentModels;
+                                return _currentModels.where((String option) => option.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                              },
+                              onSelected: (String selection) => _modelCtrl.text = selection,
+                              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                                controller.addListener(() => _modelCtrl.text = controller.text);
+                                return TextFormField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  style: const TextStyle(color: AppColors.textPrimary),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Modelo',
+                                    prefixIcon: Icon(Icons.memory, color: AppColors.textSecondary, size: 20),
+                                  ),
+                                  validator: (value) => (value == null || value.trim().isEmpty) ? 'Obrigatório' : null,
+                                );
+                              },
+                              optionsViewBuilder: (context, onSelected, options) {
+                                return Align(
+                                  alignment: Alignment.topLeft,
+                                  child: Material(
+                                    elevation: 4,
+                                    color: AppColors.surfaceHover,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    child: SizedBox(
+                                      width: 250,
+                                      child: ListView.builder(
+                                        padding: EdgeInsets.zero,
+                                        shrinkWrap: true,
+                                        itemCount: options.length,
+                                        itemBuilder: (context, index) {
+                                          final String option = options.elementAt(index);
+                                          return InkWell(
+                                            onTap: () => onSelected(option),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(16.0),
+                                              child: Text(option.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary)),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),

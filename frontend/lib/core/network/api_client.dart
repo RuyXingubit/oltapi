@@ -113,6 +113,17 @@ class ApiClient {
     return [];
   }
 
+  Future<List<String>> getSupportedModels(String vendor) async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/olts/supported-vendors/$vendor/models')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data.map((e) => e.toString()).toList();
+    }
+    return [];
+  }
+
   Future<OltModel> createOlt(Map<String, dynamic> oltData) async {
     final response = await _client
         .post(

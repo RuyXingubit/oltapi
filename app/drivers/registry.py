@@ -81,3 +81,11 @@ class DriverRegistry:
     def list_supported_vendors(cls) -> List[str]:
         """Retorna a lista de fabricantes ativos registrados."""
         return list(cls._default_by_vendor.keys())
+
+    @classmethod
+    def list_supported_models(cls, vendor: str) -> List[str]:
+        """Retorna a lista de modelos ativos registrados para um fabricante específico."""
+        vendor_key = vendor.lower()
+        if vendor_key in cls._registry:
+            return list(cls._registry[vendor_key].keys())
+        return []
