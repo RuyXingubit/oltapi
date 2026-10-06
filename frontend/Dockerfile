@@ -1,5 +1,5 @@
 # Stage 1: Build Flutter Web App
-FROM ghcr.io/cirruslabs/flutter:3.24.3 AS build
+FROM ghcr.io/cirruslabs/flutter:stable AS build
 WORKDIR /app
 COPY . .
 RUN flutter pub get
