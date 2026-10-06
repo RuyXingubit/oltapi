@@ -20,7 +20,6 @@ from app.core.rate_limit import limiter
 from app.services.onu_enrichment_service import ONUEnrichmentService
 from app.core.rbac import SecurityContext
 from app.drivers.factory import DriverFactory
-from app.drivers.registry import DriverRegistry
 from app.models.vlan import SyncOLTResponse
 from app.models.backup import (
     BackupAuditReport,
@@ -58,16 +57,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/olts", tags=["OLTs & Backups"], dependencies=[Depends(require_api_key)])
 
-
-@router.get("/supported-vendors", response_model=List[str])
-def list_supported_vendors(
-    ctx: SecurityContext = Depends(get_security_context),
-):
-    """
-    Retorna a lista dinâmica de fabricantes suportados pelo backend.
-    """
-    ctx.enforce_scope("olts:read")
-    return DriverRegistry.list_supported_vendors()
 
 @router.get("", response_model=List[OLTResponse])
 def list_olts(

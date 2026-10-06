@@ -468,6 +468,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/supported-vendors:
+    get:
+      tags:
+      - OLTs & Backups
+      summary: List Supported Vendors
+      description: Retorna a lista dinâmica de fabricantes suportados pelo backend.
+      operationId: list_supported_vendors_api_v1_olts_supported_vendors_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  type: string
+                type: array
+                title: Response List Supported Vendors Api V1 Olts Supported Vendors
+                  Get
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
   /api/v1/olts:
     get:
       tags:

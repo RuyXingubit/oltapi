@@ -55,7 +55,8 @@ class SQLPonPolicyRepository:
         now = datetime.now(timezone.utc)
         remaining = 0
         if m.status == "RUNNING":
-            rem = (m.expires_at - now).total_seconds()
+            expires = m.expires_at.replace(tzinfo=timezone.utc) if m.expires_at.tzinfo is None else m.expires_at
+            rem = (expires - now).total_seconds()
             remaining = max(0, int(rem))
 
         return AutoProvisionTaskItem(
@@ -194,7 +195,8 @@ class SQLPonPolicyRepository:
                 return None
             # Auto-completa se já expirou
             now = datetime.now(timezone.utc)
-            if m.status == "RUNNING" and m.expires_at <= now:
+            expires = m.expires_at.replace(tzinfo=timezone.utc) if m.expires_at.tzinfo is None else m.expires_at
+            if m.status == "RUNNING" and expires <= now:
                 m.status = "COMPLETED"
                 db.commit()
             return self._to_task_model(m)
@@ -212,7 +214,8 @@ class SQLPonPolicyRepository:
                 .all()
             )
             for t in tasks:
-                if t.expires_at <= now:
+                expires = t.expires_at.replace(tzinfo=timezone.utc) if t.expires_at.tzinfo is None else t.expires_at
+                if expires <= now:
                     t.status = "COMPLETED"
                     db.commit()
                     continue
@@ -232,7 +235,8 @@ class SQLPonPolicyRepository:
             )
             updated = False
             for t in tasks:
-                if t.status == "RUNNING" and t.expires_at <= now:
+                expires = t.expires_at.replace(tzinfo=timezone.utc) if t.expires_at.tzinfo is None else t.expires_at
+                if t.status == "RUNNING" and expires <= now:
                     t.status = "COMPLETED"
                     updated = True
             if updated:

@@ -30,7 +30,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
   bool _isLoading = false;
   String? _error;
 
-  late List<String> _vendors;
+  final List<String> _vendors = ['intelbras', 'huawei', 'fiberhome', 'vsol', 'zte', 'parks', 'cdata'];
   final List<String> _protocols = ['ssh', 'telnet'];
 
   @override
@@ -44,12 +44,6 @@ class _OltFormDialogState extends State<OltFormDialog> {
     _passwordCtrl = TextEditingController();
     _snmpCommunityCtrl = TextEditingController(text: widget.olt?.snmpCommunity ?? 'public');
     _snmpPortCtrl = TextEditingController(text: widget.olt?.snmpPort?.toString() ?? '161');
-
-    _vendors = context.read<AppState>().supportedVendors;
-    if (_vendors.isEmpty) {
-      _vendors = ['intelbras', 'huawei', 'vsol', 'zte', 'parks', 'fiberhome']; // fallback
-    }
-    if (!_vendors.contains(_vendor)) _vendor = _vendors.first;
 
     if (widget.olt != null) {
       if (_vendors.contains(widget.olt!.vendor.toLowerCase())) {
