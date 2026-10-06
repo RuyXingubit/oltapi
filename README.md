@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Autofind%20Scanner-Background%20Worker-blue.svg" alt="Autofind Scanner">
   <img src="https://img.shields.io/badge/TR--101-Circuit%20ID-blue.svg" alt="Broadband Forum TR-101">
   <img src="https://img.shields.io/badge/UUIDv7-RFC%209562-orange.svg" alt="UUIDv7">
-  <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
+  <a href="https://hub.docker.com/r/xingubit/oltapi"><img src="https://img.shields.io/badge/docker-xingubit%2Foltapi-blue.svg?logo=docker" alt="Docker Hub: xingubit/oltapi"></a>
 </p>
 
 > 📖 **Portal Oficial de Documentação & ReDoc Interativo:** [https://ruyxingubit.github.io/oltapi/](https://ruyxingubit.github.io/oltapi/)  
@@ -132,39 +132,50 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
 ## 📦 Como Executar
 
 ### Pré-requisitos
-- Docker e Docker Compose **OU** Python 3.11+ instalado.
+- Docker Engine 24+ e Docker Compose v2.20+ **OU** Python 3.11+.
 
-### Opção 1: Via Docker Compose (Recomendado para Produção e Testes)
+### Opção 1: Via Docker Hub (Recomendado para Produção)
 
-Nossa imagem oficial é publicada automaticamente no Docker Hub (`xingubit/oltapi`). Esta opção baixa a imagem pronta e sobe a stack (API + PostgreSQL 16), sendo a forma mais fácil e estável de colocar a aplicação no ar.
+Nossa imagem oficial pronta para produção é publicada automaticamente no Docker Hub: **[`xingubit/oltapi:latest`](https://hub.docker.com/r/xingubit/oltapi)**. Não é necessário clonar o código-fonte nem instalar Python no servidor.
 
 ```bash
-# 1. Baixe os arquivos essenciais
-git clone https://github.com/RuyXingubit/oltapi.git
-cd oltapi
+# 1. Crie a pasta do projeto e baixe os arquivos de orquestração
+mkdir -p oltapi/data oltapi/backups && cd oltapi
+curl -O https://raw.githubusercontent.com/RuyXingubit/oltapi/master/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/RuyXingubit/oltapi/master/.env.example
 
-# 2. Configure as variáveis de ambiente (obrigatório para produção)
+# 2. Configure as variáveis de produção no .env
 cp .env.example .env
-# Edite o .env para colocar senhas fortes (API_KEY, DB_ENCRYPTION_KEY, POSTGRES_PASSWORD)
+# Defina ENVIRONMENT="production", senhas fortes, API_KEY e chaves Fernet AES-256
 
-# 3. Inicie a stack (baixa as imagens e aplica as migrações automáticas)
-docker compose up -d
+# 3. Suba a stack com banco PostgreSQL 16 e migrações automáticas Alembic
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-> **Dica para Devs:** Se quiser realizar o build local usando o código fonte ao invés de baixar do Docker Hub, rode `docker compose up -d --build`.
+> 📖 **Guia Completo de Produção:** Para instruções passo a passo sobre configuração de variáveis obrigatórias, geração de chaves Fernet AES-256, proxy reverso SSL (Nginx/Caddy) e rotinas de backup, acesse o **[Guia Oficial de Instalação no GitHub Pages](https://ruyxingubit.github.io/oltapi/instalacao/)**.
 
 A stack inicializa automaticamente:
 - **`oltapi_postgres` (PostgreSQL 16 Alpine):** Porta `5432`, com volume persistente `postgres_data` e healthcheck `pg_isready`.
-- **`oltapi` (FastAPI Core - Imagem do Docker Hub):** Porta `8000`, aguarda o banco estar saudável, aplica as migrações do **Alembic** e inicia o serviço.
+- **`oltapi` (FastAPI Core - Imagem Oficial Docker Hub):** Porta `8000`, aguarda o banco estar saudável, aplica as migrações do **Alembic** e inicia o serviço com usuário não-root (UID 1000).
 
-Verifique os serviços ativos:
+Verifique o status:
 ```bash
-docker compose ps
+docker compose -f docker-compose.prod.yml ps
+curl http://localhost:8000/health
 ```
 
-A API estará disponível imediatamente em: `http://localhost:8000`
+### Opção 2: Desenvolvimento Local com Build do Código-Fonte
 
-### Opção 2: Localmente com Python venv
+Se você deseja clonar o repositório e compilar localmente:
+
+```bash
+git clone https://github.com/RuyXingubit/oltapi.git
+cd oltapi
+cp .env.example .env
+docker compose up -d --build
+```
+
+### Opção 3: Localmente com Python venv
 
 ```bash
 # 1. Crie o ambiente virtual
