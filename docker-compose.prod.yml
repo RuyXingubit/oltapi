@@ -30,8 +30,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "${PORT:-8000}:8000"
     env_file:
       - path: .env
         required: true
@@ -68,6 +66,25 @@ services:
       retries: 3
       start_period: 10s
 
+  frontend:
+    image: xingubit/oltapi-frontend:latest
+    container_name: oltapi_frontend
+    restart: unless-stopped
+    depends_on:
+      oltapi:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      - SITE_DOMAIN=${SITE_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
   watchtower:
     image: containrrr/watchtower
     container_name: oltapi_watchtower
@@ -79,7 +96,9 @@ services:
       - TZ=${TZ:-America/Sao_Paulo}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: oltapi
+    command: oltapi oltapi_frontend
 
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:

@@ -81,9 +81,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract Docker metadata
+      - name: Extract Docker metadata for Backend
         if: steps.semantic.outputs.new_release_published == 'true'
-        id: meta
+        id: meta_backend
         uses: docker/metadata-action@v6
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/oltapi
@@ -91,14 +91,36 @@ jobs:
             type=raw,value=latest
             type=raw,value=${{ steps.semantic.outputs.new_release_version }}
 
-      - name: Build and Push Docker image
+      - name: Build and Push Backend image
         if: steps.semantic.outputs.new_release_published == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta_backend.outputs.tags }}
+          labels: ${{ steps.meta_backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract Docker metadata for Frontend
+        if: steps.semantic.outputs.new_release_published == 'true'
+        id: meta_frontend
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/oltapi-frontend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.semantic.outputs.new_release_version }}
+
+      - name: Build and Push Frontend image
+        if: steps.semantic.outputs.new_release_published == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

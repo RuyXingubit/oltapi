@@ -1,0 +1,16 @@
+{$SITE_DOMAIN:localhost} {
+    # Proxy para a API (rotas começando com /api, /docs, /openapi.json)
+    @api {
+        path /api/* /docs* /openapi.json
+    }
+    handle @api {
+        reverse_proxy oltapi:8000
+    }
+
+    # Arquivos Estáticos do Frontend Web
+    handle {
+        root * /usr/share/caddy
+        try_files {path} {path}/ /index.html
+        file_server
+    }
+}
