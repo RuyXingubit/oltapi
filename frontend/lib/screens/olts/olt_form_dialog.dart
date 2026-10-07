@@ -175,8 +175,12 @@ class _OltFormDialogState extends State<OltFormDialog> {
                               decoration: const InputDecoration(labelText: 'Fabricante', prefixIcon: Icon(Icons.precision_manufacturing, color: AppColors.textSecondary)),
                               items: _vendors.map((v) => DropdownMenuItem(value: v, child: Text(v.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary)))).toList(),
                               onChanged: (v) {
-                                if (v != null) {
-                                  setState(() => _vendor = v);
+                                if (v != null && v != _vendor) {
+                                  setState(() {
+                                    _vendor = v;
+                                    _modelCtrl.text = '';
+                                    _currentModels = [];
+                                  });
                                   _loadModelsForVendor(v);
                                 }
                               },
@@ -185,6 +189,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
                           const SizedBox(width: 16),
                           Expanded(
                             child: Autocomplete<String>(
+                              key: ValueKey(_vendor),
                               initialValue: TextEditingValue(text: _modelCtrl.text),
                               optionsBuilder: (TextEditingValue textEditingValue) {
                                 if (textEditingValue.text == '') return _currentModels;
