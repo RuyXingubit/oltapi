@@ -28,6 +28,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
   String _vendor = 'intelbras';
   String _protocol = 'ssh';
   bool _isLoading = false;
+  bool _isCustomModel = false;
   String? _error;
 
   late List<String> _vendors;
@@ -70,6 +71,9 @@ class _OltFormDialogState extends State<OltFormDialog> {
     if (mounted) {
       setState(() {
         _currentModels = models;
+        if (models.isNotEmpty && !models.contains(_modelCtrl.text)) {
+          _modelCtrl.text = models.first;
+        }
       });
     }
   }
@@ -180,6 +184,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
                                     _vendor = v;
                                     _modelCtrl.text = '';
                                     _currentModels = [];
+                                    _isCustomModel = false;
                                   });
                                   _loadModelsForVendor(v);
                                 }
@@ -188,56 +193,56 @@ class _OltFormDialogState extends State<OltFormDialog> {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: Autocomplete<String>(
-                              key: ValueKey(_vendor),
-                              initialValue: TextEditingValue(text: _modelCtrl.text),
-                              optionsBuilder: (TextEditingValue textEditingValue) {
-                                if (textEditingValue.text == '') return _currentModels;
-                                return _currentModels.where((String option) => option.toLowerCase().contains(textEditingValue.text.toLowerCase()));
-                              },
-                              onSelected: (String selection) => _modelCtrl.text = selection,
-                              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                                controller.addListener(() => _modelCtrl.text = controller.text);
-                                return TextFormField(
-                                  controller: controller,
-                                  focusNode: focusNode,
-                                  style: const TextStyle(color: AppColors.textPrimary),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Modelo',
-                                    prefixIcon: Icon(Icons.memory, color: AppColors.textSecondary, size: 20),
-                                  ),
-                                  validator: (value) => (value == null || value.trim().isEmpty) ? 'Obrigatório' : null,
-                                );
-                              },
-                              optionsViewBuilder: (context, onSelected, options) {
-                                return Align(
-                                  alignment: Alignment.topLeft,
-                                  child: Material(
-                                    elevation: 4,
-                                    color: AppColors.surfaceHover,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    child: SizedBox(
-                                      width: 250,
-                                      child: ListView.builder(
-                                        padding: EdgeInsets.zero,
-                                        shrinkWrap: true,
-                                        itemCount: options.length,
-                                        itemBuilder: (context, index) {
-                                          final String option = options.elementAt(index);
-                                          return InkWell(
-                                            onTap: () => onSelected(option),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(16.0),
-                                              child: Text(option.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary)),
-                                            ),
-                                          );
-                                        },
+                            child: _isCustomModel || _currentModels.isEmpty
+                                ? Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: _modelCtrl,
+                                          style: const TextStyle(color: AppColors.textPrimary),
+                                          decoration: const InputDecoration(
+                                            labelText: 'Modelo',
+                                            prefixIcon: Icon(Icons.memory, color: AppColors.textSecondary, size: 20),
+                                          ),
+                                          validator: (value) => (value == null || value.trim().isEmpty) ? 'Obrigatório' : null,
+                                        ),
                                       ),
+                                      if (_currentModels.isNotEmpty)
+                                        IconButton(
+                                          icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+                                          onPressed: () {
+                                            setState(() {
+                                              _isCustomModel = false;
+                                              _modelCtrl.text = _currentModels.first;
+                                            });
+                                          },
+                                        ),
+                                    ],
+                                  )
+                                : DropdownButtonFormField<String>(
+                                    value: _currentModels.contains(_modelCtrl.text) ? _modelCtrl.text : (_currentModels.isNotEmpty ? _currentModels.first : null),
+                                    dropdownColor: AppColors.surfaceHover,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Modelo',
+                                      prefixIcon: Icon(Icons.memory, color: AppColors.textSecondary, size: 20),
                                     ),
+                                    items: [
+                                      ..._currentModels.map((m) => DropdownMenuItem(value: m, child: Text(m.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary)))),
+                                      const DropdownMenuItem(value: 'outro', child: Text('OUTRO (DIGITAR)', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold))),
+                                    ],
+                                    onChanged: (v) {
+                                      if (v == 'outro') {
+                                        setState(() {
+                                          _isCustomModel = true;
+                                          _modelCtrl.text = '';
+                                        });
+                                      } else if (v != null) {
+                                        setState(() {
+                                          _modelCtrl.text = v;
+                                        });
+                                      }
+                                    },
                                   ),
-                                );
-                              },
-                            ),
                           ),
                         ],
                       ),
