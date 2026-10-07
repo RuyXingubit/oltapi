@@ -192,7 +192,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
                           const SizedBox(width: 16),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _currentModels.contains(_modelCtrl.text) ? _modelCtrl.text : (_currentModels.isNotEmpty ? _currentModels.first : null),
+                              initialValue: _currentModels.contains(_modelCtrl.text) ? _modelCtrl.text : (_currentModels.isNotEmpty ? _currentModels.first : null),
                               dropdownColor: AppColors.surfaceHover,
                               decoration: const InputDecoration(
                                 labelText: 'Modelo',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/network/api_client.dart';
 import '../models/olt_model.dart';
 import '../models/onu_model.dart';
+import '../models/pon_policy_model.dart';
 import '../models/backup_model.dart';
 
 class AppState extends ChangeNotifier {
@@ -12,6 +13,7 @@ class AppState extends ChangeNotifier {
   OltModel? _selectedOlt;
   List<UnauthorizedOnu> _unauthorizedOnus = [];
   List<ConfiguredOnu> _configuredOnus = [];
+  ProvisioningSchemaModel? _provisioningSchema;
 
   bool _isLoadingOlts = false;
   bool _isLoadingUnauthorized = false;
@@ -23,6 +25,7 @@ class AppState extends ChangeNotifier {
   OltModel? get selectedOlt => _selectedOlt;
   List<UnauthorizedOnu> get unauthorizedOnus => _unauthorizedOnus;
   List<ConfiguredOnu> get configuredOnus => _configuredOnus;
+  ProvisioningSchemaModel? get provisioningSchema => _provisioningSchema;
 
   bool get isLoadingOlts => _isLoadingOlts;
   bool get isLoadingUnauthorized => _isLoadingUnauthorized;
@@ -41,6 +44,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     if (olt != null) {
       loadUnauthorizedOnus();
+      loadProvisioningSchema();
     } else {
       _unauthorizedOnus = [];
       notifyListeners();
@@ -155,11 +159,23 @@ class AppState extends ChangeNotifier {
     await loadOlts();
     await Future.wait([
       if (_selectedOlt != null) loadUnauthorizedOnus(),
+      if (_selectedOlt != null) loadProvisioningSchema(),
       loadConfiguredOnus(),
     ]);
   }
 
   // Provisioning
+  Future<void> loadProvisioningSchema() async {
+    if (_selectedOlt == null) return;
+    try {
+      _provisioningSchema = await apiClient.getProvisioningSchema(_selectedOlt!.id);
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Falha ao buscar esquema de provisionamento: $e';
+      notifyListeners();
+    }
+  }
+
   Future<bool> provisionOnu({
     required String port,
     required String serial,

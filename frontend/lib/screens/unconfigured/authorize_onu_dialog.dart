@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/onu_model.dart';
+import 'package:provider/provider.dart';
+import '../../providers/app_state.dart';
 
 class AuthorizeOnuDialog extends StatefulWidget {
   final UnauthorizedOnu onu;
@@ -52,6 +54,77 @@ class _AuthorizeOnuDialogState extends State<AuthorizeOnuDialog> {
       widget.onAuthorize(vlan, profile, description);
       Navigator.of(context).pop();
     }
+  }
+
+  Widget _buildVlanField(BuildContext context) {
+    final schema = context.watch<AppState>().provisioningSchema;
+    final vlans = schema?.availableVlans ?? [];
+    
+    if (vlans.isNotEmpty) {
+      if (!vlans.any((v) => v['id'].toString() == _vlanController.text) && _vlanController.text.isNotEmpty) {
+        _vlanController.text = vlans.first['id'].toString();
+      }
+      return DropdownButtonFormField<String>(
+        initialValue: _vlanController.text.isNotEmpty ? _vlanController.text : null,
+        dropdownColor: AppColors.surfaceHover,
+        decoration: const InputDecoration(
+          labelText: 'VLAN de Serviço *',
+        ),
+        items: vlans.map((v) {
+          final String idStr = v['id'].toString();
+          final String nameStr = v['name'] ?? 'VLAN $idStr';
+          return DropdownMenuItem(value: idStr, child: Text('$idStr - $nameStr', style: const TextStyle(color: AppColors.textPrimary)));
+        }).toList(),
+        onChanged: (val) {
+          if (val != null) setState(() => _vlanController.text = val);
+        },
+        validator: (value) => (value == null || value.trim().isEmpty) ? 'Obrigatório' : null,
+      );
+    }
+    
+    // Fallback to text field if schema has no VLANs (should not happen with strict api)
+    return TextFormField(
+      controller: _vlanController,
+      keyboardType: TextInputType.number,
+      decoration: const InputDecoration(labelText: 'VLAN de Serviço *', hintText: 'Ex: 100'),
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) return 'Obrigatório';
+        final v = int.tryParse(value.trim());
+        if (v == null || v < 1 || v > 4094) return '1 - 4094';
+        return null;
+      },
+    );
+  }
+
+  Widget _buildProfileField(BuildContext context) {
+    final schema = context.watch<AppState>().provisioningSchema;
+    final profiles = schema?.availableProfiles ?? [];
+    
+    if (profiles.isNotEmpty) {
+      if (!profiles.any((p) => p['name'].toString() == _profileController.text) && profiles.isNotEmpty) {
+        _profileController.text = profiles.first['name'].toString();
+      }
+      return DropdownButtonFormField<String>(
+        initialValue: _profileController.text.isNotEmpty ? _profileController.text : null,
+        dropdownColor: AppColors.surfaceHover,
+        decoration: const InputDecoration(
+          labelText: 'Perfil de Tráfego',
+        ),
+        items: profiles.map((p) {
+          final String nameStr = p['name'].toString();
+          return DropdownMenuItem(value: nameStr, child: Text(nameStr, style: const TextStyle(color: AppColors.textPrimary), overflow: TextOverflow.ellipsis));
+        }).toList(),
+        onChanged: (val) {
+          if (val != null) setState(() => _profileController.text = val);
+        },
+      );
+    }
+    
+    // Fallback if none returned by driver
+    return TextFormField(
+      controller: _profileController,
+      decoration: const InputDecoration(labelText: 'Perfil de Tráfego', hintText: 'DEFAULT'),
+    );
   }
 
   @override
@@ -195,35 +268,12 @@ class _AuthorizeOnuDialogState extends State<AuthorizeOnuDialog> {
                   children: [
                     Expanded(
                       flex: 2,
-                      child: TextFormField(
-                        controller: _vlanController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'VLAN de Serviço *',
-                          hintText: 'Ex: 100',
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Obrigatório';
-                          }
-                          final v = int.tryParse(value.trim());
-                          if (v == null || v < 1 || v > 4094) {
-                            return '1 - 4094';
-                          }
-                          return null;
-                        },
-                      ),
+                      child: _buildVlanField(context),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       flex: 3,
-                      child: TextFormField(
-                        controller: _profileController,
-                        decoration: const InputDecoration(
-                          labelText: 'Perfil de Tráfego',
-                          hintText: 'DEFAULT',
-                        ),
-                      ),
+                      child: _buildProfileField(context),
                     ),
                   ],
                 ),
