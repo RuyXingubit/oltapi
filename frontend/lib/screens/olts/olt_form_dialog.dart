@@ -28,7 +28,6 @@ class _OltFormDialogState extends State<OltFormDialog> {
   String _vendor = 'intelbras';
   String _protocol = 'ssh';
   bool _isLoading = false;
-  bool _isCustomModel = false;
   String? _error;
 
   late List<String> _vendors;
@@ -184,7 +183,6 @@ class _OltFormDialogState extends State<OltFormDialog> {
                                     _vendor = v;
                                     _modelCtrl.text = '';
                                     _currentModels = [];
-                                    _isCustomModel = false;
                                   });
                                   _loadModelsForVendor(v);
                                 }
@@ -193,56 +191,23 @@ class _OltFormDialogState extends State<OltFormDialog> {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: _isCustomModel || _currentModels.isEmpty
-                                ? Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: _modelCtrl,
-                                          style: const TextStyle(color: AppColors.textPrimary),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Modelo',
-                                            prefixIcon: Icon(Icons.memory, color: AppColors.textSecondary, size: 20),
-                                          ),
-                                          validator: (value) => (value == null || value.trim().isEmpty) ? 'Obrigatório' : null,
-                                        ),
-                                      ),
-                                      if (_currentModels.isNotEmpty)
-                                        IconButton(
-                                          icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-                                          onPressed: () {
-                                            setState(() {
-                                              _isCustomModel = false;
-                                              _modelCtrl.text = _currentModels.first;
-                                            });
-                                          },
-                                        ),
-                                    ],
-                                  )
-                                : DropdownButtonFormField<String>(
-                                    value: _currentModels.contains(_modelCtrl.text) ? _modelCtrl.text : (_currentModels.isNotEmpty ? _currentModels.first : null),
-                                    dropdownColor: AppColors.surfaceHover,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Modelo',
-                                      prefixIcon: Icon(Icons.memory, color: AppColors.textSecondary, size: 20),
-                                    ),
-                                    items: [
-                                      ..._currentModels.map((m) => DropdownMenuItem(value: m, child: Text(m.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary)))),
-                                      const DropdownMenuItem(value: 'outro', child: Text('OUTRO (DIGITAR)', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold))),
-                                    ],
-                                    onChanged: (v) {
-                                      if (v == 'outro') {
-                                        setState(() {
-                                          _isCustomModel = true;
-                                          _modelCtrl.text = '';
-                                        });
-                                      } else if (v != null) {
-                                        setState(() {
-                                          _modelCtrl.text = v;
-                                        });
-                                      }
-                                    },
-                                  ),
+                            child: DropdownButtonFormField<String>(
+                              value: _currentModels.contains(_modelCtrl.text) ? _modelCtrl.text : (_currentModels.isNotEmpty ? _currentModels.first : null),
+                              dropdownColor: AppColors.surfaceHover,
+                              decoration: const InputDecoration(
+                                labelText: 'Modelo',
+                                prefixIcon: Icon(Icons.memory, color: AppColors.textSecondary, size: 20),
+                              ),
+                              items: _currentModels.map((m) => DropdownMenuItem(value: m, child: Text(m.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary)))).toList(),
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setState(() {
+                                    _modelCtrl.text = v;
+                                  });
+                                }
+                              },
+                              validator: (value) => (value == null || value.trim().isEmpty) ? 'Obrigatório' : null,
+                            ),
                           ),
                         ],
                       ),
