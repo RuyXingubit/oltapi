@@ -4,7 +4,7 @@ import logging
 
 from app.api.deps import get_olt_repo, get_onu_repo, get_security_context, require_api_key
 from app.core.rbac import SecurityContext
-from app.core.security import sanitize_port, sanitize_safe_string
+from app.core.security import sanitize_interface_port, sanitize_port, sanitize_safe_string
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
 from app.models.onu import UnauthorizedONU
@@ -144,7 +144,7 @@ def deprovision_onu(
 
     try:
         clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
-        clean_port = sanitize_port(port) if port else None
+        clean_port = sanitize_interface_port(port) if port else None
         driver = DriverFactory.get_driver(olt)
         result = driver.deprovision_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
 
@@ -202,7 +202,7 @@ def reboot_onu(
 
     try:
         clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
-        clean_port = sanitize_port(port) if port else None
+        clean_port = sanitize_interface_port(port) if port else None
         driver = DriverFactory.get_driver(olt)
         result = driver.reboot_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
         result.links = {
@@ -246,7 +246,7 @@ def suspend_onu(
 
     try:
         clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
-        clean_port = sanitize_port(port) if port else None
+        clean_port = sanitize_interface_port(port) if port else None
         driver = DriverFactory.get_driver(olt)
         result = driver.suspend_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
 
@@ -305,7 +305,7 @@ def resume_onu(
 
     try:
         clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
-        clean_port = sanitize_port(port) if port else None
+        clean_port = sanitize_interface_port(port) if port else None
         driver = DriverFactory.get_driver(olt)
         result = driver.resume_onu(olt, clean_id, port=clean_port, onu_id=onu_id)
 

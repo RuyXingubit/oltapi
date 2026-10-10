@@ -221,3 +221,85 @@ def test_vsol_v1600_driver_actions(sample_olt_8820):
             sample_olt_8820,
             ["configure terminal", "interface gpon 0/4", "onu 3 enable", "exit", "exit", "write"],
         )
+
+
+@patch("app.drivers.factory.DriverFactory.get_driver")
+def test_lifecycle_endpoints_accept_interface_port_format(mock_get_driver, client: TestClient, auth_headers, sample_olt_8820):
+    mock_driver = MagicMock()
+    mock_driver.reboot_onu.return_value = ONUActionResponse(
+        success=True,
+        action="reboot",
+        olt_id=str(sample_olt_8820.id),
+        serial="HWTC073545B7",
+        port="gpon1/1",
+        onu_id=1,
+        message="ONU reiniciada com sucesso.",
+    )
+    mock_driver.suspend_onu.return_value = ONUActionResponse(
+        success=True,
+        action="suspend",
+        olt_id=str(sample_olt_8820.id),
+        serial="HWTC073545B7",
+        port="gpon1/1",
+        onu_id=1,
+        message="ONU suspensa com sucesso.",
+    )
+    mock_driver.resume_onu.return_value = ONUActionResponse(
+        success=True,
+        action="resume",
+        olt_id=str(sample_olt_8820.id),
+        serial="HWTC073545B7",
+        port="gpon1/1",
+        onu_id=1,
+        message="ONU reativada com sucesso.",
+    )
+    mock_driver.deprovision_onu.return_value = ONUActionResponse(
+        success=True,
+        action="deprovision",
+        olt_id=str(sample_olt_8820.id),
+        serial="HWTC073545B7",
+        port="gpon1/1",
+        onu_id=1,
+        message="ONU desprovisionada com sucesso.",
+    )
+    mock_driver.get_port_onus.return_value = []
+    mock_get_driver.return_value = mock_driver
+
+    # 1. Reboot com porta gpon1/1
+    res_reb = client.post(
+        f"/api/v1/olts/{sample_olt_8820.id}/onus/HWTC073545B7/reboot?port=gpon1/1&onu_id=1",
+        headers=auth_headers,
+    )
+    assert res_reb.status_code == 200
+    assert res_reb.json()["success"] is True
+
+    # 2. Suspend com porta gpon1/1
+    res_susp = client.post(
+        f"/api/v1/olts/{sample_olt_8820.id}/onus/HWTC073545B7/suspend?port=gpon1/1&onu_id=1",
+        headers=auth_headers,
+    )
+    assert res_susp.status_code == 200
+    assert res_susp.json()["success"] is True
+
+    # 3. Resume com porta gpon1/1
+    res_res = client.post(
+        f"/api/v1/olts/{sample_olt_8820.id}/onus/HWTC073545B7/resume?port=gpon1/1&onu_id=1",
+        headers=auth_headers,
+    )
+    assert res_res.status_code == 200
+    assert res_res.json()["success"] is True
+
+    # 4. Deprovision com porta gpon1/1
+    res_dep = client.delete(
+        f"/api/v1/olts/{sample_olt_8820.id}/onus/HWTC073545B7?port=gpon1/1&onu_id=1",
+        headers=auth_headers,
+    )
+    assert res_dep.status_code == 200
+    assert res_dep.json()["success"] is True
+
+    # 5. List port ONUs com porta gpon1/1
+    res_port = client.get(
+        f"/api/v1/olts/{sample_olt_8820.id}/ports/gpon1/1/onus",
+        headers=auth_headers,
+    )
+    assert res_port.status_code == 200

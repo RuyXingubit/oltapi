@@ -129,14 +129,16 @@ void main() {
     // Tab 3: OLTs & Backups
     await tester.tap(find.byIcon(Icons.developer_board));
     await tester.pumpAndSettle();
-    expect(find.text('OLTs & Gestão de Backups'), findsOneWidget);
+    expect(find.text('Inventário de OLTs'), findsOneWidget);
 
     // Tab 4: Configurações
+    await tester.ensureVisible(find.byIcon(Icons.tune));
     await tester.tap(find.byIcon(Icons.tune));
     await tester.pumpAndSettle();
     expect(find.text('Configurações de Conexão'), findsOneWidget);
 
     // Tab 1: Voltar para Aguardando Autorização
+    await tester.ensureVisible(find.byIcon(Icons.pending_actions_outlined));
     await tester.tap(find.byIcon(Icons.pending_actions_outlined));
     await tester.pumpAndSettle();
     expect(find.text('Aguardando Autorização'), findsNWidgets(2)); // Header tab + Tela título

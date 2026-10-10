@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/network/api_client.dart';
@@ -6,7 +7,10 @@ class SettingsProvider extends ChangeNotifier {
   static const String _keyBaseUrl = 'oltapi_base_url';
   static const String _keyApiKey = 'oltapi_api_key';
 
-  static const String defaultBaseUrl = '';
+  static const String defaultBaseUrl = String.fromEnvironment(
+    'API_URL',
+    defaultValue: (kIsWeb && kReleaseMode) ? '' : 'http://127.0.0.1:8000',
+  );
   static const String defaultApiKey = 'oltapi_secret_default_key_change_me';
 
   String _baseUrl = defaultBaseUrl;

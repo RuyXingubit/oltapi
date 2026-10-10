@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import get_olt_repo, get_security_context, require_api_key
 from app.core.rbac import SecurityContext
-from app.core.security import sanitize_port, sanitize_safe_string
+from app.core.security import sanitize_interface_port, sanitize_safe_string
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
 from app.models.onu import ONUDetails, ONUSummary
@@ -28,7 +28,7 @@ def list_port_onus(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
 
     try:
-        clean_port = sanitize_port(port)
+        clean_port = sanitize_interface_port(port)
         driver = DriverFactory.get_driver(olt)
         onus = driver.get_port_onus(olt, clean_port)
         for onu in onus:
