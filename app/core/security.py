@@ -14,7 +14,7 @@ API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 # Padrões regex para prevenção de injeção de comandos CLI
 PORT_REGEX = re.compile(r"^[0-9]+(/[0-9]+)*$")
-INTERFACE_PORT_REGEX = re.compile(r"^([a-zA-Z]{1,16}\s+)?[0-9]+(/[0-9]+)*$")
+INTERFACE_PORT_REGEX = re.compile(r"^([a-zA-Z]{1,16}\s*)?[0-9]+(/[0-9]+)*$")
 SERIAL_REGEX = re.compile(r"^[A-Za-z0-9]{4,24}$")
 SAFE_STRING_REGEX = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 

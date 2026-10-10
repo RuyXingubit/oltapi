@@ -13,6 +13,7 @@ import pytest
 
 from app.drivers.base import BaseOLTDriver
 from app.drivers.fiberhome.fiberhome_tl1 import FiberhomeTL1Driver
+from app.drivers.parks.parks_fiberlink import ParksFiberlinkDriver
 from app.drivers.registry import DriverRegistry
 from app.drivers.vsol.vsol_v1600 import VSOLV1600Driver
 from app.models.bootstrap import BootstrapRequest
@@ -218,3 +219,30 @@ class TestVSOLCompliance(BaseDriverComplianceTest):
             commands_sent = mock_cli.call_args[0][1]
             assert any("copy running-config ftp" in cmd for cmd in commands_sent)
             mock_dl.assert_called_once()
+
+
+class TestParksCompliance(BaseDriverComplianceTest):
+    @property
+    def driver_class(self) -> Type[BaseOLTDriver]:
+        return ParksFiberlinkDriver
+
+    @property
+    def vendor(self) -> OLTVendor:
+        return OLTVendor.PARKS
+
+    def test_parks_backup_ftp_command_execution(self, driver_instance, sample_olt):
+        mock_ftp = MagicMock()
+        mock_ftp.host = "10.0.0.50"
+        mock_ftp.port = 21
+        mock_ftp.username = "backup_user"
+        mock_ftp.password = "backup_pass"
+        mock_ftp.base_path = "/backups"
+
+        with patch.object(driver_instance, "_execute_cli_commands", return_value="Upload success") as mock_cli, \
+             patch("app.services.ftp_service.FTPService.download_file", return_value="! Parks Backup Content") as mock_dl:
+            content = driver_instance.backup_config(sample_olt, ftp_servers=[mock_ftp])
+            assert content == "! Parks Backup Content"
+            commands_sent = mock_cli.call_args[0][1]
+            assert any("copy startup-config ftp" in cmd for cmd in commands_sent)
+            mock_dl.assert_called_once()
+

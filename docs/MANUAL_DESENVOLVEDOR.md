@@ -28,7 +28,8 @@ O **OLTAPI** foi projetado com os seguintes princípios:
                ▼
 [ Driver Abstraction (BaseOLTDriver) ]
                ├──> FiberhomeTL1Driver (AN5516 / AN6000 TL1)
-               └──> VSOLV1600Driver (V1600G / V1600GT CLI)
+               ├──> VSOLV1600Driver (V1600G / V1600GT CLI)
+               └──> ParksFiberlinkDriver (Fiberlink 10008S / 21000 CLI)
 ```
 
 ---
@@ -49,6 +50,7 @@ oltapi/
 │   ├── core/
 │   │   ├── config.py                # Pydantic Settings (.env, retenção, timeouts)
 │   │   ├── security.py              # Sanitizadores regex e validação de API Key
+│   │   ├── telnet.py                # Cliente Telnet resiliente RFC 854 (Python 3.13+)
 │   │   └── uuid.py                  # Gerador e validador nativo de UUIDv7 (RFC 9562)
 │   ├── db/                          # Modelos SQLAlchemy e sessão PostgreSQL
 │   ├── drivers/
@@ -56,7 +58,8 @@ oltapi/
 │   │   ├── registry.py              # DriverRegistry com registro dinâmico via decorador
 │   │   ├── factory.py               # DriverFactory integrada ao Registry
 │   │   ├── fiberhome/               # Fiberhome AN5516 (TL1 Bellcore)
-│   │   └── vsol/                    # V-SOL série V1600 (CLI)
+│   │   ├── vsol/                    # V-SOL série V1600 (CLI)
+│   │   └── parks/                   # Parks série Fiberlink (CLI)
 │   ├── models/                      # Schemas Pydantic v2 tipados
 │   ├── services/                    # Orquestradores de negócio desacoplados
 │   └── main.py                      # Ponto de entrada FastAPI 100% REST JSON

@@ -67,6 +67,7 @@ nav:
   - 🗺️ Roadmap & Homologação:
       - Visão Geral do Roadmap: ROADMAP.md
       - Homologação V-SOL V1600GT: HOMOLOGACAO_VSOL_V1600.md
+      - Homologação Parks Fiberlink: HOMOLOGACAO_PARKS_FIBERLINK.md
 
 exclude_docs: |
   brainstorming/**

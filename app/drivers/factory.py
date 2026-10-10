@@ -3,6 +3,7 @@ from app.drivers.base import BaseOLTDriver
 from app.drivers.registry import DriverRegistry
 # Importa drivers homologados para acionar os decoradores de registro no DriverRegistry
 import app.drivers.fiberhome.fiberhome_tl1  # noqa: F401
+import app.drivers.parks.parks_fiberlink  # noqa: F401
 import app.drivers.vsol.vsol_v1600  # noqa: F401
 from app.models.olt import OLTInDB
 
