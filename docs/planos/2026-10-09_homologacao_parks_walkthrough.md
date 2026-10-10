@@ -30,6 +30,12 @@ Implementação e validação completa do driver universal para OLTs **Parks** (
 - **Testes Unitários Dedicados (`tests/unit/test_parks_driver.py`):** 11 testes unitários cobrindo parsing de CLI, leituras ópticas, regex de portas, autofind, ciclo de vida e comandos de chassis.
 - **Contratos OpenAPI:** Executado `python -m scripts.export_openapi` com sucesso.
 
+### 5. Validação em Bancada Física Real (ONT Huawei EG8041X6-10)
+- **Provisionamento Completo:** Validado com `flow-profile router_vlan621`, ativação das portas LAN e leitura de atenuação em tempo real (`-21.87 dBm` / `-21.25 dBm`).
+- **Suspensão e Reativação:** Testada blacklist e corrigida inicialização defensiva de `canonical_port` em `suspend_onu` e `resume_onu`.
+- **Reboot Remoto:** Testado `onu reset` com acompanhamento de reinicialização e retorno automático para `ACTIVE (PROVISIONED)`.
+- **Desprovisionamento e Idempotência:** Testado `no onu` com desassociação completa e subsequente reprovisionamento com sucesso imediato.
+
 ---
 
 ## Resultados dos Testes Automatizados

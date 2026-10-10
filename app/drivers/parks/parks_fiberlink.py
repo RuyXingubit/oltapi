@@ -533,6 +533,7 @@ class ParksFiberlinkDriver(BaseOLTDriver):
     ) -> ONUActionResponse:
         """Bloqueia administrativamente a ONU via 'gpon blacklist serial-number <serial>'."""
         serial = sanitize_serial(serial_or_id).lower()
+        canonical_port = self.normalize_port(port) if port else None
         commands = [
             "conf t",
             f"gpon blacklist serial-number {serial}",
@@ -545,7 +546,7 @@ class ParksFiberlinkDriver(BaseOLTDriver):
             success=True,
             olt_id=str(olt.id),
             serial=serial.upper(),
-            port=canonical_port if port else None,
+            port=canonical_port,
             action="suspend",
             message=f"ONU {serial.upper()} suspensa com sucesso via blacklist.",
         )
@@ -559,6 +560,7 @@ class ParksFiberlinkDriver(BaseOLTDriver):
     ) -> ONUActionResponse:
         """Reativa a ONU no concentrador removendo da blacklist."""
         serial = sanitize_serial(serial_or_id).lower()
+        canonical_port = self.normalize_port(port) if port else None
         commands = [
             "conf t",
             f"no gpon blacklist serial-number {serial}",
@@ -571,7 +573,7 @@ class ParksFiberlinkDriver(BaseOLTDriver):
             success=True,
             olt_id=str(olt.id),
             serial=serial.upper(),
-            port=canonical_port if port else None,
+            port=canonical_port,
             action="resume",
             message=f"ONU {serial.upper()} reativada com sucesso.",
         )

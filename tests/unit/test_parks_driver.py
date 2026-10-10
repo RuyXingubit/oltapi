@@ -180,17 +180,19 @@ def test_parks_lifecycle_actions():
 
     # 2. Suspend (Blacklist)
     with patch.object(driver, "_execute_cli_commands", return_value="Success") as mock_cli:
-        res_susp = driver.suspend_onu(mock_olt, "HWTC17D37AB2")
+        res_susp = driver.suspend_onu(mock_olt, "HWTC17D37AB2", port="gpon1/1")
         assert res_susp.success is True
         assert res_susp.action == "suspend"
+        assert res_susp.port == "gpon1/1"
         cmds = mock_cli.call_args[0][1]
         assert "gpon blacklist serial-number hwtc17d37ab2" in cmds
 
     # 3. Resume (Un-blacklist)
     with patch.object(driver, "_execute_cli_commands", return_value="Success") as mock_cli:
-        res_res = driver.resume_onu(mock_olt, "HWTC17D37AB2")
+        res_res = driver.resume_onu(mock_olt, "HWTC17D37AB2", port="gpon1/1")
         assert res_res.success is True
         assert res_res.action == "resume"
+        assert res_res.port == "gpon1/1"
         cmds = mock_cli.call_args[0][1]
         assert "no gpon blacklist serial-number hwtc17d37ab2" in cmds
 

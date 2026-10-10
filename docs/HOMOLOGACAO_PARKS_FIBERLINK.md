@@ -108,10 +108,31 @@ O driver implementa a diretriz mandatória de governança:
 
 ---
 
-## 6. Cobertura de Testes e Conformidade
+## 6. Cobertura de Testes e Validação em Bancada Física
 
-A implementação passou com 100% de sucesso nas suítes automatizadas de testes:
+A homologação do driver Parks Fiberlink foi validada tanto em ambiente simulado quanto em bancada física real com tráfego óptico:
+
+### 6.1. Validação em Hardware Físico com ONT Huawei (EG8041X6-10 / HWTC073545B7)
+No dia **10/10/2026**, foi realizado o teste completo de ciclo de vida ponta a ponta com equipamento físico:
+1. **Provisionamento Completo (`provision_onu`):**
+   - Configuração de `serial`, `flow-profile router_vlan621`, `alias CLIENTE_HOMOLOGADO`, portas LAN automáticas (`ethernet-profile auto-on uni-port 1-4`) e `iphost 1 ip dhcp`.
+   - A ONT foi ativada com sucesso e removida automaticamente da lista de `unconfigured`.
+   - **Telemetria Óptica Operacional Medida:**
+     - Downstream RX Power: **`-21.87 dBm`**
+     - Upstream RSSI na OLT: **`-21.25 dBm`**
+     - Status: `ACTIVE (PROVISIONED)`
+2. **Suspensão e Reativação (`suspend_onu` / `resume_onu`):**
+   - Inserção na blacklist (`gpon blacklist serial-number hwtc073545b7`) com isolamento instantâneo do enlace.
+   - Remoção com `no gpon blacklist serial-number hwtc073545b7`.
+3. **Reinicialização Remota (`reboot_onu`):**
+   - Disparo de `onu reset hwtc073545b7` na interface `gpon1/1`.
+   - Queda física do enlace óptico durante o boot da ONT e retorno automático ao estado `ACTIVE (PROVISIONED)` após conclusão do ciclo OMCI (~35s).
+4. **Desprovisionamento e Idempotência (`deprovision_onu`):**
+   - Remoção completa via `no onu hwtc073545b7` na interface `gpon1/1`.
+   - Reprovisionamento do zero via `provision_onu`, validando que o ciclo completo é 100% resiliente e idempotente.
+
+### 6.2. Suíte Geral do Sistema e Conformidade
 - **Suíte de Conformidade (`BaseDriverComplianceTest`):** 36 testes executados cobrindo todos os métodos polimórficos de `BaseOLTDriver` para o Parks Fiberlink.
 - **Testes Unitários Dedicados (`test_parks_driver.py`):** 11 testes cobrindo parsing de CLI, leituras ópticas, regex de portas sem espaços e fallback de backup.
-- **Suíte Geral do Sistema:** **246 testes aprovados** sem nenhuma regressão.
+- **Suíte Geral do Sistema:** **246 testes aprovados com 100% de sucesso**.
 - **Contratos OpenAPI:** 75 endpoints e 96 esquemas sincronizados em `docs/api_contracts/openapi.yaml` e `docs/api_contracts/openapi.json`.
