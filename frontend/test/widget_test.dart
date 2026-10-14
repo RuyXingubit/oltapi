@@ -203,6 +203,124 @@ void main() {
           200,
           headers: {'content-type': 'application/json'},
         );
+      } else if (path.endsWith('/api/v1/backups/audit-all')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'olt_id': '0191eb58-6932-7000-8000-000000000001',
+              'olt_name': 'OLT VSOL Teste',
+              'total_backups': 2,
+              'total_bytes': 40960,
+              'has_changed': true,
+              'last_backup_at': '2026-10-14T16:00:00Z',
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/ftp-servers')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': '0191eb58-6932-7000-8000-000000000701',
+              'name': 'FTP Primário Datacenter',
+              'host': '10.50.50.10',
+              'port': 21,
+              'username': 'oltbackup',
+              'base_path': '/olt-backups',
+              'is_global_default': true,
+              'is_active': true,
+              'created_at': '2026-10-14T16:00:00Z',
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/ftp-servers')) {
+        return http.Response(
+          jsonEncode({
+            'olt_id': '0191eb58-6932-7000-8000-000000000001',
+            'specific_destinations': [],
+            'global_destinations': [
+              {
+                'id': '0191eb58-6932-7000-8000-000000000701',
+                'name': 'FTP Primário Datacenter',
+                'host': '10.50.50.10',
+                'port': 21,
+                'username': 'oltbackup',
+                'base_path': '/olt-backups',
+                'is_global_default': true,
+                'is_active': true,
+              }
+            ],
+            'effective_destinations': [
+              {
+                'id': '0191eb58-6932-7000-8000-000000000701',
+                'name': 'FTP Primário Datacenter',
+                'host': '10.50.50.10',
+                'port': 21,
+                'username': 'oltbackup',
+                'base_path': '/olt-backups',
+                'is_global_default': true,
+                'is_active': true,
+              }
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/backups/audit')) {
+        return http.Response(
+          jsonEncode({
+            'olt_id': '0191eb58-6932-7000-8000-000000000001',
+            'olt_name': 'OLT VSOL Teste',
+            'total_backups': 2,
+            'total_bytes': 40960,
+            'has_changed': true,
+            'last_backup_at': '2026-10-14T16:00:00Z',
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/backups/compare')) {
+        return http.Response(
+          jsonEncode({
+            'olt_id': '0191eb58-6932-7000-8000-000000000001',
+            'base_backup_id': 'b-01',
+            'target_backup_id': 'b-02',
+            'base_sha256': 'hash111111111111',
+            'target_sha256': 'hash222222222222',
+            'identical': false,
+            'additions_count': 2,
+            'deletions_count': 1,
+            'diff_lines': ['--- b-01.cfg', '+++ b-02.cfg', '@@ -1,2 +1,3 @@', '+vlan 621', '-vlan 100'],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/backups')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'backup_id': 'b-02',
+              'olt_id': '0191eb58-6932-7000-8000-000000000001',
+              'size_bytes': 20480,
+              'sha256_hash': 'hash222222222222',
+              'filename': 'olt_vsol_20261014_1600.cfg',
+              'created_at': '2026-10-14T16:00:00Z',
+            },
+            {
+              'backup_id': 'b-01',
+              'olt_id': '0191eb58-6932-7000-8000-000000000001',
+              'size_bytes': 20480,
+              'sha256_hash': 'hash111111111111',
+              'filename': 'olt_vsol_20261014_1500.cfg',
+              'created_at': '2026-10-14T15:00:00Z',
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
       } else if (path.endsWith('/api/v1/onus')) {
         return http.Response('[]', 200, headers: {'content-type': 'application/json'});
       }
@@ -437,6 +555,79 @@ void main() {
     expect(find.text('Admin Master'), findsOneWidget);
     expect(find.text('admin@oltapi.local'), findsOneWidget);
     expect(find.text('Chave ERP'), findsOneWidget);
+  });
+
+  testWidgets('BackupsScreen renders Onda B (Audit Drift, Multi-FTP, Unified Diff Dialog) without overflow',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final settings = SettingsProvider();
+    settings.apiClient = ApiClient(
+      baseUrl: SettingsProvider.defaultBaseUrl,
+      apiKey: SettingsProvider.defaultApiKey,
+      client: mockHttpClient,
+    );
+    final appState = AppState(apiClient: settings.apiClient);
+    await appState.loadOlts();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: settings),
+          ChangeNotifierProvider.value(value: appState),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: const AppShell(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Navigate to Gestão de Backups tab
+    await tester.ensureVisible(find.text('Gestão de Backups'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gestão de Backups'));
+    await tester.pumpAndSettle();
+
+    // Verify Onda B header and audit drift badge on OLT card
+    expect(find.text('Disaster Recovery, Backups & Servidores FTP'), findsOneWidget);
+    expect(find.text('DRIFT DETECTADO'), findsOneWidget);
+
+    // Open OltBackupsDialog
+    await tester.tap(find.text('Backups, Diff & FTP'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Histórico de Backups'), findsOneWidget);
+    expect(find.text('olt_vsol_20261014_1600.cfg'), findsOneWidget);
+    expect(find.text('CONFIG DRIFT DETECTADO'), findsOneWidget);
+
+    // Open Unified Diff modal inside OltBackupsDialog
+    await tester.tap(find.text('Unified Diff'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Comparador Unified Diff'), findsOneWidget);
+    expect(find.text('DRIFT (+2 / -1)'), findsOneWidget);
+
+    // Close Unified Diff modal
+    await tester.tap(find.text('Fechar'));
+    await tester.pumpAndSettle();
+
+    // Close OltBackupsDialog
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+
+    // Switch to Servidores FTP Remotos sub-tab
+    await tester.tap(find.textContaining('Servidores FTP Remotos'));
+    await tester.pumpAndSettle();
+    expect(find.text('FTP Primário Datacenter'), findsOneWidget);
+    expect(find.text('GLOBAL DEFAULT'), findsOneWidget);
+    expect(find.text('ftp://oltbackup@10.50.50.10:21/olt-backups'), findsOneWidget);
   });
 }
 

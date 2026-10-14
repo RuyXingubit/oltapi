@@ -325,6 +325,193 @@ class ApiClient {
     );
   }
 
+  // Onda B: Disaster Recovery Avançado (Multi-FTP, Unified Diff, Auditoria & Expurgo)
+  Future<BackupAuditReportModel> auditOltBackups(String oltId) async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/olts/$oltId/backups/audit')), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return BackupAuditReportModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<BackupDiffResultModel> compareOltBackups(
+    String oltId, {
+    String? baseId,
+    String? targetId,
+  }) async {
+    final queryParams = <String, String>{};
+    if (baseId != null && baseId.isNotEmpty) queryParams['base_id'] = baseId;
+    if (targetId != null && targetId.isNotEmpty) queryParams['target_id'] = targetId;
+    final uri = Uri.parse(_cleanUrl('/api/v1/olts/$oltId/backups/compare'))
+        .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 20));
+    final data = await _handleResponse(response);
+    return BackupDiffResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<PurgeResultModel> purgeOltBackups(
+    String oltId, {
+    int maxBackupsPerOlt = 30,
+    int? maxAgeDays,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/backups/purge')),
+          headers: _headers,
+          body: jsonEncode({
+            'max_backups_per_olt': maxBackupsPerOlt,
+            if (maxAgeDays != null) 'max_age_days': maxAgeDays,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final data = await _handleResponse(response);
+    return PurgeResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<BatchBackupResultModel> runAllBackups({
+    bool purgeAfter = true,
+    int maxBackupsPerOlt = 30,
+    int? maxAgeDays,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/backups/run-all?purge_after=$purgeAfter')),
+          headers: _headers,
+          body: jsonEncode({
+            'max_backups_per_olt': maxBackupsPerOlt,
+            if (maxAgeDays != null) 'max_age_days': maxAgeDays,
+          }),
+        )
+        .timeout(const Duration(seconds: 60));
+    final data = await _handleResponse(response);
+    return BatchBackupResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<List<BackupAuditReportModel>> auditAllBackups() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/backups/audit-all')), headers: _headers)
+        .timeout(const Duration(seconds: 20));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(BackupAuditReportModel.fromJson)
+          .toList();
+    }
+    return [];
+  }
+
+  Future<PurgeResultModel> purgeAllBackups({
+    int maxBackupsPerOlt = 30,
+    int? maxAgeDays,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/backups/purge-all')),
+          headers: _headers,
+          body: jsonEncode({
+            'max_backups_per_olt': maxBackupsPerOlt,
+            if (maxAgeDays != null) 'max_age_days': maxAgeDays,
+          }),
+        )
+        .timeout(const Duration(seconds: 25));
+    final data = await _handleResponse(response);
+    return PurgeResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<List<FtpServerModel>> getFtpServers({bool activeOnly = false}) async {
+    final response = await _client
+        .get(
+          Uri.parse(_cleanUrl('/api/v1/ftp-servers?active_only=$activeOnly')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(FtpServerModel.fromJson)
+          .toList();
+    }
+    return [];
+  }
+
+  Future<FtpServerModel> createFtpServer(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/ftp-servers')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return FtpServerModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<FtpServerModel> updateFtpServer(
+    String ftpId,
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .put(
+          Uri.parse(_cleanUrl('/api/v1/ftp-servers/$ftpId')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return FtpServerModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteFtpServer(String ftpId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/ftp-servers/$ftpId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
+  Future<FtpTestResultModel> testFtpServer(String ftpId) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/ftp-servers/$ftpId/test')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return FtpTestResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<OltFtpDestinationsModel> getOltFtpDestinations(String oltId) async {
+    final response = await _client
+        .get(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/ftp-servers')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return OltFtpDestinationsModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<OltFtpDestinationsModel> bindOltFtpServers(
+    String oltId,
+    List<String> ftpServerIds,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/ftp-servers')),
+          headers: _headers,
+          body: jsonEncode({'ftp_server_ids': ftpServerIds}),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return OltFtpDestinationsModel.fromJson(data as Map<String, dynamic>);
+  }
+
   // Unconfigured ONUs
   Future<List<UnauthorizedOnu>> getUnauthorizedOnus(String oltId) async {
     final response = await _client

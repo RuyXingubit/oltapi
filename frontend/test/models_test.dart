@@ -523,6 +523,102 @@ void main() {
       expect(keyCreated.key, 'olt_a1b2c3d4e5f6');
       expect(keyCreated.scopes, ['onus:read', 'onus:provision']);
     });
+
+    test('Onda B: FtpServerModel, FtpTestResultModel, and OltFtpDestinationsModel deserialize correctly', () {
+      final ftpJson = {
+        'id': '0191eb58-6932-7000-8000-000000000701',
+        'name': 'FTP Primário Datacenter',
+        'host': '10.50.50.10',
+        'port': 21,
+        'username': 'oltbackup',
+        'base_path': '/backups/fiberhome',
+        'is_global_default': true,
+        'is_active': true,
+        'created_at': '2026-10-14T16:00:00Z',
+      };
+      final ftp = FtpServerModel.fromJson(ftpJson);
+      expect(ftp.name, 'FTP Primário Datacenter');
+      expect(ftp.host, '10.50.50.10');
+      expect(ftp.isGlobalDefault, true);
+      expect(ftp.basePath, '/backups/fiberhome');
+
+      final testResJson = {
+        'success': true,
+        'message': 'Conectado com sucesso ao servidor FTP',
+        'banner': '220 vsFTPd 3.0.5',
+        'working_directory': '/backups/fiberhome',
+        'latency_ms': 14.2,
+      };
+      final testRes = FtpTestResultModel.fromJson(testResJson);
+      expect(testRes.success, true);
+      expect(testRes.banner, '220 vsFTPd 3.0.5');
+      expect(testRes.latencyMs, 14.2);
+
+      final destJson = {
+        'olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'specific_destinations': [ftpJson],
+        'global_destinations': [ftpJson],
+        'effective_destinations': [ftpJson],
+      };
+      final dest = OltFtpDestinationsModel.fromJson(destJson);
+      expect(dest.oltId, '0191eb58-6932-7000-8000-000000000001');
+      expect(dest.effectiveDestinations.length, 1);
+      expect(dest.effectiveDestinations.first.name, 'FTP Primário Datacenter');
+    });
+
+    test('Onda B: BackupDiffResultModel, BackupAuditReportModel, PurgeResultModel, and BatchBackupResultModel deserialize correctly', () {
+      final diffJson = {
+        'olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'base_backup_id': 'b-01',
+        'target_backup_id': 'b-02',
+        'base_sha256': 'aaa111',
+        'target_sha256': 'bbb222',
+        'identical': false,
+        'additions_count': 4,
+        'deletions_count': 1,
+        'diff_lines': ['--- b-01', '+++ b-02', '@@ -1,2 +1,5 @@', '+vlan 621', '-vlan 100'],
+      };
+      final diff = BackupDiffResultModel.fromJson(diffJson);
+      expect(diff.identical, false);
+      expect(diff.additionsCount, 4);
+      expect(diff.deletionsCount, 1);
+      expect(diff.diffLines, contains('+vlan 621'));
+
+      final auditJson = {
+        'olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'olt_name': 'OLT Central',
+        'total_backups': 5,
+        'total_bytes': 102400,
+        'has_changed': true,
+        'last_backup_at': '2026-10-14T16:00:00Z',
+      };
+      final audit = BackupAuditReportModel.fromJson(auditJson);
+      expect(audit.hasChanged, true);
+      expect(audit.totalBackups, 5);
+      expect(audit.formattedTotalBytes, '100.0 KB');
+
+      final purgeJson = {
+        'deleted_count': 3,
+        'freed_bytes': 51200,
+        'remaining_count': 10,
+      };
+      final purge = PurgeResultModel.fromJson(purgeJson);
+      expect(purge.deletedCount, 3);
+      expect(purge.formattedFreedBytes, '50.0 KB');
+
+      final batchJson = {
+        'total_olts': 2,
+        'successful': 2,
+        'failed': 0,
+        'backups': [],
+        'errors': [],
+      };
+      final batch = BatchBackupResultModel.fromJson(batchJson);
+      expect(batch.totalOlts, 2);
+      expect(batch.successful, 2);
+      expect(batch.failed, 0);
+    });
   });
 }
+
 
