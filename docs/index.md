@@ -65,6 +65,8 @@ Além dos endpoints RESTful de alta performance, o projeto disponibiliza uma **C
 Explore as seções da documentação:
 
 ::: cards
+- [📐 **Especificação SDD**](SDD.md)  
+  Fonte única da verdade de engenharia: topologia, contratos OpenAPI, governança de drivers, histórico Alembic e plano de ondas.
 - [🐳 **Guia de Instalação**](instalacao.md)  
   Como inicializar a stack de produção com Docker Compose e PostgreSQL 16.
 - [🖥️ **Frontend NOC (Flutter)**](frontend_noc.md)  
@@ -74,5 +76,5 @@ Explore as seções da documentação:
 - [🛠️ **Manual do Desenvolvedor**](MANUAL_DESENVOLVEDOR.md)  
   Entenda a arquitetura de drivers baseada em Inversão de Dependência e conformidade de testes.
 - [📖 **Referência da API (ReDoc)**](referencia-api.md)  
-  Especificação interativa e detalhada de todos os 68 endpoints da API REST.
+  Especificação interativa e detalhada das 75 rotas (96 operações HTTP) e 96 esquemas da API REST.
 :::

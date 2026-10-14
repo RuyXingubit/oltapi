@@ -45,6 +45,11 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      - name: Verify OpenAPI Contract Sync
+        run: |
+          python -m scripts.export_openapi
+          git diff --exit-code docs/api_contracts/
+
       - name: Execute Tests (with Testcontainers)
         run: pytest tests/ -v
 

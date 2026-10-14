@@ -5,7 +5,7 @@ hide:
 
 # 📖 Referência da API REST (OpenAPI 3.1.0)
 
-Todos os **66 endpoints** e **80 esquemas** do OLTAPI seguem rigorosamente as boas práticas de REST, convenções **UUIDv7 (RFC 9562)**, navegação **HATEOAS (RFC 9110)** e autenticação em tempo constante via cabeçalho `X-API-Key`.
+Todas as **75 rotas (`paths`)**, **96 operações HTTP** e **96 esquemas** do OLTAPI seguem rigorosamente as boas práticas de REST, convenções **UUIDv7 (RFC 9562)**, navegação **HATEOAS (RFC 9110)**, controle de acesso **RBAC Multi-Tenant** e autenticação via `X-API-Key` ou `Bearer JWT`.
 
 ---
 

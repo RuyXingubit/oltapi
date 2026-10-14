@@ -88,7 +88,7 @@ Ao clicar no botão **Diagnóstico** em qualquer ONU, o frontend consulta em tem
 
 ### 4. OLTs & Gestão de Backups (`OltsScreen`)
 Controle do parque de hardware físico e políticas de disaster recovery:
-- **Tabela de Concentradores:** Nome da OLT, Fabricante (`FIBERHOME`, `VSOL`), IP, Porta e Protocolo (`Telnet`/`SSH`).
+- **Tabela de Concentradores:** Nome da OLT, Fabricante (`FIBERHOME`, `VSOL`, `PARKS`), IP, Porta e Protocolo (`Telnet`/`SSH`).
 - **Teste de Conectividade:** Dispara ping/teste de socket contra a porta de gerência da OLT, exibindo a latência real em ms.
 - **Novo Backup:** Dispara a extração imediata da configuração e geração de hash SHA-256.
 - **Visualizador de Running-Config:** Exibe a configuração ativa da OLT em modal com tipografia monospace e botão para copiar todo o texto.

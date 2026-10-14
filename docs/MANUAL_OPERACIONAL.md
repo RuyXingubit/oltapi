@@ -56,8 +56,8 @@ Para cadastrar um novo equipamento gerenciado:
 ```json
 {
   "name": "OLT-POP-CENTRO-01",
-  "vendor": "intelbras",
-  "model": "8820i",
+  "vendor": "vsol",
+  "model": "v1600gt",
   "host": "10.0.100.2",
   "port": 22,
   "protocol": "ssh",
@@ -67,12 +67,10 @@ Para cadastrar um novo equipamento gerenciado:
 ```
 
 > [!TIP]
-> Fabricantes e modelos atualmente suportados na arquitetura de drivers:
-> - **Fiberhome:** `vendor: "fiberhome"` / `model: "an5516"`, `"an5516-01"`, `"an5516-04"`, `"an5516-06"`, `"an6000"` (🟢 100% Homologado em Campo e Bancada Real)
-> - **Intelbras:** `vendor: "intelbras"` / `model: "8820"`, `"8820i"`, `"g08"`, `"g16"`
-> - **Huawei:** `vendor: "huawei"` / `model: "ma5800"`, `"ma5800-x2"`, `"ma5800-x7"`, `"ma5608t"`, `"ma5680t"`
-> - **V-SOL:** `vendor: "vsol"` / `model: "v1600gt"`, `"v1600g"`, `"v1600g-04"`, `"v1600g-08"`, `"v1600g-16"`
-> - **ZTE:** `vendor: "zte"` / `model: "c300"`, `"c320"`, `"c600"`
+> Fabricantes e modelos homologados em bancada física e suportados no `DriverRegistry`:
+> - **Fiberhome:** `vendor: "fiberhome"` / `model: "an5516"`, `"an5516-01"`, `"an5516-04"`, `"an5516-06"`, `"an6000"` (🟢 100% Homologado em Campo e Bancada Física)
+> - **V-SOL:** `vendor: "vsol"` / `model: "v1600gt"`, `"v1600g"`, `"v1600g-04"`, `"v1600g-08"`, `"v1600g-16"` (🟢 100% Homologado em Bancada Física)
+> - **Parks:** `vendor: "parks"` / `model: "fiberlink-10008s"`, `"fiberlink-21000"`, `"10008s"`, `"2000"` (🟢 100% Homologado em Bancada Física)
 
 ### Resposta de Sucesso (`201 Created`):
 **Cabeçalho HTTP:** `Location: /api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde`
@@ -81,8 +79,8 @@ Para cadastrar um novo equipamento gerenciado:
 {
   "id": "0191e4f2-51a8-7d84-a12b-3456789abcde",
   "name": "OLT-POP-CENTRO-01",
-  "vendor": "intelbras",
-  "model": "8820i",
+  "vendor": "vsol",
+  "model": "v1600gt",
   "host": "10.0.100.2",
   "port": 22,
   "protocol": "ssh",
@@ -494,8 +492,8 @@ Quando o técnico instala uma OLT nova que acabou de sair da caixa, ele não pre
 
 ```json
 {
-  "vendor": "intelbras",
-  "model": "g16",
+  "vendor": "vsol",
+  "model": "v1600gt",
   "ip_address": "192.168.1.100",
   "netmask": "255.255.255.0",
   "gateway": "192.168.1.1",
@@ -515,8 +513,8 @@ Retorna uma lista ordenada com cada comando CLI que será executado na OLT.
 {
   "olt_id": "018e3c45-6789-7abc-def0-123456789abc",
   "config": {
-    "vendor": "intelbras",
-    "model": "g16",
+    "vendor": "vsol",
+    "model": "v1600gt",
     "ip_address": "10.0.100.2",
     "netmask": "255.255.255.0",
     "gateway": "10.0.100.1",
@@ -716,10 +714,10 @@ Os operadores do NOC que chegam pela manhã podem visualizar todas as auto-recup
     "from_onu_id": 4,
     "from_circuit_id": "OLT-POP-CENTRO-01 eth 1/1:4:150",
     "to_olt_id": "0191e4f5-9988-7766-5544-33221100aabb",
-    "to_olt_name": "OLT-HUAWEI-POP-SUL",
+    "to_olt_name": "OLT-PARKS-POP-SUL",
     "to_port": "0/2",
     "to_onu_id": 2,
-    "to_circuit_id": "OLT-HUAWEI-POP-SUL eth 0/2:2:150",
+    "to_circuit_id": "OLT-PARKS-POP-SUL eth 0/2:2:150",
     "status": "success",
     "details": "ONU detectada em nova posição física com contrato ativo. Migração e limpeza executadas com sucesso."
   }
@@ -805,10 +803,10 @@ function validar_webhook(string $secret, string $rawBody, string $signatureHeade
     "old_onu_id": 4,
     "old_circuit_id": "OLT-POP-CENTRO-01 eth 1/1:4:150",
     "new_olt_id": "0191e4f5-9988-7766-5544-33221100aabb",
-    "new_olt_name": "OLT-HUAWEI-POP-SUL",
+    "new_olt_name": "OLT-PARKS-POP-SUL",
     "new_port": "0/2",
     "new_onu_id": 2,
-    "new_circuit_id": "OLT-HUAWEI-POP-SUL eth 0/2:2:150",
+    "new_circuit_id": "OLT-PARKS-POP-SUL eth 0/2:2:150",
     "vlan": 150,
     "profile": "1G_DOWN_500M_UP",
     "latitude": -23.551,
@@ -1002,7 +1000,7 @@ pytest tests/ -v
 ```
 1. O Pytest se comunica com o Docker daemon local e inicializa uma instância limpa de `postgres:16-alpine`.
 2. Executa todas as migrações canônicas do Alembic (`alembic upgrade head`) diretamente no container efêmero.
-3. Roda todos os 143 testes de API, conciliação, inventário e drivers contra o banco PostgreSQL real.
+3. Roda todos os 253 testes de API, conciliação, inventário, conformidade de drivers e segurança RBAC contra o banco PostgreSQL real.
 4. Ao final da suite, o container é destruído automaticamente sem deixar processos órfãos.
 
 *(Caso o Docker não esteja em execução na máquina do desenvolvedor, a suite ativa um fallback transparente para SQLite WAL, mantendo o fluxo de trabalho ágil).*

@@ -134,5 +134,5 @@ No dia **10/10/2026**, foi realizado o teste completo de ciclo de vida ponta a p
 ### 6.2. Suíte Geral do Sistema e Conformidade
 - **Suíte de Conformidade (`BaseDriverComplianceTest`):** 36 testes executados cobrindo todos os métodos polimórficos de `BaseOLTDriver` para o Parks Fiberlink.
 - **Testes Unitários Dedicados (`test_parks_driver.py`):** 11 testes cobrindo parsing de CLI, leituras ópticas, regex de portas sem espaços e fallback de backup.
-- **Suíte Geral do Sistema:** **246 testes aprovados com 100% de sucesso**.
-- **Contratos OpenAPI:** 75 endpoints e 96 esquemas sincronizados em `docs/api_contracts/openapi.yaml` e `docs/api_contracts/openapi.json`.
+- **Suíte Geral do Sistema:** **253 testes aprovados com 100% de sucesso**.
+- **Contratos OpenAPI:** 75 rotas (96 operações HTTP) e 96 esquemas sincronizados em `docs/api_contracts/openapi.yaml` e `docs/api_contracts/openapi.json`.

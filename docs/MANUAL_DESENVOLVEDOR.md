@@ -40,16 +40,27 @@ O **OLTAPI** foi projetado com os seguintes princípios:
 oltapi/
 ├── app/
 │   ├── api/
-│   │   └── v1/                      # Endpoints REST organizados por domínio
-│   │       ├── endpoints_olts.py        # Cadastro, running-config, backups, audit e diff
-│   │       ├── endpoints_backups.py     # Disparo em lote e auditoria global
-│   │       ├── endpoints_diagnostics.py # Portas, ONUs e diagnóstico óptico
+│   │   ├── deps.py                      # Autenticação dual (JWT/API-Key) e RBAC Multi-Tenant
+│   │   └── v1/                          # 16 Routers REST organizados por domínio
+│   │       ├── endpoints_setup.py       # Bootstrap inicial do sistema e super admin
+│   │       ├── endpoints_auth.py        # Login JWT Bearer e contexto autenticado
+│   │       ├── endpoints_tenants.py     # Operadoras (Provider Owner & Wholesale Tenant)
+│   │       ├── endpoints_users.py       # Gestão de usuários e papéis RBAC
+│   │       ├── endpoints_api_keys.py    # Chaves de API SHA-256 com escopos granulares
+│   │       ├── endpoints_olts.py        # Cadastro, onboarding 2 fases, xray, config e backups
+│   │       ├── endpoints_vlans.py       # VLANs, métricas, histórico, perfis e provisioning-schema
+│   │       ├── endpoints_pon_policies.py# Políticas PON e janelas de Cutover Zero-Touch
+│   │       ├── endpoints_backups.py     # Disparo em lote, auditoria e expurgo global
+│   │       ├── endpoints_ftp.py         # Servidores FTP remotos e vínculo por OLT
+│   │       ├── endpoints_diagnostics.py # Portas, ONUs e diagnóstico óptico em dBm
 │   │       ├── endpoints_provision.py   # Provisionamento, ciclo de vida e autofind
 │   │       ├── endpoints_onu_inventory.py# Inventário global e histórico TR-101
+│   │       ├── endpoints_scanner.py     # Worker periódico Autofind Scanner
+│   │       ├── endpoints_webhooks.py    # Webhooks HMAC SHA-256 com proteção SSRF
 │   │       └── endpoints_bootstrap.py   # Inicialização zero-touch e preview
 │   ├── core/
 │   │   ├── config.py                # Pydantic Settings (.env, retenção, timeouts)
-│   │   ├── security.py              # Sanitizadores regex e validação de API Key
+│   │   ├── security.py              # Sanitizadores regex, SSRF, Fernet AES e API Key
 │   │   ├── telnet.py                # Cliente Telnet resiliente RFC 854 (Python 3.13+)
 │   │   └── uuid.py                  # Gerador e validador nativo de UUIDv7 (RFC 9562)
 │   ├── db/                          # Modelos SQLAlchemy e sessão PostgreSQL
@@ -63,10 +74,10 @@ oltapi/
 │   ├── models/                      # Schemas Pydantic v2 tipados
 │   ├── services/                    # Orquestradores de negócio desacoplados
 │   └── main.py                      # Ponto de entrada FastAPI 100% REST JSON
-├── docs/                            # Documentação técnica MkDocs Material
+├── docs/                            # Documentação SDD e MkDocs Material
 ├── frontend/                        # Central de Operações NOC em Flutter (Desktop/Web)
 ├── tests/
-│   └── unit/                        # Suíte de 219 testes unitários e de conformidade
+│   └── unit/                        # Suíte de 253 testes unitários e de conformidade
 ├── docker-compose.yml               # Orquestração local e produção com PostgreSQL 16
 ├── requirements.txt                 # Dependências Python
 └── mkdocs.yml                       # Configuração do site de documentação

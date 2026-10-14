@@ -10,11 +10,15 @@ htmlcov
 .gitignore
 .env
 *.log
+*.bak
 *.orig
 *.rej
+*.patch
 .DS_Store
 tests
 docs
+site
+frontend
 backups/*
 data/*
 scratch/*

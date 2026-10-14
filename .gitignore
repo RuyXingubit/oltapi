@@ -12,6 +12,7 @@ htmlcov/
 *.bak
 *.orig
 *.rej
+*.patch
 venv/
 .venv/
 backups/*

@@ -1,136 +1,113 @@
-# Guia de Contribuição: OLT Provisioning & Diagnostics Unified API
+# Guia de Contribuição: OLT Provisioning & Diagnostics Unified API (`oltapi`)
 
 Seja muito bem-vindo ao projeto **OLTAPI**! 🎉
 
-Nosso objetivo é construir uma camada unificada, aberta e agnóstica para automação, provisionamento e telemetria de OLTs de múltiplos fabricantes (Intelbras, Huawei, Fiberhome, Parks, ZTE, Datacom, Nokia, etc.), permitindo que qualquer **ERP de Provedor** ou **técnico com Postman/cURL** opere a rede óptica com simplicidade e segurança.
+Nosso objetivo é manter uma camada unificada, aberta e agnóstica para automação, provisionamento e telemetria de OLTs multi-fabricante (**Fiberhome**, **V-SOL**, **Parks Fiberlink** e novos concentradores homologados em bancada física), permitindo que qualquer **ERP de Provedor**, operadora de **Rede Neutra** ou operador via **Central NOC Flutter** opere a rede óptica com simplicidade e segurança.
 
 ---
 
-## 🧭 Manuais Disponíveis
+## 🧭 Manuais e Especificação Oficial
 
-Antes de começar, consulte os nossos manuais dedicados:
-- 🛠️ **[Manual do Desenvolvedor](docs/MANUAL_DESENVOLVEDOR.md)**: Arquitetura detalhada, fluxo de dados, padrão de drivers e como escrever parsers com regex puras.
-- 📡 **[Manual Operacional & Guia de Integração de ERP](docs/MANUAL_OPERACIONAL.md)**: Guia prático de uso com cURL, Python, PHP, Node.js e endpoints da API.
+Antes de começar, consulte a documentação oficial do projeto:
+- 📐 **[System Design & Specification Document (`docs/SDD.md`)](docs/SDD.md)**: Fonte única da verdade de engenharia, arquitetura das stacks, contratos OpenAPI e regras de governança.
+- 🛠️ **[Manual do Desenvolvedor (`docs/MANUAL_DESENVOLVEDOR.md`)](docs/MANUAL_DESENVOLVEDOR.md)**: Arquitetura detalhada, `DriverRegistry`, `BaseDriverComplianceTest` e como escrever parsers com regex puras.
+- 📡 **[Manual Operacional & Guia de Integração de ERP (`docs/MANUAL_OPERACIONAL.md`)](docs/MANUAL_OPERACIONAL.md)**: Guia prático de uso com cURL, Python, PHP, Node.js e endpoints da API.
 
 ---
 
 ## 📋 Índice
-1. [Diretrizes de Arquitetura](#-diretrizes-de-arquitetura)
-2. [Como Adicionar um Novo Fabricante / Driver de OLT](#-como-adicionar-um-novo-fabricante--driver-de-olt)
+1. [Diretrizes de Arquitetura & Governança de Drivers](#-diretrizes-de-arquitetura--governança-de-drivers)
+2. [Como Homologar e Adicionar um Novo Driver de OLT](#-como-homologar-e-adicionar-um-novo-driver-de-olt)
 3. [Boas Práticas de Segurança](#-boas-práticas-de-segurança)
-4. [Como Escrever Testes com Parsers Puros](#-como-escrever-testes-com-parsers-puros)
+4. [Suíte de Conformidade e Testes Unitários](#-suíte-de-conformidade-e-testes-unitários)
 5. [Fluxo de Trabalho Git e Pull Requests](#-fluxo-de-trabalho-git-e-pull-requests)
 
 ---
 
-## 🏛️ Diretrizes de Arquitetura
+## 🏛️ Diretrizes de Arquitetura & Governança de Drivers
 
-O projeto utiliza o padrão **Driver / Adapter Pattern**:
-- O núcleo da API (`FastAPI`) conhece apenas o contrato genérico `BaseOLTDriver`.
-- Toda particularidade de sintaxe de terminal (VRP, CLIOS, Broadcom, G-Series, TL1) fica estritamente isolada dentro do respectivo driver do fabricante em `app/drivers/<fabricante>/`.
-- **Zero Dependências do ERP com Fabricantes:** O ERP nunca envia comandos de terminal. Ele envia apenas payloads padronizados com `serial`, `port`, `vlan` e `profile`.
+O projeto utiliza o padrão **Ports & Adapters (`BaseOLTDriver` + `@DriverRegistry.register`)**:
+- O núcleo da API (`FastAPI`) e os serviços de negócio conversam exclusivamente com métodos polimórficos da interface [`BaseOLTDriver`](file:///Volumes/240/Code/oltapi/app/drivers/base.py).
+- É terminantemente proibido usar `hasattr(driver, ...)` ou condicionais de fabricante (`if olt.vendor == ...`) nas camadas de serviço, bem como um driver importar outro driver.
+- **Proibição de Fabricantes Teóricos:** Novos drivers só entram na árvore do projeto mediante acesso a **hardware físico real em bancada** para homologação completa (leitura, gravação atômica, backup FTP + fallback e provisionamento com tráfego real).
 
 ---
 
-## 🔌 Como Adicionar um Novo Fabricante / Driver de OLT
+## 🔌 Como Homologar e Adicionar um Novo Driver de OLT
 
-Para adicionar suporte a um novo equipamento (ex: *Huawei MA5800*, *Fiberhome AN5516*, *Parks*, *ZTE*, *Datacom*), siga estes 4 passos:
+Para adicionar suporte a um novo equipamento físico homologado em bancada, siga estes 3 passos:
 
-### Passo 1: Criar o arquivo do Driver
-Crie o arquivo na pasta correspondente em `app/drivers/<fabricante>/<modelo>.py` herdando de `BaseOLTDriver`:
+### Passo 1: Criar o Driver com Auto-Registro (`@DriverRegistry.register`)
+Crie o arquivo na pasta correspondente em `app/drivers/<fabricante>/<modelo>.py` herdando de `BaseOLTDriver` e registrando-o dinamicamente via decorador (sem necessidade de editar `app/drivers/factory.py`):
 
 ```python
-from typing import List
+from typing import List, Optional
 from app.drivers.base import BaseOLTDriver
+from app.drivers.registry import DriverRegistry
+from app.models.ftp import FTPDestinationConfig
 from app.models.olt import OLTInDB
 from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ProvisionRequest, ProvisionResponse
-from app.models.bootstrap import BootstrapRequest
 
-class MeuFabricanteDriver(BaseOLTDriver):
+@DriverRegistry.register(vendor="novo_fabricante", model_prefix="modelo_x")
+class NovoFabricanteDriver(BaseOLTDriver):
+    def handles_primary_ftp_upload(self) -> bool:
+        return True
+
     def get_running_config(self, olt: OLTInDB) -> str:
-        # Envia comandos de leitura (ex: display current-configuration)
         ...
 
-    def backup_config(self, olt: OLTInDB) -> str:
-        return self.get_running_config(olt)
+    def backup_config(self, olt: OLTInDB, ftp_destination: Optional[FTPDestinationConfig] = None) -> str:
+        # Prioridade 1: Upload nativo via FTP da OLT; Prioridade 2: Fallback para get_running_config
+        ...
 
     def list_unauthorized_onus(self, olt: OLTInDB) -> List[UnauthorizedONU]:
-        # Coleta e faz o parse de ONUs não autorizadas
         ...
 
     def get_port_onus(self, olt: OLTInDB, port: str) -> List[ONUSummary]:
-        # Lista ONUs da porta informada
         ...
 
     def get_onu_details(self, olt: OLTInDB, serial_or_id: str) -> ONUDetails:
-        # Consulta potência óptica (dBm) e status
         ...
 
     def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
-        # Executa comandos de provisionamento e salva memória
         ...
-
-    def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:
-        # Gera o script CLI para configuração inicial da OLT virgem
-        ...
-
-    def apply_bootstrap(self, olt: OLTInDB, req: BootstrapRequest) -> int:
-        commands = self.generate_bootstrap_commands(req)
-        # Executa comandos via SSH/CLI
-        return len(commands)
 ```
 
-### Passo 2: Registrar o Driver na Factory
-No arquivo `app/drivers/factory.py`, conecte o novo driver no método `get_driver`:
-
-```python
-elif vendor == "meufabricante":
-    driver = MeuFabricanteDriver()
-    cls._drivers_cache[key] = driver
-    return driver
-```
-
-### Passo 3: Criar Métodos Estáticos de Parsing
-Sempre separe a lógica de leitura de texto (parsers regex) em métodos estáticos puros:
+### Passo 2: Criar Métodos Estáticos de Parsing
+Sempre separe a lógica de leitura de texto (parsers regex) em métodos estáticos puros (`@staticmethod`):
 - `parse_unauthorized_onus(output: str) -> List[UnauthorizedONU]`
 - `parse_port_onus(output: str, port: str) -> List[ONUSummary]`
-- `parse_optical_info(output: str) -> Tuple[Optional[float], Optional[float]]`
+- `parse_optical_info(output: str) -> ...`
 
-*Por que fazer isso?* Isso permite que a comunidade teste 100% dos seus parsers sem precisar que outra pessoa tenha uma OLT de R$ 50.000 ligada na bancada!
+### Passo 3: Incluir na Suíte de Conformidade (`BaseDriverComplianceTest`)
+Todo driver ativo deve passar nos 12 testes polimórficos obrigatórios em [`tests/unit/test_driver_compliance.py`](file:///Volumes/240/Code/oltapi/tests/unit/test_driver_compliance.py) (`get_running_config`, `backup_config` FTP + fallback, `get_chassis_interfaces`, `get_onu_details`, `provision_onu`, `deprovision_onu`, `suspend_onu`, `resume_onu`, `reboot_onu`, `configure_snmp`, `list_all_authorized_onus`, `inspect_management_arch` e `execute_wizard_commissioning`).
 
 ---
 
 ## 🔒 Boas Práticas de Segurança
 
 Ao submeter código, certifique-se de seguir os pilares obrigatórios do projeto:
-1. **Prevenção contra CLI Command Injection:**
+1. **Prevenção contra CLI Command Injection & SSRF:**
    - Nunca concatene strings cruas fornecidas pelo usuário em comandos de terminal.
-   - Use os sanitizadores disponíveis em `app.core.security`:
-     - `sanitize_port(port)`
-     - `sanitize_serial(serial)`
-     - `sanitize_vlan(vlan)`
-     - `sanitize_safe_string(text, field_name)`
-     - `sanitize_description(desc)`
-2. **Identificadores UUIDv7:**
-   - Todos os novos identificadores temporais devem utilizar `app.core.uuid.generate_uuid7()`.
-3. **Credenciais Protegidas:**
-   - As senhas da OLT nunca devem ser expostas em nenhum endpoint de leitura (`GET`).
+   - Use os sanitizadores disponíveis em `app.core.security`: `sanitize_port`, `sanitize_serial`, `sanitize_vlan`, `sanitize_safe_string`, `sanitize_description` e `sanitize_webhook_url`.
+2. **Controle de Acesso RBAC Multi-Tenant:**
+   - Toda rota deve validar escopo (`ctx.enforce_scope(...)`) e isolamento de OLT/VLAN (`ctx.enforce_olt(olt_id)` / `ctx.enforce_vlan(vlan_id)`).
+3. **Identificadores UUIDv7:**
+   - Todos os identificadores devem utilizar `app.core.uuid.generate_uuid7()`.
+4. **Credenciais Protegidas com Fernet AES:**
+   - Senhas e segredos são armazenados cifrados com `encrypt_password` e jamais expostos em respostas `GET`.
 
 ---
 
-## 🧪 Como Escrever Testes com Parsers Puros
+## 🧪 Suíte de Conformidade e Testes Unitários
 
-1. Capture saídas reais de CLI do seu equipamento (`show ...`, `display ...`).
-2. Adicione os cenários de teste em `tests/unit/test_<fabricante>_<modelo>.py`.
-3. Valide o script de bootstrap e a resolução na `DriverFactory`.
-4. Execute a suite localmente:
+1. Capture saídas reais de CLI do equipamento homologado em bancada.
+2. Adicione os cenários de teste em `tests/unit/test_<fabricante>_driver.py` e na `BaseDriverComplianceTest`.
+3. Execute a suíte completa localmente:
 
 ```bash
-# Ative o ambiente virtual
 source .venv/bin/activate
-
-# Execute a suite completa
 pytest tests/ -v
 ```
 
@@ -138,28 +115,20 @@ pytest tests/ -v
 
 ## 🚀 Fluxo de Trabalho Git e Pull Requests
 
-1. Faça um **Fork** do projeto.
-2. Crie uma branch para sua funcionalidade ou driver:
+1. Faça um **Fork** do projeto e crie uma branch para sua funcionalidade:
    ```bash
-   git checkout -b feature/driver-huawei-ma5800
+   git checkout -b feat/driver-novo-fabricante
    ```
-3. Garanta que **100% dos testes unitários estejam passando**:
+2. Garanta que **100% dos testes unitários estejam passando**:
    ```bash
    pytest tests/ -v
    ```
-4. **Sincronização Obrigatória do OpenAPI (Mandatório antes de Commit & Push):**
+3. **Sincronização Obrigatória do OpenAPI (Mandatório antes de Commit & Push):**
    ```bash
    python -m scripts.export_openapi
    git add docs/api_contracts/
    ```
    *(Dica: execute `python scripts/install_git_hooks.py` para instalar os hooks locais que automatizam essa etapa no `pre-commit` e `pre-push`).*
-5. Faça o commit com mensagens claras seguindo o padrão de commits semânticos:
-   ```bash
-   git commit -m "feat(driver): add Huawei MA5800 driver and optical diagnostic parser"
-   ```
-6. Envie para o seu Fork e abra um **Pull Request** detalhando:
-   - Modelo da OLT testada e versão de firmware.
-   - Exemplos de saídas de CLI utilizadas nos testes.
-   - Casos cobertos.
+4. Faça o commit seguindo o padrão de commits semânticos e abra um **Pull Request** acompanhado do relatório de homologação em bancada física (`docs/HOMOLOGACAO_<FABRICANTE>.md`).
 
-Obrigado por ajudar a democratizar a automação de telecomunicações! 🌐
+Obrigado por ajudar a evoluir a automação aberta de telecomunicações! 🌐

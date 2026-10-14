@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-219%20backend%20%2B%208%20flutter%20passed-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-253%20backend%20%2B%208%20flutter%20passed-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Testcontainers-PostgreSQL%2016-blue.svg" alt="Testcontainers PostgreSQL 16">
   <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg" alt="SQLAlchemy 2.0">
   <img src="https://img.shields.io/badge/Alembic-Migrations-orange.svg" alt="Alembic Migrations">
@@ -69,10 +69,10 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
    - **Reboot Remoto OMCI:** Reinício do equipamento do cliente via protocolo de controle da OLT.
    - **Suspensão Administrativa (Inadimplência):** Desativação do tráfego GPON mantendo configurações intactas para fácil religamento.
    - **Reativação / Desbloqueio Financeiro:** Restabelecimento instantâneo do sinal após confirmação de pagamento.
-10. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts oficiais de inicialização de OLTs virgens (baseado na engenharia oficial da Intelbras, Huawei, Fiberhome, V-SOL e ZTE).
+10. **Assistente de Inicialização / Bootstrap Zero-Touch:** Geração de preview e aplicação automatizada de scripts de inicialização para os fabricantes homologados no `DriverRegistry` (Fiberhome, V-SOL e Parks).
 11. **ONU como Entidade Autônoma & Auto-Recuperação Reativa (Broadband Forum TR-101):** Rastreamento perpétuo de hardware vinculado ao contrato no ERP. Quando uma fusão invertida em caixa de emenda (CEO), mudança de endereço ou cutover noturno de POP ocorre, a API provisiona na nova porta/OLT, remove a posição fantasma anterior, gera o Circuit ID padronizado (`{OLT} eth {slot}/{port}:{onu_id}:{vlan}`) e registra a manobra no histórico do NOC.
 12. **Linha do Tempo Global do NOC & Coordenadas GIS:** Auditoria transparente de todas as correções ocorridas na rede e suporte nativo a geolocalização (latitude/longitude) para integração com mapas.
-13. **Webhooks com Assinatura Criptográfica HMAC SHA-256:** Notificação push assíncrona (BackgroundTasks) em tempo real para os ERPs (`onu.reconciled`, `onu.detected`, `webhook.ping`) com verificação contra ataques de temporização e log de auditoria de entregas.
+13. **Webhooks com Assinatura Criptográfica HMAC SHA-256:** Notificação push assíncrona (BackgroundTasks) em tempo real para os ERPs (`onu.reconciled`, `onu.detected`, `webhook.ping`) com proteção SSRF, verificação contra ataques de temporização e log de auditoria de entregas.
 14. **Autofind Scanner em Segundo Plano (Supervisão Autônoma):** Worker assíncrono proativo com locks defensivos por OLT, auto-reconciliação de contratos ativos e notificações instantâneas de novos equipamentos na fibra.
 15. **Persistência Relacional ACID & Migrações Canônicas Alembic:** Camada de banco de dados relacional via **SQLAlchemy 2.0**, com suporte híbrido para SQLite WAL (alta concorrência sem bloqueio de leituras) e PostgreSQL empresarial, migração transparente sem perdas de bases legadas JSON e controle de versão de schema profissional via Alembic.
 16. **Onboarding Assistido via Wizard em 2 Fases (Bancada & Produção):** Pré-inspeção não-destrutiva com detecção factual de arquitetura (`interface aux` vs SVI In-Band), criação de gerência In-Band, catálogo de VLANs com propósitos (Router, Bridge, Rede Neutra, LAN-to-LAN Hairpin `p2p enable`), porta de teste untagged, compilação de perfis com submodo obrigatório `commit` e persistência na flash (`write`).
@@ -86,8 +86,9 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
 
 | Fabricante | Modelo | Portas PON | Protocolo | Status de Homologação | Suporte |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Fiberhome** | AN5516-01 / 04 / 06 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟢 Homologado em Campo | 100% Homologado em hardware real: Leitura de VLANs, perfis, ONUs ativas, running-config, backup FTP com fallback, telemetria óptica dupla (ONU/OLT RX), ciclo de vida e provisionamento ponta a ponta (Router PPPoE, Bridge e VEIP). |
+| **Fiberhome** | AN5516-01 / 04 / 06 / AN6000 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟢 Homologado em Campo | 100% Homologado em hardware real: Leitura de VLANs, perfis, ONUs ativas, running-config, backup FTP com fallback, telemetria óptica dupla (ONU/OLT RX), ciclo de vida e provisionamento ponta a ponta (Router PPPoE, Bridge e VEIP). |
 | **V-SOL** | V1600GT / Série V1600G | 4 a 16 GPON | SSH / Telnet | 🟢 Homologado em Bancada Física | 100% Homologado em hardware real: Onboarding Wizard em 2 fases, detecção determinística AUX vs In-Band, VLANs híbridas, comutação inter-ONU LAN-to-LAN (`p2p enable`), porta de teste untagged, compilação de perfis com submodo `commit`, persistência na flash (`write`) e provisionamento com tráfego real de ONUs Huawei Wi-Fi 6 e Intelbras Bridge. |
+| **Parks** | Fiberlink 10008S / Série 21000 | 8 a 16 GPON | Telnet (23) | 🟢 Homologado em Bancada Física | 100% Homologado em hardware real: Contorno de segfault Dropbear via Telnet resiliente (`<RETURN>` + `terminal length 0`), autofind tabular, provisionamento multi-fabricante com ativação LAN (`ethernet-profile auto-on uni-port 1-4`), bloqueio por `gpon blacklist`, telemetria óptica dupla (`status` + `rssi`) e backup FTP com fallback via terminal. |
 | **Novos Fabricantes** | Bancada Física Requerida | GPON / EPON | Telnet / SSH / TL1 | ⚪ Sob Demanda de Hardware | [Contribuição com Hardware de Bancada](CONTRIBUTING.md) |
 
 ---
@@ -98,20 +99,20 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
 [ ERP de Provedor (IXC, MK-Auth, Voalle) ]    [ Frontend NOC Flutter (Desktop & Web) ]
                      │                                        │
                      └───────────────────┬────────────────────┘
-                                         │ JSON Padronizado + Header X-API-Key
+                                         │ JSON Padronizado + X-API-Key / Bearer JWT
                                          ▼
                              [ OLTAPI Core (FastAPI) ]
                                          │
                                          ▼
                             [ DriverRegistry Dinâmico ]
                                          │
-                         ┌───────────────┴───────────────┐
-                         ▼                               ▼
-                 [ Fiberhome TL1 ]                [ V-SOL V1600 ]
-                  (AN5516/AN6000)                  (V1600G / GT)
-                         │                               │
-                         ▼                               ▼
-                   [ OLT Física ]                  [ OLT Física ]
+             ┌───────────────────────────┼───────────────────────────┐
+             ▼                           ▼                           ▼
+     [ Fiberhome TL1 ]             [ V-SOL V1600 ]           [ Parks Fiberlink ]
+      (AN5516/AN6000)               (V1600G / GT)             (10008S / 21000)
+             │                           │                           │
+             ▼                           ▼                           ▼
+       [ OLT Física ]              [ OLT Física ]              [ OLT Física ]
 ```
 
 - **Inversão de Dependência Radical:** A camada de serviço conversa exclusivamente com métodos polimórficos da interface `BaseOLTDriver`. Cada driver se auto-registra com `@DriverRegistry.register`.
@@ -122,8 +123,9 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
 
 ## 🔒 Segurança em Primeiro Lugar
 
-- **Proteção contra CLI Command Injection:** Sanitização rigorosa via regex defensivo em todos os campos fornecidos pelo usuário (`port`, `serial`, `vlan`, `description`), impedindo injeção de caracteres como `;`, `|`, `&`, `` ` ``, `$`, `>`, `<`.
-- **Autenticação em Tempo Constante:** O cabeçalho `X-API-Key` é validado usando `hmac.compare_digest` para mitigar ataques de temporização (*timing attacks*).
+- **Proteção contra CLI Command Injection & SSRF:** Sanitização rigorosa via regex defensivo em todos os campos fornecidos pelo usuário (`port`, `serial`, `vlan`, `description`, `webhook_url`), impedindo injeção de caracteres como `;`, `|`, `&`, `` ` ``, `$`, `>`, `<` e bloqueando chamadas SSRF em Webhooks.
+- **RBAC Multi-Tenant (Rede Neutra) & Autenticação em Tempo Constante:** Controle de acesso por escopos (`enforce_scope`) e isolamento por OLT/VLAN (`enforce_olt` / `enforce_vlan`), além de validação de chaves com `hmac.compare_digest` e hash SHA-256.
+- **Criptografia em Repouso (Fernet AES):** Senhas de OLTs, servidores FTP, comunidades SNMP e segredos de Webhooks são armazenados cifrados no banco de dados.
 - **Proteção contra Path Traversal:** O download de backups valida estritamente a conformidade com o formato UUIDv7 e confina os arquivos no diretório protegido.
 - **Privacidade de Credenciais:** As senhas das OLTs nunca são devolvidas nos endpoints de leitura (`GET /api/v1/olts`).
 
@@ -269,7 +271,7 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 
 ## 🧪 Testes Automatizados com Testcontainers & PostgreSQL 16
 
-A integridade do projeto é garantida por **143 testes automatizados** executados diretamente contra uma instância real de **PostgreSQL 16** via **Testcontainers**, aplicando as migrações canônicas do **Alembic** e cobrindo segurança contra injeção, parsers de fabricantes, fluxos HATEOAS, ações remotas, auto-conciliação física e webhooks HMAC:
+A integridade do projeto é garantida por **253 testes automatizados no backend** (além da suíte de testes Flutter) executados diretamente contra uma instância real de **PostgreSQL 16** via **Testcontainers**, aplicando as migrações canônicas do **Alembic** e cobrindo segurança RBAC Multi-Tenant, prevenção contra injeção/SSRF, conformidade polimórfica de drivers (`BaseDriverComplianceTest`), fluxos HATEOAS, ações remotas, auto-conciliação física e webhooks HMAC:
 
 ```bash
 # Executar a suite de testes (sobe o container Postgres 16 automaticamente)
@@ -284,19 +286,20 @@ Relatório detalhado de conformidade: [`docs/QA_AUDIT_REPORT.md`](docs/QA_AUDIT_
 
 Criamos manuais detalhados para cada perfil de usuário:
 
+- 📐 **[System Design & Specification Document (SDD)](docs/SDD.md)**: Fonte única da verdade de engenharia (topologia, contratos OpenAPI, governança de drivers, histórico Alembic e plano de ondas).
 - 🛠️ **[Manual do Desenvolvedor & Criação de Drivers](docs/MANUAL_DESENVOLVEDOR.md)**: Como o código funciona por dentro, fluxo de dados, padrão de drivers e como adicionar novos fabricantes.
 - 📡 **[Manual Operacional & Integração de ERP](docs/MANUAL_OPERACIONAL.md)**: Exemplos práticos em cURL, Python, PHP e Node.js para integrar com seu ERP.
 - 🏛️ **[Documento de Arquitetura](docs/ARCHITECTURE.md)**: Decisões arquiteturais, padrões adotados e ciclo de vida do driver.
 - 🗺️ **[Roadmap de Evolução](docs/ROADMAP.md)**: Histórico de entregas e backlog de próximos passos operacionais.
-- 🔒 **[Baseline de Segurança](docs/SECURITY_BASELINE.md)**: Mitigações de injeção de comandos, timing attacks e sanitização.
-- 📋 **[Product Requirements Document (PRD)](docs/PRD.md)**: Escopo do MVP, persona e roadmap futuro.
+- 🔒 **[Baseline de Segurança](docs/SECURITY_BASELINE.md)**: Mitigações de injeção de comandos, RBAC Multi-Tenant, Fernet AES, SSRF e sanitização.
+- 📋 **[Product Requirements Document (PRD)](docs/PRD.md)**: Escopo do produto, personas e critérios de aceite.
 
 ---
 
 ## 🤝 Como Ajudar / Contribuir
 
 Contribuições da comunidade são muito bem-vindas! Você pode ajudar:
-1. **Adicionando novos drivers de OLT** (Huawei, Fiberhome, ZTE, Parks, Datacom, Nokia).
+1. **Homologando novos drivers de OLT em bancada física** (seguindo a `BaseDriverComplianceTest`).
 2. **Enviando saídas reais de terminal (CLI outputs)** para aumentarmos a base de testes unitários.
 3. **Melhorando a documentação e exemplos de integração com ERPs.**
 
