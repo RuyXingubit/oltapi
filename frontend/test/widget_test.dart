@@ -79,6 +79,130 @@ void main() {
         );
       } else if (path.contains('/unauthorized')) {
         return http.Response('[]', 200, headers: {'content-type': 'application/json'});
+      } else if (path.endsWith('/api/v1/onus/history')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': '0191eb58-6932-7000-8000-000000000201',
+              'serial': 'ZTEGC9988776',
+              'from_olt_id': '0191eb58-6932-7000-8000-000000000001',
+              'from_port': '0/1/1',
+              'to_olt_id': '0191eb58-6932-7000-8000-000000000001',
+              'to_olt_name': 'OLT VSOL Teste',
+              'to_port': '0/1/2',
+              'to_onu_id': 5,
+              'to_circuit_id': 'OLT VSOL Teste eth 0/1/2:5',
+              'reason': 'port_swap',
+              'timestamp': '2026-10-14T15:31:01Z',
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/scanner/status')) {
+        return http.Response(
+          jsonEncode({
+            'is_running': true,
+            'interval_seconds': 60,
+            'last_run_at': '2026-10-14T15:30:00Z',
+            'last_run_duration_ms': 250.0,
+            'last_cycle_id': 'cycle-01',
+            'total_cycles': 5,
+            'total_onus_detected': 12,
+            'total_onus_reconciled': 1,
+            'total_virgin_onus': 11,
+            'total_errors': 0,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/webhooks/deliveries')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': '0191eb58-6932-7000-8000-000000000302',
+              'subscription_id': '0191eb58-6932-7000-8000-000000000301',
+              'event': 'webhook.ping',
+              'url': 'https://erp.provedor.com.br/webhook',
+              'status_code': 200,
+              'success': true,
+              'duration_ms': 38.0,
+              'timestamp': '2026-10-14T15:05:00Z',
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/webhooks')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': '0191eb58-6932-7000-8000-000000000301',
+              'url': 'https://erp.provedor.com.br/webhook',
+              'secret': 'hmac-secret-123',
+              'events': ['*'],
+              'is_active': true,
+              'description': 'ERP IXC',
+              'created_at': '2026-10-14T15:00:00Z',
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/tenants')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': '0191eb58-6932-7000-8000-000000000401',
+              'name': 'FibraSul Neutra',
+              'type': 'NEUTRAL_OPERATOR',
+              'is_active': true,
+              'created_at': '2026-10-14T15:00:00Z',
+              'vlans': [
+                {
+                  'id': '0191eb58-6932-7000-8000-000000000402',
+                  'tenant_id': '0191eb58-6932-7000-8000-000000000401',
+                  'olt_id': '0191eb58-6932-7000-8000-000000000001',
+                  'vlan_id': 621,
+                  'description': 'Atacado',
+                  'created_at': '2026-10-14T15:10:00Z',
+                }
+              ],
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/users')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': '0191eb58-6932-7000-8000-000000000501',
+              'name': 'Admin Master',
+              'email': 'admin@oltapi.local',
+              'role': 'SUPER_ADMIN',
+              'is_active': true,
+              'allowed_olt_ids': [],
+              'created_at': '2026-10-14T15:00:00Z',
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/api-keys')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': '0191eb58-6932-7000-8000-000000000601',
+              'name': 'Chave ERP',
+              'key_prefix': 'olt_99aa',
+              'scopes': ['*'],
+              'created_at': '2026-10-14T15:00:00Z',
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
       } else if (path.endsWith('/api/v1/onus')) {
         return http.Response('[]', 200, headers: {'content-type': 'application/json'});
       }
@@ -126,10 +250,11 @@ void main() {
     expect(find.byIcon(Icons.pending_actions_outlined), findsOneWidget);
     expect(find.byIcon(Icons.dns_outlined), findsOneWidget);
     expect(find.byIcon(Icons.developer_board), findsOneWidget);
+    expect(find.byIcon(Icons.admin_panel_settings_outlined), findsOneWidget);
     expect(find.byIcon(Icons.tune), findsOneWidget);
   });
 
-  testWidgets('AppShell tab navigation switches between all 4 screens smoothly', (WidgetTester tester) async {
+  testWidgets('AppShell tab navigation switches between all screens smoothly', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1.0;
 
@@ -170,7 +295,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Inventário de OLTs'), findsOneWidget);
 
-    // Tab 4: Configurações
+    // Tab 5: Configurações
     await tester.ensureVisible(find.byIcon(Icons.tune));
     await tester.tap(find.byIcon(Icons.tune));
     await tester.pumpAndSettle();
@@ -248,6 +373,70 @@ void main() {
     expect(find.text('VLAN 100'), findsOneWidget);
     await tester.tap(find.text('Fechar'));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('GovernanceScreen renders Onda C sub-tabs (Scanner, Webhooks, Tenants, RBAC) without overflow',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final settings = SettingsProvider();
+    settings.apiClient = ApiClient(
+      baseUrl: SettingsProvider.defaultBaseUrl,
+      apiKey: SettingsProvider.defaultApiKey,
+      client: mockHttpClient,
+    );
+    final appState = AppState(apiClient: settings.apiClient);
+    await appState.loadOlts();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: settings),
+          ChangeNotifierProvider.value(value: appState),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: const AppShell(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Navigate to Governança & Automação tab
+    await tester.ensureVisible(find.text('Governança & Automação'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Governança & Automação'));
+    await tester.pumpAndSettle();
+
+    // 1. Sub-tab 0: Scanner & Timeline TR-101
+    expect(find.text('Governança, Automação & RBAC'), findsOneWidget);
+    expect(find.text('RODANDO'), findsOneWidget);
+    expect(find.text('ZTEGC9988776'), findsOneWidget);
+
+    // 2. Sub-tab 1: Webhooks ERP (HMAC)
+    await tester.tap(find.text('Webhooks ERP (HMAC)'));
+    await tester.pumpAndSettle();
+    expect(find.text('https://erp.provedor.com.br/webhook'), findsWidgets);
+    expect(find.text('HMAC-SHA256'), findsOneWidget);
+
+    // 3. Sub-tab 2: Inquilinos & Rede Neutra
+    await tester.tap(find.text('Inquilinos & Rede Neutra'));
+    await tester.pumpAndSettle();
+    expect(find.text('FibraSul Neutra'), findsOneWidget);
+    expect(find.textContaining('VLAN 621'), findsOneWidget);
+
+    // 4. Sub-tab 3: Usuários & API Keys
+    await tester.tap(find.text('Usuários & API Keys'));
+    await tester.pumpAndSettle();
+    expect(find.text('Admin Master'), findsOneWidget);
+    expect(find.text('admin@oltapi.local'), findsOneWidget);
+    expect(find.text('Chave ERP'), findsOneWidget);
   });
 }
 

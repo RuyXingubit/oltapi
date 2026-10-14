@@ -5,6 +5,7 @@ import 'package:olt_frontend/models/olt_model.dart';
 import 'package:olt_frontend/models/onu_model.dart';
 import 'package:olt_frontend/models/pon_policy_model.dart';
 import 'package:olt_frontend/models/vlan_model.dart';
+import 'package:olt_frontend/models/governance_models.dart';
 
 void main() {
   group('Models Unit Tests', () {
@@ -381,6 +382,146 @@ void main() {
       expect(history.serial, 'FHTT11223344');
       expect(history.reason, 'initial_provision');
       expect(history.isCurrent, true);
+    });
+
+    test('Onda C: ScannerStatusModel, ScannerRunResultModel, and OnuMigrationEventModel deserialize correctly', () {
+      final statusJson = {
+        'is_running': true,
+        'interval_seconds': 45,
+        'last_run_at': '2026-10-14T15:30:00Z',
+        'last_run_duration_ms': 320.5,
+        'last_cycle_id': 'cycle-01',
+        'total_cycles': 12,
+        'total_onus_detected': 24,
+        'total_onus_reconciled': 3,
+        'total_virgin_onus': 21,
+        'total_errors': 0,
+      };
+      final status = ScannerStatusModel.fromJson(statusJson);
+      expect(status.isRunning, true);
+      expect(status.intervalSeconds, 45);
+      expect(status.totalCycles, 12);
+      expect(status.totalOnusReconciled, 3);
+
+      final runJson = {
+        'cycle_id': 'cycle-02',
+        'started_at': '2026-10-14T15:31:00Z',
+        'completed_at': '2026-10-14T15:31:01Z',
+        'duration_ms': 410.0,
+        'olts_scanned': 1,
+        'detected_onus_count': 4,
+        'reconciled_onus_count': 1,
+        'virgin_onus_count': 3,
+        'errors_count': 0,
+        'olt_results': [
+          {
+            'olt_id': '0191eb58-6932-7000-8000-000000000001',
+            'olt_name': 'OLT Central',
+            'detected_count': 4,
+            'reconciled_count': 1,
+            'virgin_count': 3,
+          },
+        ],
+      };
+      final run = ScannerRunResultModel.fromJson(runJson);
+      expect(run.cycleId, 'cycle-02');
+      expect(run.oltResults.first.oltName, 'OLT Central');
+      expect(run.reconciledOnusCount, 1);
+
+      final migrationJson = {
+        'id': '0191eb58-6932-7000-8000-000000000201',
+        'serial': 'ZTEGC9988776',
+        'from_olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'from_port': '0/1/1',
+        'to_olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'to_olt_name': 'OLT Central',
+        'to_port': '0/1/2',
+        'to_onu_id': 5,
+        'to_circuit_id': 'OLT Central eth 0/1/2:5',
+        'reason': 'port_swap',
+        'timestamp': '2026-10-14T15:31:01Z',
+      };
+      final mig = OnuMigrationEventModel.fromJson(migrationJson);
+      expect(mig.serial, 'ZTEGC9988776');
+      expect(mig.reason, 'port_swap');
+      expect(mig.toPort, '0/1/2');
+    });
+
+    test('Onda C: Webhook, Tenant, UserAccount, and ApiKey models deserialize correctly', () {
+      final webhookJson = {
+        'id': '0191eb58-6932-7000-8000-000000000301',
+        'url': 'https://erp.isp.com/webhook',
+        'secret': 'hmac-secret-key',
+        'events': ['onu.migrated', 'onu.provisioned'],
+        'is_active': true,
+        'description': 'ERP Principal',
+        'created_at': '2026-10-14T15:00:00Z',
+      };
+      final sub = WebhookSubscriptionModel.fromJson(webhookJson);
+      expect(sub.url, 'https://erp.isp.com/webhook');
+      expect(sub.secret, 'hmac-secret-key');
+      expect(sub.events.length, 2);
+
+      final deliveryJson = {
+        'id': '0191eb58-6932-7000-8000-000000000302',
+        'subscription_id': '0191eb58-6932-7000-8000-000000000301',
+        'event': 'webhook.ping',
+        'url': 'https://erp.isp.com/webhook',
+        'status_code': 200,
+        'success': true,
+        'duration_ms': 42.5,
+        'timestamp': '2026-10-14T15:05:00Z',
+      };
+      final log = WebhookDeliveryLogModel.fromJson(deliveryJson);
+      expect(log.success, true);
+      expect(log.statusCode, 200);
+
+      final tenantJson = {
+        'id': '0191eb58-6932-7000-8000-000000000401',
+        'name': 'Rede Neutra Sul',
+        'type': 'NEUTRAL_OPERATOR',
+        'is_active': true,
+        'created_at': '2026-10-14T15:00:00Z',
+        'vlans': [
+          {
+            'id': '0191eb58-6932-7000-8000-000000000402',
+            'tenant_id': '0191eb58-6932-7000-8000-000000000401',
+            'olt_id': '0191eb58-6932-7000-8000-000000000001',
+            'vlan_id': 621,
+            'description': 'Atacado Sul',
+            'created_at': '2026-10-14T15:10:00Z',
+          }
+        ],
+      };
+      final tenant = TenantModel.fromJson(tenantJson);
+      expect(tenant.name, 'Rede Neutra Sul');
+      expect(tenant.vlans.first.vlanId, 621);
+
+      final userJson = {
+        'id': '0191eb58-6932-7000-8000-000000000501',
+        'name': 'Engenheiro NOC',
+        'email': 'noc@isp.com',
+        'role': 'NOC',
+        'is_active': true,
+        'allowed_olt_ids': ['0191eb58-6932-7000-8000-000000000001'],
+        'created_at': '2026-10-14T15:00:00Z',
+      };
+      final user = UserAccountModel.fromJson(userJson);
+      expect(user.email, 'noc@isp.com');
+      expect(user.role, 'NOC');
+      expect(user.allowedOltIds.length, 1);
+
+      final keyCreatedJson = {
+        'id': '0191eb58-6932-7000-8000-000000000601',
+        'name': 'ERP IXC',
+        'key_prefix': 'olt_a1b2',
+        'key': 'olt_a1b2c3d4e5f6',
+        'scopes': ['onus:read', 'onus:provision'],
+        'created_at': '2026-10-14T15:00:00Z',
+      };
+      final keyCreated = ApiKeyCreatedModel.fromJson(keyCreatedJson);
+      expect(keyCreated.key, 'olt_a1b2c3d4e5f6');
+      expect(keyCreated.scopes, ['onus:read', 'onus:provision']);
     });
   });
 }

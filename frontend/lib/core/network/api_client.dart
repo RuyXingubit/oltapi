@@ -6,6 +6,7 @@ import '../../models/onu_model.dart';
 import '../../models/backup_model.dart';
 import '../../models/pon_policy_model.dart';
 import '../../models/vlan_model.dart';
+import '../../models/governance_models.dart';
 import 'api_exception.dart';
 
 class ApiClient {
@@ -517,5 +518,302 @@ class ApiClient {
         .timeout(const Duration(seconds: 10));
     final data = await _handleResponse(response);
     return data as Map<String, dynamic>;
+  }
+
+  // Onda C: Scanner Autônomo (PON Supervision)
+  Future<ScannerStatusModel> getScannerStatus() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/scanner/status')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    return ScannerStatusModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<ScannerStatusModel> startScanner() async {
+    final response = await _client
+        .post(Uri.parse(_cleanUrl('/api/v1/scanner/start')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    return ScannerStatusModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<ScannerStatusModel> stopScanner() async {
+    final response = await _client
+        .post(Uri.parse(_cleanUrl('/api/v1/scanner/stop')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    return ScannerStatusModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<ScannerRunResultModel> runScannerNow() async {
+    final response = await _client
+        .post(Uri.parse(_cleanUrl('/api/v1/scanner/run-now')), headers: _headers)
+        .timeout(const Duration(seconds: 60));
+    final data = await _handleResponse(response);
+    return ScannerRunResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<ScannerStatusModel> updateScannerInterval(int intervalSeconds) async {
+    final response = await _client
+        .patch(
+          Uri.parse(_cleanUrl('/api/v1/scanner/interval')),
+          headers: _headers,
+          body: jsonEncode({'interval_seconds': intervalSeconds}),
+        )
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    return ScannerStatusModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // Onda C: Timeline TR-101 & Reconciliação de Eventos em Campo
+  Future<List<OnuMigrationEventModel>> getOnuHistory({
+    String? serial,
+    int limit = 100,
+  }) async {
+    final queryParams = <String, String>{'limit': limit.toString()};
+    if (serial != null && serial.trim().isNotEmpty) {
+      queryParams['serial'] = serial.trim();
+    }
+    final uri = Uri.parse(_cleanUrl('/api/v1/onus/history'))
+        .replace(queryParameters: queryParams);
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => OnuMigrationEventModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<ReconcileFieldEventResultModel> reconcileFieldEvent(
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/onus/reconcile-field-event')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 30));
+    final data = await _handleResponse(response);
+    return ReconcileFieldEventResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // Onda C: Webhooks HMAC
+  Future<List<WebhookSubscriptionModel>> getWebhooks() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/webhooks')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => WebhookSubscriptionModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<WebhookSubscriptionModel> createWebhook(
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/webhooks')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return WebhookSubscriptionModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteWebhook(String subscriptionId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/webhooks/$subscriptionId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
+  Future<WebhookDeliveryLogModel> pingWebhook(String subscriptionId) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/webhooks/$subscriptionId/ping')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 20));
+    final data = await _handleResponse(response);
+    return WebhookDeliveryLogModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<List<WebhookDeliveryLogModel>> getWebhookDeliveries({
+    String? subscriptionId,
+    int limit = 50,
+  }) async {
+    final queryParams = <String, String>{'limit': limit.toString()};
+    if (subscriptionId != null && subscriptionId.isNotEmpty) {
+      queryParams['subscription_id'] = subscriptionId;
+    }
+    final uri = Uri.parse(_cleanUrl('/api/v1/webhooks/deliveries'))
+        .replace(queryParameters: queryParams);
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => WebhookDeliveryLogModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  // Onda C: Inquilinos & Rede Neutra (Tenants & VLAN Allocations)
+  Future<List<TenantModel>> getTenants() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/tenants')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => TenantModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<TenantModel> createTenant(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/tenants')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return TenantModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<TenantVlanAllocationModel> allocateTenantVlan(
+    String tenantId,
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/tenants/$tenantId/vlans')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return TenantVlanAllocationModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> revokeTenantVlan(String tenantId, String allocationId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/tenants/$tenantId/vlans/$allocationId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
+  // Onda C: Usuários RBAC
+  Future<List<UserAccountModel>> getUsers() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/users')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => UserAccountModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<UserAccountModel> createUser(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/users')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return UserAccountModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<UserAccountModel> updateUser(
+    String userId,
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .patch(
+          Uri.parse(_cleanUrl('/api/v1/users/$userId')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return UserAccountModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteUser(String userId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/users/$userId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
+  // Onda C: API Keys
+  Future<List<ApiKeyModel>> getApiKeys() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/api-keys')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => ApiKeyModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<ApiKeyCreatedModel> createApiKey(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/api-keys')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return ApiKeyCreatedModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> revokeApiKey(String apiKeyId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/api-keys/$apiKeyId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
   }
 }

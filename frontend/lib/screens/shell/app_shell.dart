@@ -9,6 +9,7 @@ import '../../providers/settings_provider.dart';
 import '../configured/configured_screen.dart';
 import '../olts/olts_screen.dart';
 import '../backups/backups_screen.dart';
+import '../governance/governance_screen.dart';
 import '../settings/settings_screen.dart';
 import '../unconfigured/unconfigured_screen.dart';
 
@@ -28,6 +29,7 @@ class _AppShellState extends State<AppShell> {
     ConfiguredScreen(),
     OltsScreen(),
     BackupsScreen(),
+    GovernanceScreen(),
     SettingsScreen(),
   ];
 
@@ -42,8 +44,10 @@ class _AppShellState extends State<AppShell> {
         _currentIndex = 2;
       } else if (tabParam == 'backups' || tabParam == '3') {
         _currentIndex = 3;
-      } else if (tabParam == 'settings' || tabParam == '4') {
+      } else if (tabParam == 'governance' || tabParam == '4') {
         _currentIndex = 4;
+      } else if (tabParam == 'settings' || tabParam == '5') {
+        _currentIndex = 5;
       }
     }
   }
@@ -164,10 +168,17 @@ class _AppShellState extends State<AppShell> {
                         ),
                         const SizedBox(width: 8),
                         _NavTab(
-                          label: 'Configurações',
+                          label: 'Governança & Automação',
                           isSelected: _currentIndex == 4,
-                          icon: Icons.tune,
+                          icon: Icons.admin_panel_settings_outlined,
                           onTap: () => setState(() => _currentIndex = 4),
+                        ),
+                        const SizedBox(width: 8),
+                        _NavTab(
+                          label: 'Configurações',
+                          isSelected: _currentIndex == 5,
+                          icon: Icons.tune,
+                          onTap: () => setState(() => _currentIndex = 5),
                         ),
                       ],
                     ),
