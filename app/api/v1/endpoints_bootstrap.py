@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import get_backup_storage, get_olt_repo, require_api_key
+from app.api.deps import get_backup_storage, get_olt_repo, get_security_context, require_api_key
+from app.core.rbac import SecurityContext
 from app.drivers.factory import DriverFactory
 from app.models.bootstrap import (
     BootstrapApplyResponse,
@@ -18,11 +19,14 @@ def preview_bootstrap(
     olt_id: str,
     req: BootstrapRequest,
     repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """
     Gera o script CLI de inicialização (Dry-Run / Simulação) para conferência antes de aplicar na OLT.
     Baseado nas diretrizes oficiais da ferramenta de auto-configuração da Intelbras.
     """
+    ctx.enforce_scope("olts:admin")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -53,6 +57,7 @@ def apply_bootstrap(
     req: BootstrapRequest,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """
     Aplica a configuração inicial na OLT física (Zero-Touch Provisioning):
@@ -61,6 +66,8 @@ def apply_bootstrap(
     3. Grava as alterações na memória não-volátil da OLT ('write').
     4. Gera e salva automaticamente um backup inicial com UUIDv7 e hash SHA-256 para restauração.
     """
+    ctx.enforce_scope("olts:admin")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")

@@ -228,10 +228,29 @@ def encrypt_existing_plain_passwords(db: Optional[Session] = None):
                         ftp.password = encrypt_password(decrypted)
                         migrated_ftps += 1
 
-        if migrated_olts > 0 or migrated_ftps > 0:
+        # Cifra/migra segredos HMAC de Webhooks
+        webhooks = db.query(WebhookSubscriptionModel).all()
+        migrated_webhooks = 0
+        for wh in webhooks:
+            if not wh.secret:
+                continue
+            if not wh.secret.startswith("gAAAAA"):
+                wh.secret = encrypt_password(wh.secret)
+                migrated_webhooks += 1
+            else:
+                try:
+                    get_fernet().decrypt(wh.secret.encode("utf-8"))
+                except Exception:
+                    decrypted = decrypt_password(wh.secret)
+                    if decrypted and decrypted != wh.secret:
+                        wh.secret = encrypt_password(decrypted)
+                        migrated_webhooks += 1
+
+        if migrated_olts > 0 or migrated_ftps > 0 or migrated_webhooks > 0:
             db.commit()
             logger.info(
-                f"[Security Hardening] Criptografadas/migradas {migrated_olts} senhas de OLTs e {migrated_ftps} de FTPs para a chave ativa."
+                f"[Security Hardening] Criptografadas/migradas {migrated_olts} senhas de OLTs, "
+                f"{migrated_ftps} de FTPs e {migrated_webhooks} segredos de Webhooks para a chave ativa."
             )
     except Exception as e:
         logger.warning(f"Erro ao verificar/cifrar senhas em repouso: {e}")

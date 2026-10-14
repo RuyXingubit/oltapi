@@ -1,7 +1,8 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import get_webhook_dispatcher, get_webhook_repo, require_api_key
+from app.api.deps import get_security_context, get_webhook_dispatcher, get_webhook_repo, require_api_key
+from app.core.rbac import SecurityContext
 from app.core.webhook_signer import generate_webhook_secret
 from app.models.hateoas import Link
 from app.models.webhook import (
@@ -19,8 +20,10 @@ router = APIRouter(prefix="/webhooks", tags=["Webhooks & Notificações ERP"], d
 def list_webhooks(
     active_only: bool = Query(default=False, description="Listar apenas webhooks ativos"),
     repo: WebhookRepository = Depends(get_webhook_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Lista todas as assinaturas de webhook cadastradas no OLTAPI."""
+    ctx.enforce_scope("olts:admin")
     subs = repo.list_all(active_only=active_only)
     for sub in subs:
         sub.links = {
@@ -48,8 +51,10 @@ def list_deliveries(
     subscription_id: Optional[str] = Query(default=None, description="Filtrar por ID de assinatura"),
     limit: int = Query(default=50, ge=1, le=200, description="Limite de registros retornados"),
     repo: WebhookRepository = Depends(get_webhook_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Consulta o histórico e logs de auditoria das tentativas de entrega de webhooks."""
+    ctx.enforce_scope("olts:admin")
     return repo.list_deliveries(subscription_id=subscription_id, limit=limit)
 
 
@@ -58,8 +63,10 @@ def create_webhook(
     req: WebhookCreateRequest,
     response: Response,
     repo: WebhookRepository = Depends(get_webhook_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Cadastra um novo webhook para o ERP receber notificações em tempo real assinadas com HMAC SHA-256."""
+    ctx.enforce_scope("olts:admin")
     secret = req.secret or generate_webhook_secret()
     sub = WebhookSubscription(
         url=str(req.url),
@@ -89,8 +96,10 @@ def create_webhook(
 def get_webhook(
     subscription_id: str,
     repo: WebhookRepository = Depends(get_webhook_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Consulta uma assinatura de webhook pelo ID."""
+    ctx.enforce_scope("olts:admin")
     sub = repo.get_by_id(subscription_id)
     if not sub:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Webhook '{subscription_id}' não encontrado.")
@@ -119,8 +128,10 @@ def get_webhook(
 def delete_webhook(
     subscription_id: str,
     repo: WebhookRepository = Depends(get_webhook_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Remove uma assinatura de webhook."""
+    ctx.enforce_scope("olts:admin")
     deleted = repo.delete(subscription_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Webhook '{subscription_id}' não encontrado.")
@@ -132,8 +143,10 @@ def ping_webhook(
     subscription_id: str,
     repo: WebhookRepository = Depends(get_webhook_repo),
     dispatcher: WebhookDispatcher = Depends(get_webhook_dispatcher),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Dispara uma mensagem de teste (ping) com assinatura HMAC SHA-256 para validar o endpoint do ERP."""
+    ctx.enforce_scope("olts:admin")
     sub = repo.get_by_id(subscription_id)
     if not sub:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Webhook '{subscription_id}' não encontrado.")

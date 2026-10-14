@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends
-from app.api.deps import get_backup_service, require_api_key
+from app.api.deps import get_backup_service, get_security_context, require_api_key
+from app.core.rbac import SecurityContext
 from app.models.backup import BackupAuditReport, BatchBackupResult, PurgePolicy, PurgeResult
 from app.services.backup_service import BackupService
 
@@ -12,8 +13,10 @@ def run_all_backups(
     purge_after: bool = True,
     policy: Optional[PurgePolicy] = None,
     service: BackupService = Depends(get_backup_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Dispara a rotina de backup em lote para todas as OLTs cadastradas com expurgo automático."""
+    ctx.enforce_scope("backups:create")
     p = policy or PurgePolicy()
     return service.run_all_backups(
         purge_after=purge_after,
@@ -25,8 +28,10 @@ def run_all_backups(
 @router.get("/audit-all", response_model=List[BackupAuditReport])
 def audit_all_backups(
     service: BackupService = Depends(get_backup_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Retorna relatório consolidado de integridade, contagem e status de drift de todas as OLTs."""
+    ctx.enforce_scope("backups:read")
     return service.audit_all_olts()
 
 
@@ -34,8 +39,10 @@ def audit_all_backups(
 def purge_all_backups(
     policy: Optional[PurgePolicy] = None,
     service: BackupService = Depends(get_backup_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Executa a política de expurgo e retenção de backups para todo o inventário de OLTs."""
+    ctx.enforce_scope("backups:create")
     p = policy or PurgePolicy()
     return service.purge_all(
         max_backups_per_olt=p.max_backups_per_olt,

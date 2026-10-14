@@ -3,7 +3,8 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_olt_repo, require_api_key
+from app.api.deps import get_db, get_olt_repo, get_security_context, require_api_key
+from app.core.rbac import SecurityContext
 from app.db.models import ONUInventoryModel, ONUVLANHistoryModel
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
@@ -29,8 +30,11 @@ router = APIRouter(
 def list_olt_vlans(
     olt_id: str,
     olt_repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Lista todas as VLANs configuradas na OLT com links HATEOAS contextuais."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -56,8 +60,11 @@ def get_vlan_metrics(
     olt_id: str,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     db: Session = Depends(get_db),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Retorna as VLANs da OLT com contagem de ONUs provisionadas e ativas/online."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -128,8 +135,11 @@ def get_vlan_history(
     vlan_id: int,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     db: Session = Depends(get_db),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Retorna o histórico completo de seriais de ONUs que já utilizaram esta VLAN."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -199,8 +209,11 @@ def create_olt_vlan(
     olt_id: str,
     req: VLANCreateRequest,
     olt_repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Cria uma nova VLAN de serviço na OLT física e comita na memória permanente."""
+    ctx.enforce_scope("olts:admin")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -233,8 +246,11 @@ def create_olt_vlan(
 def list_olt_profiles(
     olt_id: str,
     olt_repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Lista os perfis de tráfego, linha e DBA configurados na OLT."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")

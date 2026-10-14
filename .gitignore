@@ -10,6 +10,8 @@ htmlcov/
 !.env.example
 *.cfg
 *.bak
+*.orig
+*.rej
 venv/
 .venv/
 backups/*

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import hmac
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Security, status
 from sqlalchemy.orm import Session
@@ -52,8 +53,8 @@ def initialize_system(
     - Bloqueia permanentemente após o primeiro uso (retorna 403 Forbidden).
     - Não utiliza nenhum dado falso ou senha padrão hardcoded.
     """
-    # 1. Valida Master API Key do .env
-    if not api_key or api_key != settings.API_KEY:
+    # 1. Valida Master API Key do .env usando comparação constante contra timing attacks
+    if not api_key or not hmac.compare_digest(api_key, settings.API_KEY):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Acesso não autorizado. O setup inicial requer a Master API Key configurada no .env.",

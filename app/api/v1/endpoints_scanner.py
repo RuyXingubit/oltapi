@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import get_scanner_service, require_api_key
+from app.api.deps import get_scanner_service, get_security_context, require_api_key
+from app.core.rbac import SecurityContext
 from app.models.scanner import (
     ScannerIntervalUpdateRequest,
     ScannerRunResult,
@@ -23,7 +24,9 @@ router = APIRouter(
 )
 async def get_scanner_status(
     scanner: AutofindScannerService = Depends(get_scanner_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ) -> ScannerStatus:
+    ctx.enforce_scope("onus:discover")
     return scanner.get_status()
 
 
@@ -35,7 +38,9 @@ async def get_scanner_status(
 )
 async def start_scanner(
     scanner: AutofindScannerService = Depends(get_scanner_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ) -> ScannerStatus:
+    ctx.enforce_scope("olts:admin")
     scanner.start()
     return scanner.get_status()
 
@@ -48,7 +53,9 @@ async def start_scanner(
 )
 async def stop_scanner(
     scanner: AutofindScannerService = Depends(get_scanner_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ) -> ScannerStatus:
+    ctx.enforce_scope("olts:admin")
     await scanner.stop()
     return scanner.get_status()
 
@@ -61,7 +68,9 @@ async def stop_scanner(
 )
 async def run_scanner_now(
     scanner: AutofindScannerService = Depends(get_scanner_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ) -> ScannerRunResult:
+    ctx.enforce_scope("olts:admin")
     try:
         result = await scanner.run_scan_cycle()
         return result
@@ -81,6 +90,8 @@ async def run_scanner_now(
 async def update_scanner_interval(
     req: ScannerIntervalUpdateRequest,
     scanner: AutofindScannerService = Depends(get_scanner_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ) -> ScannerStatus:
+    ctx.enforce_scope("olts:admin")
     scanner.set_interval(req.interval_seconds)
     return scanner.get_status()

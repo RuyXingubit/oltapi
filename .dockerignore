@@ -10,6 +10,8 @@ htmlcov
 .gitignore
 .env
 *.log
+*.orig
+*.rej
 .DS_Store
 tests
 docs

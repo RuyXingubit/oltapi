@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from app.core.security import sanitize_webhook_url
 from app.core.uuid import generate_uuid7
 from app.models.hateoas import Link
 
@@ -26,6 +27,11 @@ class WebhookCreateRequest(BaseModel):
     events: Optional[List[str]] = Field(default_factory=lambda: ["*"], description="Eventos desejados (default: ['*'])")
     is_active: Optional[bool] = Field(default=True, description="Ativar webhook imediatamente")
     description: Optional[str] = Field(default=None, description="Descrição amigável do sistema receptor")
+
+    @field_validator("url")
+    @classmethod
+    def validate_safe_webhook_url(cls, v: str) -> str:
+        return sanitize_webhook_url(v)
 
 
 class WebhookDeliveryLog(BaseModel):

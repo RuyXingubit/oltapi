@@ -3,6 +3,7 @@ import logging
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
+from app.core.security import decrypt_password, encrypt_password
 from app.core.uuid import generate_uuid7
 from app.db.models import WebhookDeliveryModel, WebhookSubscriptionModel
 from app.db.session import SessionLocal
@@ -22,7 +23,7 @@ class SQLWebhookRepository:
         return WebhookSubscription(
             id=m.id,
             url=m.url,
-            secret=m.secret,
+            secret=decrypt_password(m.secret),
             events=events_list,
             is_active=m.is_active,
             description=m.description,
@@ -61,7 +62,7 @@ class SQLWebhookRepository:
             m = WebhookSubscriptionModel(
                 id=subscription.id or generate_uuid7(),
                 url=subscription.url,
-                secret=subscription.secret,
+                secret=encrypt_password(subscription.secret),
                 events=events_json,
                 is_active=subscription.is_active,
                 description=subscription.description,
@@ -77,7 +78,7 @@ class SQLWebhookRepository:
             m = db.query(WebhookSubscriptionModel).filter(WebhookSubscriptionModel.id == subscription.id).first()
             if m:
                 m.url = subscription.url
-                m.secret = subscription.secret
+                m.secret = encrypt_password(subscription.secret)
                 m.events = json.dumps(subscription.events)
                 m.is_active = subscription.is_active
                 m.description = subscription.description

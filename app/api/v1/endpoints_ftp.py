@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_ftp_repo, get_olt_repo, require_api_key
+from app.api.deps import get_db, get_ftp_repo, get_olt_repo, get_security_context, require_api_key
 from app.core.config import settings
+from app.core.rbac import SecurityContext
 from app.db.models import BackupMetadataModel, OLTModel
 from app.models.ftp import (
     FTPBoundOLTItem,
@@ -55,8 +56,10 @@ def _attach_links(server: FTPServerResponse) -> FTPServerResponse:
 def get_ftp_overview(
     repo: SQLFTPRepository = Depends(get_ftp_repo),
     db: Session = Depends(get_db),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Retorna diagnóstico consolidado do servidor FTP ativo (.env ou DB), saúde e backups por equipamento."""
+    ctx.enforce_scope("backups:read")
     all_servers = repo.list_all(active_only=True)
     server = all_servers[0] if all_servers else None
 
@@ -148,8 +151,10 @@ def get_ftp_overview(
 def list_ftp_servers(
     active_only: bool = Query(default=False, description="Listar apenas servidores ativos"),
     repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Lista todos os servidores FTP cadastrados no OLTAPI."""
+    ctx.enforce_scope("backups:read")
     servers = repo.list_all(active_only=active_only)
     return [_attach_links(s) for s in servers]
 
@@ -159,8 +164,10 @@ def create_ftp_server(
     req: FTPServerCreate,
     response: Response,
     repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Cadastra um novo servidor FTP para recebimento de backups de OLTs."""
+    ctx.enforce_scope("olts:admin")
     existing = repo.get_by_name(req.name)
     if existing:
         raise HTTPException(
@@ -177,8 +184,10 @@ def create_ftp_server(
 def get_ftp_server(
     ftp_id: str,
     repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Consulta detalhes de um servidor FTP cadastrado."""
+    ctx.enforce_scope("backups:read")
     server = repo.get_by_id(ftp_id)
     if not server:
         raise HTTPException(
@@ -193,8 +202,10 @@ def update_ftp_server(
     ftp_id: str,
     req: FTPServerUpdate,
     repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Atualiza configurações de um servidor FTP."""
+    ctx.enforce_scope("olts:admin")
     updated = repo.update(ftp_id, req)
     if not updated:
         raise HTTPException(
@@ -208,8 +219,10 @@ def update_ftp_server(
 def delete_ftp_server(
     ftp_id: str,
     repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Remove um servidor FTP do sistema."""
+    ctx.enforce_scope("olts:admin")
     if not repo.delete(ftp_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -222,8 +235,10 @@ def delete_ftp_server(
 def test_ftp_server_connection(
     ftp_id: str,
     repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Testa a conectividade e autenticação com o servidor FTP."""
+    ctx.enforce_scope("olts:admin")
     raw = repo.get_raw_by_id(ftp_id)
     if not raw:
         raise HTTPException(
@@ -262,8 +277,11 @@ def bind_olt_to_ftp_servers(
     req: OLTFTPBindingRequest,
     olt_repo: SQLOLTRepository = Depends(get_olt_repo),
     ftp_repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Vincula servidores FTP específicos a uma OLT."""
+    ctx.enforce_scope("olts:admin")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(
@@ -283,8 +301,11 @@ def get_olt_ftp_destinations(
     olt_id: str,
     olt_repo: SQLOLTRepository = Depends(get_olt_repo),
     ftp_repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Consulta os servidores FTP de destino para uma OLT (específicos + globais)."""
+    ctx.enforce_scope("backups:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(

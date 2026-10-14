@@ -2,7 +2,8 @@ import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import get_olt_repo, get_pon_policy_repo, require_api_key
+from app.api.deps import get_olt_repo, get_pon_policy_repo, get_security_context, require_api_key
+from app.core.rbac import SecurityContext
 from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
 from app.models.pon_policy import (
@@ -28,11 +29,14 @@ router = APIRouter(
 def get_olt_provisioning_schema(
     olt_id: str,
     olt_repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """
     Retorna a especificação dinâmica de parâmetros de provisionamento do concentrador,
     incluindo portas detectadas, campos aceitos e listas reais de VLANs e perfis configurados.
     """
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -57,8 +61,11 @@ def list_pon_policies(
     olt_id: str,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     policy_repo: SQLPonPolicyRepository = Depends(get_pon_policy_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Lista todas as configurações padrão das portas PON da OLT."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -79,8 +86,11 @@ def get_pon_policy(
     port: str,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     policy_repo: SQLPonPolicyRepository = Depends(get_pon_policy_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Obtém a política padrão de uma porta PON específica."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -116,8 +126,11 @@ def update_pon_policy(
     req: PonPolicyCreateOrUpdate,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     policy_repo: SQLPonPolicyRepository = Depends(get_pon_policy_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Cria ou atualiza a política padrão de uma porta PON específica."""
+    ctx.enforce_scope("onus:provision")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -136,8 +149,11 @@ def delete_pon_policy(
     port: str,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     policy_repo: SQLPonPolicyRepository = Depends(get_pon_policy_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Remove a política customizada de uma porta PON."""
+    ctx.enforce_scope("onus:provision")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -153,11 +169,14 @@ def create_auto_provision_task(
     req: AutoProvisionTaskCreate,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     policy_repo: SQLPonPolicyRepository = Depends(get_pon_policy_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """
     Cria e inicializa uma janela temporizada de auto-provisionamento (Cutover Zero-Touch).
     Enquanto ativa, o worker do OLTAPI autoriza automaticamente as ONUs que surgirem naquela porta PON.
     """
+    ctx.enforce_scope("onus:provision")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -188,8 +207,11 @@ def list_auto_provision_tasks(
     limit: int = 20,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     policy_repo: SQLPonPolicyRepository = Depends(get_pon_policy_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Lista as janelas de auto-provisionamento (ativas e finalizadas) da OLT."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -210,8 +232,11 @@ def cancel_auto_provision_task(
     task_id: str,
     olt_repo: OLTRepository = Depends(get_olt_repo),
     policy_repo: SQLPonPolicyRepository = Depends(get_pon_policy_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Interrompe imediatamente uma janela de auto-provisionamento ativa (Kill Switch)."""
+    ctx.enforce_scope("onus:provision")
+    ctx.enforce_olt(olt_id)
     olt = olt_repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")

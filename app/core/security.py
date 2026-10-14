@@ -1,14 +1,19 @@
 import hashlib
 import hmac
+import ipaddress
+import logging
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
+from urllib.parse import urlparse
 import bcrypt
 import jwt
 from fastapi import HTTPException, Security, status
 from fastapi.security.api_key import APIKeyHeader
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -131,6 +136,40 @@ def sanitize_vlan(vlan: int) -> int:
     if not isinstance(vlan, int) or vlan < 1 or vlan > 4094:
         raise ValueError(f"VLAN inválida: {vlan}. Deve estar entre 1 e 4094.")
     return vlan
+
+
+def sanitize_webhook_url(url: str) -> str:
+    """
+    Valida URL de destino de Webhook prevenindo ataques de Server-Side Request Forgery (SSRF):
+    - Exige esquema http ou https;
+    - Bloqueia hosts de loopback (localhost, 127.0.0.0/8, ::1), endereço não especificado (0.0.0.0)
+      e faixa de link-local/cloud metadata (169.254.0.0/16, fe80::/10).
+    """
+    if not url or not isinstance(url, str):
+        raise ValueError("URL de webhook inválida ou vazia.")
+
+    clean_url = url.strip()
+    parsed = urlparse(clean_url)
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise ValueError(f"Esquema de URL não permitido para webhook: '{parsed.scheme}'. Use http ou https.")
+
+    hostname = (parsed.hostname or "").strip().lower()
+    if not hostname:
+        raise ValueError("URL de webhook não possui um hostname válido.")
+
+    if hostname in ("localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback", "metadata.google.internal"):
+        raise ValueError(f"Host de destino bloqueado por política de segurança anti-SSRF: '{hostname}'.")
+
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        if ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_unspecified or ip_obj.is_multicast:
+            raise ValueError(f"Endereço IP reservado/interno bloqueado por política anti-SSRF: '{hostname}'.")
+    except ValueError as e:
+        if "anti-SSRF" in str(e):
+            raise
+
+    return clean_url
+
 
 
 # ==============================================================================

@@ -56,6 +56,7 @@ def list_api_keys(
     db: Session = Depends(get_db),
 ):
     """Lista as chaves de API dinâmicas ativas/revogadas do inquilino do chamador."""
+    ctx.enforce_scope("api_keys:manage")
     if ctx.is_super_admin:
         keys = db.query(APIKeyModel).order_by(APIKeyModel.created_at.desc()).all()
     else:
@@ -78,6 +79,8 @@ def create_dynamic_api_key(
     Gera uma nova chave de API com escopos granulares.
     ATENÇÃO: A chave secreta em texto puro é retornada apenas uma única vez na criação.
     """
+    ctx.enforce_scope("api_keys:manage")
+
     # Validação de escopos
     invalid_scopes = [s for s in req.scopes if s not in VALID_SCOPES]
     if invalid_scopes:
@@ -85,6 +88,15 @@ def create_dynamic_api_key(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Escopo(s) inválido(s): {invalid_scopes}. Escopos válidos: {sorted(list(VALID_SCOPES))}",
         )
+
+    # Prevenção de elevação de privilégio: chamador sem '*' só pode delegar escopos que ele mesmo possui
+    if "*" not in ctx.scopes:
+        unowned_scopes = [s for s in req.scopes if s not in ctx.scopes]
+        if unowned_scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Elevação de privilégio negada: você não possui o(s) escopo(s) {unowned_scopes} para delegar.",
+            )
 
     # Inquilino de rede neutra não pode solicitar escopos de administração global
     if ctx.tenant_type == "NEUTRAL_OPERATOR":
@@ -151,6 +163,7 @@ def revoke_api_key(
     db: Session = Depends(get_db),
 ):
     """Revoga imediatamente uma chave de API dinâmica."""
+    ctx.enforce_scope("api_keys:manage")
     key_record = db.query(APIKeyModel).filter(APIKeyModel.id == api_key_id).first()
     if not key_record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chave de API não encontrada.")

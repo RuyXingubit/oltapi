@@ -87,8 +87,10 @@ def list_global_history(
     to_olt_id: Optional[str] = Query(default=None, description="Filtrar por OLT de destino"),
     limit: int = Query(default=100, ge=1, le=500, description="Limite de eventos retornados"),
     repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Linha do Tempo Global de Movimentações (NOC Timeline): relatório de manobras, inversões e auto-recuperações."""
+    ctx.enforce_scope("onus:read")
     events = repo.list_history(serial=serial, from_olt_id=from_olt_id, to_olt_id=to_olt_id, limit=limit)
     for ev in events:
         ev.links = {
@@ -112,6 +114,7 @@ def reconcile_field_event(
     onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
     olt_repo: OLTRepository = Depends(get_olt_repo),
     webhook_dispatcher: WebhookDispatcher = Depends(get_webhook_dispatcher),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """
     Motor de Auto-Recuperação Reativa de Campo.
@@ -119,6 +122,8 @@ def reconcile_field_event(
     - Se o contrato está ATIVO: provisiona na nova PON, desprovisiona na antiga, recalcula o Circuit ID TR-101 e audita a movimentação.
     - Se o contrato está INATIVO/ESTOQUE: bloqueia a herança indevida de dados do titular anterior.
     """
+    ctx.enforce_scope("onus:provision")
+    ctx.enforce_olt(req.detected_olt_id)
     try:
         clean_serial = sanitize_serial(req.serial)
         clean_port = sanitize_port(req.detected_port)
@@ -152,11 +157,15 @@ def register_onu(
     response: Response,
     onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
     olt_repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Cadastra ou vincula uma ONU ao inventário associando a contrato, OLT, VLAN e coordenadas geográficas."""
+    ctx.enforce_scope("onus:provision")
     clean_serial = sanitize_serial(req.serial)
 
     target_olt_id = req.olt_id or req.current_olt_id
+    if target_olt_id:
+        ctx.enforce_olt(target_olt_id)
     target_port = req.port or req.current_port
     target_onu_id = req.onu_id if req.onu_id is not None else req.current_onu_id
     target_desc = req.description or req.notes
@@ -164,6 +173,8 @@ def register_onu(
     circuit_id = None
     clean_port = None
     clean_vlan = sanitize_vlan(req.vlan) if req.vlan is not None else None
+    if target_olt_id and clean_vlan:
+        ctx.enforce_vlan(target_olt_id, clean_vlan)
 
     if target_olt_id and target_port and target_onu_id is not None and clean_vlan:
         clean_port = sanitize_port(target_port)
@@ -280,8 +291,10 @@ def get_onu_history(
     serial: str,
     limit: int = Query(default=50, ge=1, le=200),
     repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Histórico de vida e movimentações de um equipamento específico através de portas e OLTs."""
+    ctx.enforce_scope("onus:read")
     clean_serial = sanitize_serial(serial)
     events = repo.list_history(serial=clean_serial, limit=limit)
     for ev in events:
@@ -303,7 +316,8 @@ def update_onu(
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """Atualiza dados cadastrais, circuito e VLAN de uma ONU no inventário."""
-    ctx.enforce_scope("onus:write")
+    if "*" not in ctx.scopes and "onus:write" not in ctx.scopes and "onus:provision" not in ctx.scopes:
+        ctx.enforce_scope("onus:write")
     clean_serial = sanitize_serial(serial)
     item = repo.get_by_serial(clean_serial)
     if not item:

@@ -303,8 +303,15 @@ def get_olt(
 
 @router.post("/{olt_id}/test-connection", response_model=ConnectionTestResult)
 @limiter.limit("15/minute")
-async def test_connection(request: Request, olt_id: str, repo: OLTRepository = Depends(get_olt_repo)):
+async def test_connection(
+    request: Request,
+    olt_id: str,
+    repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
     """Executa teste de conectividade sob demanda e retorna diagnóstico e links de fluxo."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -317,8 +324,11 @@ def get_olt_config(
     olt_id: str,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Coleta e visualiza o running-config completo da OLT."""
+    ctx.enforce_scope("olts:read")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -358,8 +368,11 @@ def list_backups(
     olt_id: str,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Lista o histórico de backups realizados para a OLT com links de download e comparação."""
+    ctx.enforce_scope("backups:read")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -379,8 +392,11 @@ def trigger_backup(
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
     ftp_repo: SQLFTPRepository = Depends(get_ftp_repo),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Dispara a rotina de backup na OLT, salva em disco e retorna Location header e links de download e diff."""
+    ctx.enforce_scope("backups:create")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -444,8 +460,11 @@ def download_backup(
     backup_id: str,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Entrega o arquivo bruto de backup para download seguro pelo ERP ou técnico."""
+    ctx.enforce_scope("backups:read")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -466,8 +485,11 @@ def audit_olt_backups(
     olt_id: str,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Retorna relatório de integridade, contagem e detecção de alteração de configuração da OLT."""
+    ctx.enforce_scope("backups:read")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -481,8 +503,11 @@ def compare_olt_backups(
     target_id: Optional[str] = None,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Compara dois backups da OLT calculando status de integridade SHA-256 e unified diff."""
+    ctx.enforce_scope("backups:read")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -502,8 +527,11 @@ def purge_olt_backups(
     policy: Optional[PurgePolicy] = None,
     repo: OLTRepository = Depends(get_olt_repo),
     storage: BackupStorage = Depends(get_backup_storage),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """Aplica política de expurgo e retenção de backups para a OLT especificada."""
+    ctx.enforce_scope("backups:create")
+    ctx.enforce_olt(olt_id)
     olt = repo.get_by_id(olt_id)
     if not olt:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
@@ -564,6 +592,7 @@ def sync_olt(
     background_tasks: BackgroundTasks,
     sync_service=Depends(get_sync_service),
     enrichment_service: ONUEnrichmentService = Depends(get_enrichment_service),
+    ctx: SecurityContext = Depends(get_security_context),
 ):
     """
     Onboarding e Ingestão Reversa de OLT Brownfield:
@@ -573,6 +602,8 @@ def sync_olt(
     4. Descobre VLANs configuradas.
     5. Dispara enriquecimento gradual de VLANs individuais em segundo plano.
     """
+    ctx.enforce_scope("olts:admin")
+    ctx.enforce_olt(olt_id)
     try:
         res = sync_service.sync_olt(olt_id=olt_id)
         background_tasks.add_task(enrichment_service.enrich_olt_onus, olt_id)
@@ -600,6 +631,8 @@ def enrich_olt_vlans(
     Dispara varredura e enriquecimento assíncrono em segundo plano para
     descobrir a VLAN de serviço real de cada ONU configurada no chassi.
     """
+    ctx.enforce_scope("olts:admin")
+    ctx.enforce_olt(olt_id)
     background_tasks.add_task(enrichment_service.enrich_olt_onus, olt_id, force)
     return {
         "status": "scheduled",
