@@ -18,9 +18,9 @@ Este documento consolida os marcos alcançados e as ondas de evolução planejad
 - [x] **Políticas PON & Modo Cutover Zero-Touch:** Pré-preenchimento inteligente de VLAN e Profile por porta PON (`pon-policies`) e janelas temporizadas de auto-provisionamento em lote para manobras de migração (`auto-provision-tasks`).
 - [x] **Ciclo de Vida Completo de ONUs & Auto-Recuperação Reativa (TR-101):** Provisionamento dinâmico validado por schema de hardware, Reboot OMCI, Suspensão Administrativa, Reativação, Desprovisionamento (`DELETE`), cálculo perpétuo de Circuit ID Broadband Forum TR-101, conciliação reativa de campo e linha do tempo global do NOC.
 - [x] **Autofind Scanner em Segundo Plano & Webhooks HMAC SHA-256:** Worker periódico assíncrono com locks defensivos por OLT e notificações push assinadas para ERPs.
-- [x] **Central de Operações NOC em Flutter (Fase 1 Core):** Aplicação multi-plataforma (Desktop e Web) com login/setup, Autofind e ativação em 1-clique com dropdowns dinâmicos de hardware, inventário FTTH, diagnóstico óptico em tempo real, gestão de OLTs/backups e políticas PON.
+- [x] **Central de Operações NOC em Flutter (Core + Ondas A, B e C):** Aplicação multi-plataforma (Desktop e Web) com login/setup, Autofind e ativação em 1-clique, inventário FTTH, diagnóstico óptico em tempo real, Wizard Zero-Touch em 2 fases, Raio-X SNMP, catálogo de VLANs, Disaster Recovery Multi-FTP com Unified Diff e Governança RBAC/Scanner/Webhooks.
 - [x] **Persistência Relacional PostgreSQL 16, Docker & CI/CD:** SQLAlchemy 2.0 + 6 migrações canônicas Alembic, containers multi-stage com PostgreSQL 16 blindado em `127.0.0.1`, Caddy e pipeline GitHub Actions com publicação automatizada no Docker Hub e GitHub Pages.
-- [x] **Garantia de Qualidade:** **253 testes automatizados no backend** (incluindo Testcontainers PostgreSQL 16 e `BaseDriverComplianceTest`) + suíte de testes Flutter com 100% de aprovação.
+- [x] **Garantia de Qualidade:** **253 testes automatizados no backend** (incluindo Testcontainers PostgreSQL 16 e `BaseDriverComplianceTest`) + **21 testes automatizados no Flutter NOC** com 100% de aprovação.
 
 ---
 

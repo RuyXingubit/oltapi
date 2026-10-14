@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-253%20backend%20%2B%208%20flutter%20passed-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-253%20backend%20%2B%2021%20flutter%20passed-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Testcontainers-PostgreSQL%2016-blue.svg" alt="Testcontainers PostgreSQL 16">
   <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg" alt="SQLAlchemy 2.0">
   <img src="https://img.shields.io/badge/Alembic-Migrations-orange.svg" alt="Alembic Migrations">
@@ -41,11 +41,12 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
   <img src="docs/assets/screenshots/02_configured_vsol_onus.png" alt="Inventário de ONUs e Telemetria em Tempo Real" width="950">
 </p>
 
-### 🌟 Destaques da Central Operacional:
-* **Varredura Autofind & Ativação em 1-Clique:** Identificação contínua de ONUs recém-conectadas na rede PON aguardando homologação, permitindo provisioná-las instantaneamente.
-* **Telemetria Óptica em Tempo Real:** Leitura direta de potência via hardware físico (`Rx -15.22 dBm`, `Tx 2.06 dBm`) com alertas colorimétricos automáticos de atenuação ou saturação.
-* **Ciclo de Vida do Assinante:** Comandos defensivos para reinício remoto (Reboot OMCI), suspensão por inadimplência, reativação e exclusão atômica com confirmação de serial.
-* **Gestão de Concentradores & Backups Criptográficos:** Extração imediata de running-config, teste de conectividade TCP em tempo real (latência em ms) e download seguro de backups com hash SHA-256.
+### 🌟 Destaques da Central Operacional (6 Abas NOC):
+* **Varredura Autofind, Políticas PON & Cutover Zero-Touch:** Identificação contínua de ONUs recém-conectadas na rede PON com pré-preenchimento dinâmico e janelas temporizadas de auto-autorização em lote.
+* **Telemetria Óptica em Tempo Real & Ciclo de Vida:** Leitura direta de potência via hardware físico (`Rx -15.22 dBm`, `Tx 2.06 dBm`, `OLT Rx`) com alertas colorimétricos automáticos, Reboot OMCI, suspensão por inadimplência, reativação e exclusão atômica.
+* **Onboarding Wizard em 2 Fases, Raio-X SNMP & Catálogo de VLANs (Onda A):** Pré-inspeção não-destrutiva (`AUX` vs `In-Band`), comissionamento guiado com Snapshot Baseline v0, raio-x de chassi/portas/CPU/temperatura, sincronização Brownfield e catálogo/histórico de VLANs na flash.
+* **Disaster Recovery Multi-FTP, Unified Diff & Auditoria SHA-256 (Onda B):** Gestão de servidores FTP remotos com diagnóstico de escrita/latência, detecção visual de *Configuration Drift*, comparador colorido linha a linha (*Unified Diff*), backup em lote (`Run All`) e políticas de retenção/expurgo.
+* **Supervisão Autônoma, Webhooks HMAC & Governança RBAC Rede Neutra (Onda C):** Controle em tempo real do Autofind Scanner, linha do tempo global Broadband Forum TR-101, reconciliação de eventos de campo, assinaturas de Webhooks HMAC-SHA256 e administração de Inquilinos (Wholesale Tenants), VLANs exclusivas, Usuários e API Keys.
 
 | Diagnóstico Óptico em Tempo Real | Gestão de OLTs & Backups |
 | :---: | :---: |
