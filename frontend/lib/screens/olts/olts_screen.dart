@@ -4,6 +4,9 @@ import '../../core/theme/app_colors.dart';
 import '../../models/olt_model.dart';
 import '../../providers/app_state.dart';
 import 'olt_form_dialog.dart';
+import 'olt_onboard_wizard_dialog.dart';
+import 'olt_vlans_dialog.dart';
+import 'olt_xray_dialog.dart';
 
 class OltsScreen extends StatefulWidget {
   const OltsScreen({super.key});
@@ -21,6 +24,28 @@ class _OltsScreenState extends State<OltsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => OltFormDialog(olt: olt),
+    );
+  }
+
+  void _showOnboardWizard() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const OltOnboardWizardDialog(),
+    );
+  }
+
+  void _showXRayDialog(OltModel olt) {
+    showDialog(
+      context: context,
+      builder: (context) => OltXRayDialog(olt: olt),
+    );
+  }
+
+  void _showVlansDialog(OltModel olt) {
+    showDialog(
+      context: context,
+      builder: (context) => OltVlansDialog(olt: olt),
     );
   }
 
@@ -65,17 +90,24 @@ class _OltsScreenState extends State<OltsScreen> {
 
     try {
       final result = await context.read<AppState>().apiClient.testOltConnection(olt.id);
-      setState(() {
-        _connectionResults[olt.id] = result.reachable ? 'Online (${result.latencyMs?.toStringAsFixed(1)}ms)' : 'Offline';
-      });
+      if (mounted) {
+        setState(() {
+          _connectionResults[olt.id] =
+              result.reachable ? 'Online (${result.latencyMs?.toStringAsFixed(1)}ms)' : 'Offline';
+        });
+      }
     } catch (e) {
-      setState(() {
-        _connectionResults[olt.id] = 'Falha no teste';
-      });
+      if (mounted) {
+        setState(() {
+          _connectionResults[olt.id] = 'Falha no teste';
+        });
+      }
     } finally {
-      setState(() {
-        _isTestingConnection[olt.id] = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isTestingConnection[olt.id] = false;
+        });
+      }
     }
   }
 
@@ -90,8 +122,11 @@ class _OltsScreenState extends State<OltsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 12,
             children: [
               const Text(
                 'Inventário de OLTs',
@@ -101,10 +136,21 @@ class _OltsScreenState extends State<OltsScreen> {
                   color: AppColors.textPrimary,
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () => _showOltForm(),
-                icon: const Icon(Icons.add),
-                label: const Text('Nova OLT'),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _showOnboardWizard,
+                    icon: const Icon(Icons.auto_fix_high, size: 18),
+                    label: const Text('Wizard Zero-Touch'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => _showOltForm(),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Nova OLT'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -115,15 +161,18 @@ class _OltsScreenState extends State<OltsScreen> {
             const Center(
               child: Padding(
                 padding: EdgeInsets.only(top: 60),
-                child: Text('Nenhuma OLT cadastrada.', style: TextStyle(color: AppColors.textSecondary)),
+                child: Text(
+                  'Nenhuma OLT cadastrada.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
               ),
             )
           else
             Expanded(
               child: GridView.builder(
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 400,
-                  childAspectRatio: 1.5,
+                  maxCrossAxisExtent: 420,
+                  mainAxisExtent: 295,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
                 ),
@@ -162,10 +211,32 @@ class _OltsScreenState extends State<OltsScreen> {
                                 icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
                                 color: AppColors.surfaceHover,
                                 onSelected: (val) {
+                                  if (val == 'xray') _showXRayDialog(olt);
+                                  if (val == 'vlans') _showVlansDialog(olt);
                                   if (val == 'edit') _showOltForm(olt);
                                   if (val == 'delete') _deleteOlt(olt);
                                 },
                                 itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'xray',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.radar, size: 18, color: AppColors.primary),
+                                        SizedBox(width: 8),
+                                        Text('Raio-X & Sync', style: TextStyle(color: AppColors.textPrimary)),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'vlans',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.lan, size: 18, color: AppColors.primary),
+                                        SizedBox(width: 8),
+                                        Text('Catálogo de VLANs', style: TextStyle(color: AppColors.textPrimary)),
+                                      ],
+                                    ),
+                                  ),
                                   const PopupMenuItem(
                                     value: 'edit',
                                     child: Row(
@@ -190,12 +261,53 @@ class _OltsScreenState extends State<OltsScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Text('Fabricante: ${olt.vendor.toUpperCase()} | Modelo: ${olt.model}',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                          Text('Gerência: ${olt.host}:${olt.port} (${olt.protocol.toUpperCase()})',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                          const Spacer(),
+                          const SizedBox(height: 6),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Fabricante: ${olt.vendor.toUpperCase()} | Modelo: ${olt.model}',
+                                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Gerência: ${olt.host}:${olt.port} (${olt.protocol.toUpperCase()})',
+                                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 6,
+                                    children: [
+                                      ActionChip(
+                                        avatar: const Icon(Icons.radar, size: 15, color: AppColors.primary),
+                                        label: const Text(
+                                          'Raio-X & Sync',
+                                          style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                                        ),
+                                        backgroundColor: AppColors.background,
+                                        side: const BorderSide(color: AppColors.surfaceBorder),
+                                        onPressed: () => _showXRayDialog(olt),
+                                      ),
+                                      ActionChip(
+                                        avatar: const Icon(Icons.lan, size: 15, color: AppColors.primary),
+                                        label: const Text(
+                                          'VLANs',
+                                          style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                                        ),
+                                        backgroundColor: AppColors.background,
+                                        side: const BorderSide(color: AppColors.surfaceBorder),
+                                        onPressed: () => _showVlansDialog(olt),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -206,12 +318,17 @@ class _OltsScreenState extends State<OltsScreen> {
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               else if (testResult != null)
-                                Text(
-                                  testResult,
-                                  style: TextStyle(
-                                    color: testResult.startsWith('Online') ? AppColors.statusOnline : AppColors.statusDanger,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
+                                Flexible(
+                                  child: Text(
+                                    testResult,
+                                    style: TextStyle(
+                                      color: testResult.startsWith('Online')
+                                          ? AppColors.statusOnline
+                                          : AppColors.statusDanger,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 )
                               else

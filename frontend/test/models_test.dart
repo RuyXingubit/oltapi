@@ -4,6 +4,7 @@ import 'package:olt_frontend/models/backup_model.dart';
 import 'package:olt_frontend/models/olt_model.dart';
 import 'package:olt_frontend/models/onu_model.dart';
 import 'package:olt_frontend/models/pon_policy_model.dart';
+import 'package:olt_frontend/models/vlan_model.dart';
 
 void main() {
   group('Models Unit Tests', () {
@@ -216,5 +217,171 @@ void main() {
       expect(schema.availableProfiles.first['name'], 'DEFAULT');
       expect(schema.ports.length, 4);
     });
+
+    test('OltXRayModel and SyncOltResultModel deserialize correctly', () {
+      final xrayJson = {
+        'olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'olt_name': 'OLT Fiberhome AN5516',
+        'vendor': 'fiberhome',
+        'model': 'AN5516-04',
+        'host': '10.50.50.252',
+        'uptime_seconds': 86400,
+        'uptime_human': '1d 0h',
+        'firmware_version': 'RP0700',
+        'cpu_usage_pct': 18.5,
+        'memory_usage_pct': 42.0,
+        'temperature_celsius': 39.0,
+        'ports': [
+          {
+            'port_id': '0/1/1',
+            'port_type': 'gpon',
+            'admin_state': 'enabled',
+            'oper_status': 'up',
+            'onu_count': 12,
+            'onu_capacity': 128,
+          },
+          {
+            'port_id': '0/19/1',
+            'port_type': 'uplink_ge',
+            'admin_state': 'enabled',
+            'oper_status': 'up',
+            'speed_duplex': '10G Full',
+          },
+        ],
+        'total_onus_detected': 42,
+        'total_vlans_detected': 3,
+        'vlans': [99, 100, 621],
+        'running_config_preview': 'vlan 100',
+        'is_onboarded': true,
+        'snmp_active': true,
+        'snmp_status': 'active',
+        'snmp_community': 'public',
+      };
+
+      final xray = OltXRayModel.fromJson(xrayJson);
+      expect(xray.oltName, 'OLT Fiberhome AN5516');
+      expect(xray.snmpActive, true);
+      expect(xray.totalOnusDetected, 42);
+      expect(xray.totalVlansDetected, 3);
+      expect(xray.ports.first.portId, '0/1/1');
+      expect(xray.ports.last.portId, '0/19/1');
+      expect(xray.vlans, [99, 100, 621]);
+
+      final syncJson = {
+        'olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'olt_name': 'OLT Fiberhome AN5516',
+        'baseline_backup_id': '0191eb58-6932-7000-8000-000000000090',
+        'total_onus_discovered': 42,
+        'new_onus_registered': 5,
+        'existing_onus_updated': 37,
+        'vlans_discovered': [99, 100, 621],
+        'duration_ms': 1250.5,
+        'message': 'Sincronização concluída',
+      };
+
+      final sync = SyncOltResultModel.fromJson(syncJson);
+      expect(sync.totalOnusDiscovered, 42);
+      expect(sync.newOnusRegistered, 5);
+      expect(sync.existingOnusUpdated, 37);
+      expect(sync.vlansDiscovered, [99, 100, 621]);
+    });
+
+    test('OltInspectResultModel and OltOnboardResultModel deserialize correctly', () {
+      final inspectJson = {
+        'host': '10.50.50.252',
+        'vendor': 'fiberhome',
+        'model': 'AN5516-06',
+        'access_scenario': 'aux_with_inband',
+        'aux_ip': '10.50.50.252',
+        'existing_svis': [
+          {
+            'vlan_id': 99,
+            'name': 'MGMT',
+            'ip_cidr': '172.16.0.2/24',
+            'tagged_ports': ['19/1'],
+            'untagged_ports': [],
+          },
+        ],
+        'existing_vlans': [99, 100, 621],
+        'gateway': '172.16.0.1',
+        'total_onus_detected': 12,
+        'prompt_message': 'Acesso via porta AUX com SVI Inband detectada.',
+      };
+
+      final inspect = OltInspectResultModel.fromJson(inspectJson);
+      expect(inspect.vendor, 'fiberhome');
+      expect(inspect.model, 'AN5516-06');
+      expect(inspect.accessScenario, 'aux_with_inband');
+      expect(inspect.existingSvis.first.vlanId, 99);
+      expect(inspect.existingSvis.first.ipCidr, '172.16.0.2/24');
+      expect(inspect.existingVlans, [99, 100, 621]);
+      expect(inspect.totalOnusDetected, 12);
+
+      final onboardJson = {
+        'olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'name': 'OLT Bancada',
+        'vendor': 'fiberhome',
+        'model': 'AN5516-06',
+        'host': '10.50.50.252',
+        'port': 23,
+        'protocol': 'telnet',
+        'baseline_backup_id': '0191eb58-6932-7000-8000-000000000090',
+        'snmp_community': 'public',
+        'snmp_active': true,
+        'total_ports': 8,
+        'active_ports': 4,
+        'total_onus_detected': 12,
+        'new_onus_registered': 12,
+        'steps': [
+          {'step_key': 'probe', 'title': 'Autodescoberta CLI', 'status': 'ok', 'details': 'Detectado via Telnet'},
+        ],
+        'message': 'Onboarding concluído',
+      };
+
+      final onboard = OltOnboardResultModel.fromJson(onboardJson);
+      expect(onboard.name, 'OLT Bancada');
+      expect(onboard.snmpActive, true);
+      expect(onboard.totalOnusDetected, 12);
+      expect(onboard.steps.first.stepKey, 'probe');
+      expect(onboard.steps.first.title, 'Autodescoberta CLI');
+    });
+
+    test('VlanMetricsModel and VlanHistoryModel deserialize correctly', () {
+      final vlanJson = {
+        'vlan_id': 621,
+        'name': 'REDE_NEUTRA',
+        'description': 'VLAN Atacado',
+        'tagged_ports': ['19/1'],
+        'untagged_ports': [],
+        'total_provisioned_onus': 18,
+        'total_active_onus': 16,
+      };
+
+      final vlan = VlanMetricsModel.fromJson(vlanJson);
+      expect(vlan.vlanId, 621);
+      expect(vlan.name, 'REDE_NEUTRA');
+      expect(vlan.totalProvisionedOnus, 18);
+      expect(vlan.totalActiveOnus, 16);
+      expect(vlan.taggedPorts, ['19/1']);
+
+      final historyJson = {
+        'id': '0191eb58-6932-7000-8000-000000000100',
+        'serial': 'FHTT11223344',
+        'vlan_id': 621,
+        'olt_id': '0191eb58-6932-7000-8000-000000000001',
+        'port': '0/1/1',
+        'subscriber_name': 'Cliente Atacado 01',
+        'reason': 'initial_provision',
+        'started_at': '2026-10-14T15:00:00Z',
+        'is_current': true,
+      };
+
+      final history = VlanHistoryModel.fromJson(historyJson);
+      expect(history.vlanId, 621);
+      expect(history.serial, 'FHTT11223344');
+      expect(history.reason, 'initial_provision');
+      expect(history.isCurrent, true);
+    });
   });
 }
+

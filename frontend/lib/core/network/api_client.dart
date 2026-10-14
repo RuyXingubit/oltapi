@@ -5,6 +5,7 @@ import '../../models/olt_model.dart';
 import '../../models/onu_model.dart';
 import '../../models/backup_model.dart';
 import '../../models/pon_policy_model.dart';
+import '../../models/vlan_model.dart';
 import 'api_exception.dart';
 
 class ApiClient {
@@ -172,6 +173,122 @@ class ApiClient {
       return data['config_text'].toString();
     }
     return '';
+  }
+
+  // Onda A: Onboarding Wizard (2 Fases), Raio-X, Sync Brownfield & Flash VLANs
+  Future<OltInspectResultModel> inspectOlt(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/inspect')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 30));
+    final data = await _handleResponse(response);
+    return OltInspectResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<OltOnboardResultModel> onboardOltWizard(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/onboard-wizard')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 45));
+    final data = await _handleResponse(response);
+    return OltOnboardResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<OltOnboardResultModel> onboardOltZeroTouch(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/onboard')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 45));
+    final data = await _handleResponse(response);
+    return OltOnboardResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<OltXRayModel> getOltTelemetry(String oltId) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/telemetry')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 35));
+    final data = await _handleResponse(response);
+    return OltXRayModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<SyncOltResultModel> syncOlt(String oltId) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/sync')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 45));
+    final data = await _handleResponse(response);
+    return SyncOltResultModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> enrichOltVlans(String oltId, {bool force = false}) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/enrich-vlans?force=$force')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 20));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<List<VlanMetricsModel>> getOltVlanMetrics(String oltId) async {
+    final response = await _client
+        .get(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/vlans/metrics')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => VlanMetricsModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> createOltVlan(String oltId, Map<String, dynamic> vlanData) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/vlans')),
+          headers: _headers,
+          body: jsonEncode(vlanData),
+        )
+        .timeout(const Duration(seconds: 25));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<List<VlanHistoryModel>> getOltVlanHistory(String oltId, int vlanId) async {
+    final response = await _client
+        .get(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/vlans/$vlanId/history')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => VlanHistoryModel.fromJson(e))
+          .toList();
+    }
+    return [];
   }
 
   // Backups

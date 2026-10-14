@@ -25,7 +25,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
   late TextEditingController _snmpCommunityCtrl;
   late TextEditingController _snmpPortCtrl;
 
-  String _vendor = 'intelbras';
+  String _vendor = 'fiberhome';
   String _protocol = 'ssh';
   bool _isLoading = false;
   String? _error;
@@ -48,7 +48,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
 
     _vendors = context.read<AppState>().supportedVendors;
     if (_vendors.isEmpty) {
-      _vendors = ['intelbras', 'huawei', 'vsol', 'zte', 'parks', 'fiberhome']; // fallback
+      _vendors = ['fiberhome', 'vsol', 'parks'];
     }
     if (!_vendors.contains(_vendor)) _vendor = _vendors.first;
 

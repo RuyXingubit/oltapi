@@ -28,7 +28,7 @@ Este documento consolida os marcos alcançados e as ondas de evolução planejad
 
 ### 1. Evolução da Central de Operações NOC em Flutter (`frontend/`)
 Conforme especificado na Seção 5.2 do [`docs/SDD.md`](SDD.md), os endpoints já implementados no backend serão integrados ao Flutter NOC estritamente sob demanda em 3 ondas:
-- [ ] **Onda A — Onboarding Zero-Touch Wizard (2 Fases), Raio-X de Chassi & Gestão de VLANs:** Telas para `POST /olts/inspect`, `POST /olts/onboard-wizard`, `GET /olts/{id}/xray` e catálogo/métricas de VLANs (`/olts/{id}/vlans*`).
+- [x] **Onda A — Onboarding Zero-Touch Wizard (2 Fases), Raio-X de Chassi & Gestão de VLANs:** Telas para `POST /olts/inspect`, `POST /olts/onboard-wizard`, `POST /olts/onboard`, `POST /olts/{id}/telemetry`, `POST /olts/{id}/sync` e catálogo/métricas/histórico de VLANs (`/olts/{id}/vlans*`).
 - [ ] **Onda B — Disaster Recovery Avançado (Multi-FTP, Unified Diff Visual, Auditoria SHA-256 & Expurgo):** Telas para gestão de servidores FTP (`/ftp-servers`), comparador visual de configurações (`/backups/compare`), auditoria (`/backups/audit`) e expurgo (`/backups/purge`).
 - [ ] **Onda C — Supervisão Autônoma, Conciliação TR-101, Webhooks HMAC & Governança RBAC Multi-Tenant:** Telas para controle do Autofind Scanner (`/scanner/*`), linha do tempo global TR-101 (`/onus/history`), Webhooks (`/webhooks`) e administração de Tenants, Usuários e API Keys (`/tenants`, `/users`, `/api-keys`).
 
