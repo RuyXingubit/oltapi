@@ -2,7 +2,7 @@ name: CI Test & Code Quality
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, develop ]
     paths-ignore:
       - '**.md'
       - '.gitignore'
@@ -10,7 +10,7 @@ on:
       - 'docs/**'
       - '.agents/**'
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, develop ]
     paths-ignore:
       - '**.md'
       - '.gitignore'
@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  test-backend:
     name: Pytest & Quality Gate
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -51,3 +51,30 @@ jobs:
       - name: Run Unit Tests with Coverage
         run: |
           pytest tests/ -v
+
+  test-frontend:
+    name: Frontend Flutter Analyze & Test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: Run Static Analysis
+        run: flutter analyze
+
+      - name: Run Flutter Unit & Widget Tests
+        run: flutter test

@@ -36,6 +36,7 @@ services:
     environment:
       - PROJECT_NAME=${PROJECT_NAME:-OLT Provisioning & Diagnostics API}
       - API_KEY=${API_KEY:-oltapi_secret_default_key_change_me}
+      - JWT_SECRET=${JWT_SECRET:-oltapi_jwt_dev_secret_change_me}
       - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY:-}
       - POSTGRES_USER=${POSTGRES_USER:-oltuser}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-oltpassword}
@@ -63,6 +64,26 @@ services:
       retries: 3
       start_period: 10s
 
+  frontend:
+    image: xingubit/oltapi-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: oltapi_frontend
+    restart: unless-stopped
+    depends_on:
+      oltapi:
+        condition: service_healthy
+    environment:
+      - SITE_DOMAIN=${SITE_DOMAIN:-:80}
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:
 

@@ -25,8 +25,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Run Tests
+  test-backend:
+    name: Backend Pytest & OpenAPI Gate
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -53,9 +53,35 @@ jobs:
       - name: Execute Tests (with Testcontainers)
         run: pytest tests/ -v
 
+  test-frontend:
+    name: Frontend Flutter Analyze & Test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: Run Static Analysis
+        run: flutter analyze
+
+      - name: Run Flutter Unit & Widget Tests
+        run: flutter test
+
   release-and-publish:
     name: Release & Docker Push
-    needs: test
+    needs: [test-backend, test-frontend]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -105,8 +131,8 @@ jobs:
           push: true
           tags: ${{ steps.meta_backend.outputs.tags }}
           labels: ${{ steps.meta_backend.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
       - name: Extract Docker metadata for Frontend
         if: steps.semantic.outputs.new_release_published == 'true'
@@ -127,5 +153,5 @@ jobs:
           push: true
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend

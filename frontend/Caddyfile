@@ -1,7 +1,7 @@
 {$SITE_DOMAIN:localhost} {
-    # Proxy para a API (rotas começando com /api, /docs, /openapi.json)
+    # Proxy para a API (rotas começando com /api, /health, /docs, /openapi.json)
     @api {
-        path /api/* /docs* /openapi.json
+        path /api/* /health /docs* /openapi.json
     }
     handle @api {
         reverse_proxy oltapi:8000
