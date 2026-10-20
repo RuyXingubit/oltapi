@@ -2307,7 +2307,7 @@
           "Diagnóstico de Portas & ONUs"
         ],
         "summary": "Get Onu Details",
-        "description": "Consulta detalhes operacionais e níveis de potência óptica (Rx/Tx em dBm) de uma ONU.",
+        "description": "Consulta detalhes operacionais, causa da última queda e níveis de potência óptica (Rx/Tx em dBm) de uma ONU.",
         "operationId": "get_onu_details_api_v1_olts__olt_id__onus__serial_or_id__get",
         "security": [
           {
@@ -2438,6 +2438,189 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ONUActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/olts/{olt_id}/onus/{serial_or_id}/macs": {
+      "get": {
+        "tags": [
+          "Diagnóstico de Portas & ONUs"
+        ],
+        "summary": "Get Onu Mac Table",
+        "description": "Consulta a tabela de endereços MAC (FDB) aprendidos nas portas Ethernet/VEIP da ONU.",
+        "operationId": "get_onu_mac_table_api_v1_olts__olt_id__onus__serial_or_id__macs_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "olt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Olt Id"
+            }
+          },
+          {
+            "name": "serial_or_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Serial Or Id"
+            }
+          },
+          {
+            "name": "port",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Porta PON opcional da ONU (ex: '0/1' ou 'gpon1/1')",
+              "title": "Port"
+            },
+            "description": "Porta PON opcional da ONU (ex: '0/1' ou 'gpon1/1')"
+          },
+          {
+            "name": "onu_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ID numérico opcional da ONU na porta PON",
+              "title": "Onu Id"
+            },
+            "description": "ID numérico opcional da ONU na porta PON"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ONUMacEntry"
+                  },
+                  "title": "Response Get Onu Mac Table Api V1 Olts  Olt Id  Onus  Serial Or Id  Macs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/olts/{olt_id}/telemetry/collect-optical": {
+      "post": {
+        "tags": [
+          "Diagnóstico de Portas & ONUs"
+        ],
+        "summary": "Collect Olt Optical Telemetry",
+        "description": "Executa coleta ativa de potência óptica (dBm) e causa de queda para as ONUs da OLT, alimentando a série temporal.",
+        "operationId": "collect_olt_optical_telemetry_api_v1_olts__olt_id__telemetry_collect_optical_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "olt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Olt Id"
+            }
+          },
+          {
+            "name": "port",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtrar coleta por porta PON específica",
+              "title": "Port"
+            },
+            "description": "Filtrar coleta por porta PON específica"
+          },
+          {
+            "name": "max_onus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 256,
+              "minimum": 1,
+              "description": "Máximo de ONUs coletadas no lote",
+              "default": 64,
+              "title": "Max Onus"
+            },
+            "description": "Máximo de ONUs coletadas no lote"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpticalCollectionSummaryResponse"
                 }
               }
             }
@@ -2860,6 +3043,67 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ONUActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/olts/{olt_id}/onus/batch-action": {
+      "post": {
+        "tags": [
+          "Provisionamento & Descoberta"
+        ],
+        "summary": "Batch Onu Action",
+        "description": "Executa operações em lote (Mass Operations - Fase 3) sobre múltiplas ONUs:\nreboot, suspend, resume, deprovision ou change_vlan.",
+        "operationId": "batch_onu_action_api_v1_olts__olt_id__onus_batch_action_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "olt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Olt Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchONUActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchONUActionResponse"
                 }
               }
             }
@@ -3329,6 +3573,144 @@
         ]
       }
     },
+    "/api/v1/onus/degraded": {
+      "get": {
+        "tags": [
+          "Inventário Global & Auto-Recuperação de ONUs"
+        ],
+        "summary": "List Degraded Onus",
+        "description": "Radar de Degradação Óptica: lista ONUs com potência Rx crítica, deriva acentuada (drift) ou alarme LoS/LoFi.",
+        "operationId": "list_degraded_onus_api_v1_onus_degraded_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "olt_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtrar por OLT",
+              "title": "Olt Id"
+            },
+            "description": "Filtrar por OLT"
+          },
+          {
+            "name": "threshold_dbm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "Limiar de potência óptica Rx (dBm) para atenção",
+              "default": -25.5,
+              "title": "Threshold Dbm"
+            },
+            "description": "Limiar de potência óptica Rx (dBm) para atenção"
+          },
+          {
+            "name": "drift_threshold_db",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "Limiar de deriva óptica negativa (dB) em relação à linha de base",
+              "default": -2.5,
+              "title": "Drift Threshold Db"
+            },
+            "description": "Limiar de deriva óptica negativa (dB) em relação à linha de base"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DegradedONUReportItem"
+                  },
+                  "title": "Response List Degraded Onus Api V1 Onus Degraded Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onus/pre-provision": {
+      "post": {
+        "tags": [
+          "Inventário Global & Auto-Recuperação de ONUs"
+        ],
+        "summary": "Pre Provision Onu",
+        "description": "Pré-Provisionamento por Serial (Zero-Touch Field Activation - Fase 3).\nAgenda a ativação de uma ONU enviada a campo antes de ser conectada na fibra.\nAssim que o serial acender no autofind, o scanner aplica automaticamente VLAN, perfil e TR-101.",
+        "operationId": "pre_provision_onu_api_v1_onus_pre_provision_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreProvisionONURequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ONUInventoryItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/onus/{serial}": {
       "get": {
         "tags": [
@@ -3489,6 +3871,132 @@
                     "$ref": "#/components/schemas/ONUMigrationEvent"
                   },
                   "title": "Response Get Onu History Api V1 Onus  Serial  History Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onus/{serial}/optical-history": {
+      "get": {
+        "tags": [
+          "Inventário Global & Auto-Recuperação de ONUs"
+        ],
+        "summary": "Get Onu Optical History",
+        "description": "Consulta a série temporal de potência óptica (Rx/Tx/OLT Rx em dBm) e cálculo de deriva (drift_db) da ONU.",
+        "operationId": "get_onu_optical_history_api_v1_onus__serial__optical_history_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "serial",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Serial"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "description": "Quantidade máxima de amostras da série temporal",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Quantidade máxima de amostras da série temporal"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpticalTelemetryHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onus/{serial}/topology": {
+      "patch": {
+        "tags": [
+          "Inventário Global & Auto-Recuperação de ONUs"
+        ],
+        "summary": "Assign Onu Topology",
+        "description": "Vincula uma ONU a uma Zona FTTH, CTO/ODB e porta física do splitter com validação anti-colisão.",
+        "operationId": "assign_onu_topology_api_v1_onus__serial__topology_patch",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "serial",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Serial"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ONUTopologyAssignRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ONUInventoryItem"
                 }
               }
             }
@@ -5206,6 +5714,921 @@
         }
       }
     },
+    "/api/v1/presets": {
+      "get": {
+        "tags": [
+          "Presets Universais de Provisionamento (Fase 3)"
+        ],
+        "summary": "List Presets",
+        "description": "Lista os templates universais de provisionamento (VLAN, modo e perfis) disponíveis para autorização 1-clique.",
+        "operationId": "list_presets_api_v1_presets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProvisioningPresetItem"
+                  },
+                  "type": "array",
+                  "title": "Response List Presets Api V1 Presets Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Presets Universais de Provisionamento (Fase 3)"
+        ],
+        "summary": "Create Preset",
+        "description": "Cria um novo Preset reutilizável de provisionamento.",
+        "operationId": "create_preset_api_v1_presets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisioningPresetCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisioningPresetItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/presets/{preset_id}": {
+      "delete": {
+        "tags": [
+          "Presets Universais de Provisionamento (Fase 3)"
+        ],
+        "summary": "Delete Preset",
+        "description": "Remove um Preset de provisionamento pelo seu UUIDv7.",
+        "operationId": "delete_preset_api_v1_presets__preset_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "preset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Preset Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/topology/zones": {
+      "get": {
+        "tags": [
+          "Topologia Passiva FTTH, CTOs/ODBs & Mapa de Saúde (Fase 4)"
+        ],
+        "summary": "List Network Zones",
+        "description": "Lista todas as Zonas de Rede FTTH (Bairros/Setores) com contagem de CTOs e ONUs vinculadas.",
+        "operationId": "list_network_zones_api_v1_topology_zones_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NetworkZoneItem"
+                  },
+                  "type": "array",
+                  "title": "Response List Network Zones Api V1 Topology Zones Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Topologia Passiva FTTH, CTOs/ODBs & Mapa de Saúde (Fase 4)"
+        ],
+        "summary": "Create Network Zone",
+        "description": "Cadastra uma nova Zona de Rede FTTH (Bairro / Setor / Cidade).",
+        "operationId": "create_network_zone_api_v1_topology_zones_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkZoneCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkZoneItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/topology/zones/{zone_id}": {
+      "delete": {
+        "tags": [
+          "Topologia Passiva FTTH, CTOs/ODBs & Mapa de Saúde (Fase 4)"
+        ],
+        "summary": "Delete Network Zone",
+        "description": "Remove uma Zona de Rede FTTH.",
+        "operationId": "delete_network_zone_api_v1_topology_zones__zone_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "zone_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Zone Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/topology/odbs": {
+      "get": {
+        "tags": [
+          "Topologia Passiva FTTH, CTOs/ODBs & Mapa de Saúde (Fase 4)"
+        ],
+        "summary": "List Odbs",
+        "description": "Lista todas as Caixas de Terminação Óptica (CTOs / ODBs) com lotação e portas ocupadas do splitter.",
+        "operationId": "list_odbs_api_v1_topology_odbs_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "zone_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtrar por Zona FTTH",
+              "title": "Zone Id"
+            },
+            "description": "Filtrar por Zona FTTH"
+          },
+          {
+            "name": "olt_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtrar por OLT",
+              "title": "Olt Id"
+            },
+            "description": "Filtrar por OLT"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OpticalDistributionBoxItem"
+                  },
+                  "title": "Response List Odbs Api V1 Topology Odbs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Topologia Passiva FTTH, CTOs/ODBs & Mapa de Saúde (Fase 4)"
+        ],
+        "summary": "Create Odb",
+        "description": "Cadastra uma nova Caixa de Terminação Óptica (CTO / ODB) com capacidade de splitter e coordenadas GPS.",
+        "operationId": "create_odb_api_v1_topology_odbs_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpticalDistributionBoxCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpticalDistributionBoxItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/topology/odbs/{odb_id}": {
+      "delete": {
+        "tags": [
+          "Topologia Passiva FTTH, CTOs/ODBs & Mapa de Saúde (Fase 4)"
+        ],
+        "summary": "Delete Odb",
+        "description": "Remove uma CTO/ODB do inventário passivo.",
+        "operationId": "delete_odb_api_v1_topology_odbs__odb_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "odb_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Odb Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/topology/health-map": {
+      "get": {
+        "tags": [
+          "Topologia Passiva FTTH, CTOs/ODBs & Mapa de Saúde (Fase 4)"
+        ],
+        "summary": "Get Topology Health Map",
+        "description": "Mapa de Saúde de Rede Passiva (Fase 4).\nCorrelaciona alarmes Dying Gasp e LoS das ONUs por CTO/ODB para distinguir instantaneamente:\n- Queda de Energia Elétrica Coletiva ('power_outage')\n- Rompimento de Fibra / Drop Troncal ('fiber_cut')\n- Atenuação / Degradação ('degraded')\n- Operação Normal ('healthy')",
+        "operationId": "get_topology_health_map_api_v1_topology_health_map_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "olt_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtrar por OLT",
+              "title": "Olt Id"
+            },
+            "description": "Filtrar por OLT"
+          },
+          {
+            "name": "zone_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtrar por Zona FTTH",
+              "title": "Zone Id"
+            },
+            "description": "Filtrar por Zona FTTH"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopologyHealthMapResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/acs/servers": {
+      "get": {
+        "tags": [
+          "Gerência Remota TR-069 / CWMP & ACS (Fase 5)"
+        ],
+        "summary": "List Acs Servers",
+        "description": "Lista os servidores ACS TR-069 / CWMP (ex: GenieACS NBI) configurados na plataforma.",
+        "operationId": "list_acs_servers_api_v1_acs_servers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ACSServerConfigItem"
+                  },
+                  "type": "array",
+                  "title": "Response List Acs Servers Api V1 Acs Servers Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Gerência Remota TR-069 / CWMP & ACS (Fase 5)"
+        ],
+        "summary": "Create Acs Server",
+        "description": "Cadastra um servidor ACS TR-069 / CWMP com senha cifrada em repouso via Fernet AES.",
+        "operationId": "create_acs_server_api_v1_acs_servers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ACSServerConfigCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ACSServerConfigItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/acs/servers/{server_id}": {
+      "delete": {
+        "tags": [
+          "Gerência Remota TR-069 / CWMP & ACS (Fase 5)"
+        ],
+        "summary": "Delete Acs Server",
+        "description": "Remove um servidor ACS cadastrado.",
+        "operationId": "delete_acs_server_api_v1_acs_servers__server_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Server Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/acs/servers/{server_id}/test": {
+      "post": {
+        "tags": [
+          "Gerência Remota TR-069 / CWMP & ACS (Fase 5)"
+        ],
+        "summary": "Test Acs Server",
+        "description": "Valida a conectividade HTTP/REST com a Northbound Interface (NBI) do servidor ACS TR-069.",
+        "operationId": "test_acs_server_api_v1_acs_servers__server_id__test_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Server Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ACSConnectionTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onus/{serial}/tr069": {
+      "get": {
+        "tags": [
+          "Gerência Remota TR-069 / CWMP & ACS (Fase 5)"
+        ],
+        "summary": "Get Onu Tr069 Summary",
+        "description": "Consulta o estado TR-069 / CWMP da ONU no ACS ativo (Wi-Fi SSID, WAN IP, PPPoE, versão de firmware e Last Inform).",
+        "operationId": "get_onu_tr069_summary_api_v1_onus__serial__tr069_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "serial",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Serial"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TR069DeviceSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onus/{serial}/tr069/wifi": {
+      "post": {
+        "tags": [
+          "Gerência Remota TR-069 / CWMP & ACS (Fase 5)"
+        ],
+        "summary": "Configure Onu Tr069 Wifi",
+        "description": "Envia task CWMP `setParameterValues` ao ACS para alterar SSID e senha Wi-Fi 2.4GHz e/ou 5GHz da ONU.",
+        "operationId": "configure_onu_tr069_wifi_api_v1_onus__serial__tr069_wifi_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "serial",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Serial"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TR069WiFiConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TR069ActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onus/{serial}/tr069/wan": {
+      "post": {
+        "tags": [
+          "Gerência Remota TR-069 / CWMP & ACS (Fase 5)"
+        ],
+        "summary": "Configure Onu Tr069 Wan",
+        "description": "Envia task CWMP `setParameterValues` ao ACS para configurar credenciais PPPoE, DHCP, Bridge e VLAN WAN da ONU.",
+        "operationId": "configure_onu_tr069_wan_api_v1_onus__serial__tr069_wan_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "serial",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Serial"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TR069WanConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TR069ActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onus/{serial}/tr069/firmware": {
+      "post": {
+        "tags": [
+          "Gerência Remota TR-069 / CWMP & ACS (Fase 5)"
+        ],
+        "summary": "Push Onu Tr069 Firmware",
+        "description": "Envia task CWMP `download` ao ACS para atualização remota de firmware (OTA) da ONU.",
+        "operationId": "push_onu_tr069_firmware_api_v1_onus__serial__tr069_firmware_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "serial",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Serial"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TR069FirmwarePushRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TR069ActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -5229,6 +6652,178 @@
   },
   "components": {
     "schemas": {
+      "ACSConnectionTestResponse": {
+        "properties": {
+          "server_id": {
+            "type": "string",
+            "title": "Server Id"
+          },
+          "server_name": {
+            "type": "string",
+            "title": "Server Name"
+          },
+          "nbi_url": {
+            "type": "string",
+            "title": "Nbi Url"
+          },
+          "reachable": {
+            "type": "boolean",
+            "title": "Reachable"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "server_id",
+          "server_name",
+          "nbi_url",
+          "reachable",
+          "message"
+        ],
+        "title": "ACSConnectionTestResponse"
+      },
+      "ACSServerConfigCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Name",
+            "description": "Nome do servidor ACS (ex: GenieACS Principal)"
+          },
+          "nbi_url": {
+            "type": "string",
+            "title": "Nbi Url",
+            "description": "URL da Northbound Interface REST do ACS (ex: http://10.0.0.50:7557)"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username",
+            "description": "Usuário de autenticação NBI"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "Senha NBI (cifrada em repouso via Fernet AES)"
+          },
+          "cwmp_inform_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwmp Inform Url",
+            "description": "URL CWMP informada às ONUs (ex: http://10.0.0.50:7547)"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "description": "Define se este servidor ACS está ativo",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "nbi_url"
+        ],
+        "title": "ACSServerConfigCreate"
+      },
+      "ACSServerConfigItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Identificador único UUIDv7"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "nbi_url": {
+            "type": "string",
+            "title": "Nbi Url"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "cwmp_inform_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwmp Inform Url"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "nbi_url"
+        ],
+        "title": "ACSServerConfigItem"
+      },
       "APIKeyCreateRequest": {
         "properties": {
           "name": {
@@ -5837,6 +7432,175 @@
         ],
         "title": "BatchBackupResult"
       },
+      "BatchONUActionItemResult": {
+        "properties": {
+          "serial": {
+            "type": "string",
+            "title": "Serial"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
+          "onu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onu Id"
+          },
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial",
+          "success",
+          "message"
+        ],
+        "title": "BatchONUActionItemResult"
+      },
+      "BatchONUActionRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "Ação em lote: reboot, suspend, resume, deprovision, change_vlan"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/BatchONUActionTarget"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "minItems": 1,
+            "title": "Targets",
+            "description": "Lista de ONUs alvo"
+          },
+          "target_vlan": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 4094.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Vlan",
+            "description": "Nova VLAN (obrigatório quando action='change_vlan')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "targets"
+        ],
+        "title": "BatchONUActionRequest"
+      },
+      "BatchONUActionResponse": {
+        "properties": {
+          "olt_id": {
+            "type": "string",
+            "title": "Olt Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "succeeded": {
+            "type": "integer",
+            "title": "Succeeded"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/BatchONUActionItemResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "olt_id",
+          "action",
+          "total",
+          "succeeded",
+          "failed"
+        ],
+        "title": "BatchONUActionResponse"
+      },
+      "BatchONUActionTarget": {
+        "properties": {
+          "serial": {
+            "type": "string",
+            "title": "Serial",
+            "description": "Serial da ONU"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port",
+            "description": "Porta PON da ONU"
+          },
+          "onu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onu Id",
+            "description": "Índice numérico da ONU na porta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial"
+        ],
+        "title": "BatchONUActionTarget"
+      },
       "BootstrapApplyResponse": {
         "properties": {
           "success": {
@@ -6041,6 +7805,150 @@
           "bridge"
         ],
         "title": "DefaultONUMode"
+      },
+      "DegradedONUReportItem": {
+        "properties": {
+          "serial": {
+            "type": "string",
+            "title": "Serial",
+            "description": "Serial da ONU"
+          },
+          "subscriber_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscriber Name",
+            "description": "Nome do assinante"
+          },
+          "olt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Olt Id",
+            "description": "ID da OLT"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port",
+            "description": "Porta PON"
+          },
+          "onu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onu Id",
+            "description": "Índice ONU ID"
+          },
+          "rx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rx Power Dbm",
+            "description": "Última potência óptica Rx (dBm)"
+          },
+          "baseline_rx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Rx Power Dbm",
+            "description": "Média histórica de Rx (dBm)"
+          },
+          "drift_db": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drift Db",
+            "description": "Deriva acumulada (dB)"
+          },
+          "last_down_cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Down Cause",
+            "description": "Última causa de queda"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "Severidade: warning ou critical",
+            "default": "warning"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "description": "Motivos de classificação no radar"
+          },
+          "last_telemetry_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Telemetry At",
+            "description": "Timestamp da última leitura"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial"
+        ],
+        "title": "DegradedONUReportItem"
       },
       "ExistingSVIItem": {
         "properties": {
@@ -6655,6 +8563,265 @@
           "inband_active"
         ],
         "title": "ManagementAccessScenario"
+      },
+      "NetworkZoneCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Name",
+            "description": "Nome da Zona / Bairro"
+          },
+          "sector": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector",
+            "description": "Setor ou Região"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City",
+            "description": "Município"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Descrição da área de atendimento"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NetworkZoneCreate"
+      },
+      "NetworkZoneItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Identificador único UUIDv7"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "odb_count": {
+            "type": "integer",
+            "title": "Odb Count",
+            "default": 0
+          },
+          "onu_count": {
+            "type": "integer",
+            "title": "Onu Count",
+            "default": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NetworkZoneItem"
+      },
+      "ODBHealthNode": {
+        "properties": {
+          "odb_id": {
+            "type": "string",
+            "title": "Odb Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          },
+          "zone_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Name"
+          },
+          "olt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Olt Id"
+          },
+          "pon_port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pon Port"
+          },
+          "splitter_capacity": {
+            "type": "integer",
+            "title": "Splitter Capacity",
+            "default": 16
+          },
+          "total_onus": {
+            "type": "integer",
+            "title": "Total Onus",
+            "default": 0
+          },
+          "online_onus": {
+            "type": "integer",
+            "title": "Online Onus",
+            "default": 0
+          },
+          "dying_gasp_onus": {
+            "type": "integer",
+            "title": "Dying Gasp Onus",
+            "default": 0
+          },
+          "los_onus": {
+            "type": "integer",
+            "title": "Los Onus",
+            "default": 0
+          },
+          "degraded_onus": {
+            "type": "integer",
+            "title": "Degraded Onus",
+            "default": 0
+          },
+          "health_status": {
+            "type": "string",
+            "title": "Health Status",
+            "description": "Estado operacional inferido: healthy, degraded, power_outage, fiber_cut",
+            "default": "healthy"
+          },
+          "diagnosis_summary": {
+            "type": "string",
+            "title": "Diagnosis Summary",
+            "description": "Diagnóstico automático da CTO",
+            "default": "Operação normal"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          }
+        },
+        "type": "object",
+        "required": [
+          "odb_id",
+          "code",
+          "name"
+        ],
+        "title": "ODBHealthNode"
       },
       "OLTConfigResponse": {
         "properties": {
@@ -7784,6 +9951,38 @@
             ],
             "title": "Vlan"
           },
+          "last_down_cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Down Cause",
+            "description": "Causa da última queda (dying_gasp, los, lofi, admin_down, power_off, unknown)"
+          },
+          "last_down_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Down Time",
+            "description": "Horário reportado da última desconexão da ONU"
+          },
+          "mac_table": {
+            "items": {
+              "$ref": "#/components/schemas/ONUMacEntry"
+            },
+            "type": "array",
+            "title": "Mac Table",
+            "description": "Tabela FDB/MAC aprendida nas portas LAN/Bridge da ONU"
+          },
           "_links": {
             "additionalProperties": {
               "$ref": "#/components/schemas/Link"
@@ -7840,7 +10039,7 @@
           "contract_status": {
             "type": "string",
             "title": "Contract Status",
-            "description": "Estado do contrato no ERP: ACTIVE, SUSPENDED, CANCELLED, IN_STOCK",
+            "description": "Estado do contrato no ERP: ACTIVE, SUSPENDED, CANCELLED, IN_STOCK, PRE_PROVISIONED",
             "default": "ACTIVE"
           },
           "vlan": {
@@ -7947,6 +10146,117 @@
             "title": "Circuit Id",
             "description": "Identificador de circuito físico Broadband Forum TR-101"
           },
+          "last_rx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Rx Power Dbm",
+            "description": "Última potência óptica Rx lida (dBm)"
+          },
+          "last_tx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Tx Power Dbm",
+            "description": "Última potência óptica Tx lida (dBm)"
+          },
+          "last_olt_rx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Olt Rx Power Dbm",
+            "description": "Última potência óptica OLT Rx lida (dBm)"
+          },
+          "last_down_cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Down Cause",
+            "description": "Última causa de desconexão: dying_gasp, los, lofi, admin_down, power_off, unknown"
+          },
+          "last_down_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Down Time",
+            "description": "Timestamp da última desconexão registrada"
+          },
+          "last_telemetry_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Telemetry At",
+            "description": "Timestamp da última coleta óptica"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id",
+            "description": "ID da Zona de Rede FTTH vinculada"
+          },
+          "odb_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Id",
+            "description": "ID da CTO / ODB vinculada"
+          },
+          "odb_splitter_port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 128.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Splitter Port",
+            "description": "Porta física do splitter na CTO/ODB"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -7970,6 +10280,44 @@
           "serial"
         ],
         "title": "ONUInventoryItem"
+      },
+      "ONUMacEntry": {
+        "properties": {
+          "mac_address": {
+            "type": "string",
+            "title": "Mac Address",
+            "description": "Endereço MAC aprendido na ONU (formato XX:XX:XX:XX:XX:XX)"
+          },
+          "vlan": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vlan",
+            "description": "VLAN associada ao endereço MAC"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port",
+            "description": "Porta física/lógica UNI ou gemport na ONU"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mac_address"
+        ],
+        "title": "ONUMacEntry"
       },
       "ONUMigrationEvent": {
         "properties": {
@@ -8166,6 +10514,30 @@
             ],
             "title": "Vlan"
           },
+          "last_down_cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Down Cause",
+            "description": "Causa da última queda (dying_gasp, los, lofi, admin_down, power_off, unknown)"
+          },
+          "last_down_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Down Time",
+            "description": "Horário reportado da última desconexão da ONU"
+          },
           "_links": {
             "additionalProperties": {
               "$ref": "#/components/schemas/Link"
@@ -8182,6 +10554,74 @@
           "status"
         ],
         "title": "ONUSummary"
+      },
+      "ONUTopologyAssignRequest": {
+        "properties": {
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id",
+            "description": "ID da Zona FTTH"
+          },
+          "odb_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Id",
+            "description": "ID da CTO / ODB"
+          },
+          "odb_splitter_port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 128.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Splitter Port",
+            "description": "Porta física do splitter na CTO"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude",
+            "description": "Latitude da instalação"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude",
+            "description": "Longitude da instalação"
+          }
+        },
+        "type": "object",
+        "title": "ONUTopologyAssignRequest"
       },
       "OnboardingStepItem": {
         "properties": {
@@ -8220,6 +10660,509 @@
           "status"
         ],
         "title": "OnboardingStepItem"
+      },
+      "OpticalCollectionSummaryResponse": {
+        "properties": {
+          "olt_id": {
+            "type": "string",
+            "title": "Olt Id"
+          },
+          "olt_name": {
+            "type": "string",
+            "title": "Olt Name"
+          },
+          "collected_count": {
+            "type": "integer",
+            "title": "Collected Count"
+          },
+          "degraded_count": {
+            "type": "integer",
+            "title": "Degraded Count"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "olt_id",
+          "olt_name",
+          "collected_count",
+          "degraded_count"
+        ],
+        "title": "OpticalCollectionSummaryResponse"
+      },
+      "OpticalDistributionBoxCreate": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 2,
+            "title": "Code",
+            "description": "Código identificador da CTO/ODB (ex: CTO-CEN-01)"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Name",
+            "description": "Nome descritivo da caixa"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id",
+            "description": "ID da Zona de Rede"
+          },
+          "olt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Olt Id",
+            "description": "ID da OLT associada"
+          },
+          "pon_port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pon Port",
+            "description": "Porta PON que alimenta a CTO"
+          },
+          "splitter_capacity": {
+            "type": "integer",
+            "maximum": 128.0,
+            "minimum": 2.0,
+            "title": "Splitter Capacity",
+            "description": "Capacidade do splitter (ex: 8, 16, 32)",
+            "default": 16
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude",
+            "description": "Latitude geográfica da CTO"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude",
+            "description": "Longitude geográfica da CTO"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address",
+            "description": "Endereço ou poste de referência"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Observações de fusão / sangria"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "OpticalDistributionBoxCreate"
+      },
+      "OpticalDistributionBoxItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Identificador único UUIDv7"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          },
+          "olt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Olt Id"
+          },
+          "pon_port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pon Port"
+          },
+          "splitter_capacity": {
+            "type": "integer",
+            "title": "Splitter Capacity",
+            "default": 16
+          },
+          "used_ports": {
+            "type": "integer",
+            "title": "Used Ports",
+            "default": 0
+          },
+          "available_ports": {
+            "type": "integer",
+            "title": "Available Ports",
+            "default": 16
+          },
+          "occupied_splitter_ports": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Occupied Splitter Ports"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "OpticalDistributionBoxItem"
+      },
+      "OpticalTelemetryHistoryResponse": {
+        "properties": {
+          "serial": {
+            "type": "string",
+            "title": "Serial",
+            "description": "Serial da ONU"
+          },
+          "olt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Olt Id",
+            "description": "ID da OLT atual"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port",
+            "description": "Porta PON atual"
+          },
+          "current_rx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Rx Power Dbm",
+            "description": "Leitura mais recente de Rx (dBm)"
+          },
+          "baseline_rx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Rx Power Dbm",
+            "description": "Média histórica / baseline de Rx (dBm)"
+          },
+          "drift_db": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drift Db",
+            "description": "Variação em dB entre o sinal atual e a linha de base (negativo indica atenuação/degradação)"
+          },
+          "is_degraded": {
+            "type": "boolean",
+            "title": "Is Degraded",
+            "description": "Indica se a ONU apresenta atenuação crítica ou deriva excessiva",
+            "default": false
+          },
+          "degradation_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Degradation Reasons",
+            "description": "Motivos técnicos do alerta de degradação"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/OpticalTelemetrySample"
+            },
+            "type": "array",
+            "title": "Samples",
+            "description": "Série temporal de amostras ópticas"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial"
+        ],
+        "title": "OpticalTelemetryHistoryResponse"
+      },
+      "OpticalTelemetrySample": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Identificador único da amostra UUIDv7"
+          },
+          "serial": {
+            "type": "string",
+            "title": "Serial",
+            "description": "Serial da ONU"
+          },
+          "olt_id": {
+            "type": "string",
+            "title": "Olt Id",
+            "description": "ID da OLT"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port",
+            "description": "Porta PON"
+          },
+          "onu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onu Id",
+            "description": "Índice ONU ID"
+          },
+          "rx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rx Power Dbm",
+            "description": "Potência óptica Rx da ONU (dBm)"
+          },
+          "tx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tx Power Dbm",
+            "description": "Potência óptica Tx da ONU (dBm)"
+          },
+          "olt_rx_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Olt Rx Power Dbm",
+            "description": "Potência óptica Rx na OLT (dBm)"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Estado operacional: online, offline, los, dying_gasp",
+            "default": "online"
+          },
+          "last_down_cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Down Cause",
+            "description": "Causa da última queda normalizada"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At",
+            "description": "Timestamp da coleta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial",
+          "olt_id"
+        ],
+        "title": "OpticalTelemetrySample"
       },
       "PonPolicyCreateOrUpdate": {
         "properties": {
@@ -8377,6 +11320,152 @@
           "updated_at"
         ],
         "title": "PonPolicyItem"
+      },
+      "PreProvisionONURequest": {
+        "properties": {
+          "serial": {
+            "type": "string",
+            "title": "Serial",
+            "description": "Serial alfanumérico da ONU enviada a campo"
+          },
+          "subscriber_name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Subscriber Name",
+            "description": "Nome do assinante"
+          },
+          "contract_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Id",
+            "description": "Código do contrato no ERP"
+          },
+          "preset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset Id",
+            "description": "ID do Preset de provisionamento a aplicar"
+          },
+          "vlan": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 4094.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vlan",
+            "description": "VLAN de serviço (sobrescreve o preset se informado)"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile",
+            "description": "Perfil de tráfego (sobrescreve o preset se informado)"
+          },
+          "olt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Olt Id",
+            "description": "OLT esperada (opcional; se omitido, ativa em qualquer OLT onde acender)"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port",
+            "description": "Porta PON esperada (opcional)"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id",
+            "description": "ID da Zona FTTH"
+          },
+          "odb_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Id",
+            "description": "ID da CTO / ODB"
+          },
+          "odb_splitter_port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 128.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Splitter Port",
+            "description": "Porta do splitter na CTO"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Observações da Ordem de Serviço"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial",
+          "subscriber_name"
+        ],
+        "title": "PreProvisionONURequest"
       },
       "ProfileItem": {
         "properties": {
@@ -8577,6 +11666,184 @@
           "message"
         ],
         "title": "ProvisionResponse"
+      },
+      "ProvisioningPresetCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Name",
+            "description": "Nome do Preset (ex: Residencial 500M Bridge)"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Descrição operacional do template"
+          },
+          "vlan": {
+            "type": "integer",
+            "maximum": 4094.0,
+            "minimum": 1.0,
+            "title": "Vlan",
+            "description": "VLAN de serviço padrão"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "Modo de operação: transparent, tag, translate, trunk",
+            "default": "transparent"
+          },
+          "line_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Profile",
+            "description": "Line profile padrão na OLT",
+            "default": "DEFAULT"
+          },
+          "srv_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Srv Profile",
+            "description": "Service profile padrão na OLT",
+            "default": "DEFAULT"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id",
+            "description": "ID do Tenant proprietário (opcional)"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default",
+            "description": "Define se é o preset padrão sugerido na tela de autofind",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "vlan"
+        ],
+        "title": "ProvisioningPresetCreate"
+      },
+      "ProvisioningPresetItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Identificador único UUIDv7"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "vlan": {
+            "type": "integer",
+            "title": "Vlan"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "transparent"
+          },
+          "line_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Profile",
+            "default": "DEFAULT"
+          },
+          "srv_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Srv Profile",
+            "default": "DEFAULT"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "vlan"
+        ],
+        "title": "ProvisioningPresetItem"
       },
       "ProvisioningSchemaField": {
         "properties": {
@@ -9148,7 +12415,7 @@
               }
             ],
             "title": "Contract Status",
-            "description": "ACTIVE, SUSPENDED, CANCELLED, IN_STOCK",
+            "description": "ACTIVE, SUSPENDED, CANCELLED, IN_STOCK, PRE_PROVISIONED",
             "default": "ACTIVE"
           },
           "description": {
@@ -9198,6 +12465,44 @@
             ],
             "title": "Longitude",
             "description": "Longitude geográfica"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id",
+            "description": "ID da Zona FTTH"
+          },
+          "odb_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Id",
+            "description": "ID da CTO / ODB"
+          },
+          "odb_splitter_port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 128.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Splitter Port",
+            "description": "Porta física do splitter na CTO"
           }
         },
         "type": "object",
@@ -9809,6 +13114,373 @@
         ],
         "title": "SyncOLTResponse"
       },
+      "TR069ActionResponse": {
+        "properties": {
+          "serial": {
+            "type": "string",
+            "title": "Serial"
+          },
+          "acs_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acs Device Id"
+          },
+          "task_queued": {
+            "type": "boolean",
+            "title": "Task Queued"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial",
+          "task_queued",
+          "action",
+          "message"
+        ],
+        "title": "TR069ActionResponse"
+      },
+      "TR069DeviceSummary": {
+        "properties": {
+          "serial": {
+            "type": "string",
+            "title": "Serial"
+          },
+          "acs_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acs Device Id"
+          },
+          "registered_in_acs": {
+            "type": "boolean",
+            "title": "Registered In Acs",
+            "default": false
+          },
+          "acs_server_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acs Server Name"
+          },
+          "last_inform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Inform"
+          },
+          "software_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Software Version"
+          },
+          "hardware_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hardware Version"
+          },
+          "wan_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wan Mode"
+          },
+          "wan_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wan Ip"
+          },
+          "pppoe_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pppoe Username"
+          },
+          "ssid_24g": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssid 24G"
+          },
+          "ssid_5g": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssid 5G"
+          },
+          "connected_hosts_count": {
+            "type": "integer",
+            "title": "Connected Hosts Count",
+            "default": 0
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial"
+        ],
+        "title": "TR069DeviceSummary"
+      },
+      "TR069FirmwarePushRequest": {
+        "properties": {
+          "firmware_filename": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 3,
+            "title": "Firmware Filename",
+            "description": "Nome da imagem de firmware no servidor ACS"
+          },
+          "file_type": {
+            "type": "string",
+            "title": "File Type",
+            "description": "Tipo de arquivo CWMP",
+            "default": "1 Firmware Upgrade Image"
+          }
+        },
+        "type": "object",
+        "required": [
+          "firmware_filename"
+        ],
+        "title": "TR069FirmwarePushRequest"
+      },
+      "TR069WanConfigRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "Modo WAN: pppoe, dhcp, bridge, static"
+          },
+          "pppoe_username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pppoe Username",
+            "description": "Usuário PPPoE do assinante"
+          },
+          "pppoe_password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pppoe Password",
+            "description": "Senha PPPoE do assinante"
+          },
+          "vlan_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 4094.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vlan Id",
+            "description": "VLAN WAN TR-069"
+          },
+          "ip_version": {
+            "type": "string",
+            "title": "Ip Version",
+            "description": "Pilha IP: ipv4, ipv6, dual_stack",
+            "default": "dual_stack"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "TR069WanConfigRequest"
+      },
+      "TR069WiFiConfigRequest": {
+        "properties": {
+          "ssid_24g": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssid 24G",
+            "description": "SSID da rede Wi-Fi 2.4GHz"
+          },
+          "password_24g": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password 24G",
+            "description": "Senha WPA2/WPA3 2.4GHz"
+          },
+          "channel_24g": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel 24G",
+            "description": "Canal 2.4GHz (Auto ou 1..13)",
+            "default": "Auto"
+          },
+          "ssid_5g": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssid 5G",
+            "description": "SSID da rede Wi-Fi 5GHz"
+          },
+          "password_5g": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password 5G",
+            "description": "Senha WPA2/WPA3 5GHz"
+          },
+          "channel_5g": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel 5G",
+            "description": "Canal 5GHz (Auto ou 36..165)",
+            "default": "Auto"
+          }
+        },
+        "type": "object",
+        "title": "TR069WiFiConfigRequest"
+      },
       "TenantCreateRequest": {
         "properties": {
           "name": {
@@ -10008,6 +13680,56 @@
         ],
         "title": "TokenResponse"
       },
+      "TopologyHealthMapResponse": {
+        "properties": {
+          "total_zones": {
+            "type": "integer",
+            "title": "Total Zones",
+            "default": 0
+          },
+          "total_odbs": {
+            "type": "integer",
+            "title": "Total Odbs",
+            "default": 0
+          },
+          "healthy_odbs": {
+            "type": "integer",
+            "title": "Healthy Odbs",
+            "default": 0
+          },
+          "degraded_odbs": {
+            "type": "integer",
+            "title": "Degraded Odbs",
+            "default": 0
+          },
+          "power_outage_odbs": {
+            "type": "integer",
+            "title": "Power Outage Odbs",
+            "default": 0
+          },
+          "fiber_cut_odbs": {
+            "type": "integer",
+            "title": "Fiber Cut Odbs",
+            "default": 0
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/ODBHealthNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "title": "TopologyHealthMapResponse"
+      },
       "UnauthorizedONU": {
         "properties": {
           "port": {
@@ -10112,6 +13834,44 @@
             ],
             "title": "Profile",
             "description": "Perfil de linha/tráfego"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id",
+            "description": "ID da Zona FTTH"
+          },
+          "odb_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Id",
+            "description": "ID da CTO / ODB"
+          },
+          "odb_splitter_port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 128.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odb Splitter Port",
+            "description": "Porta física do splitter na CTO"
           }
         },
         "type": "object",

@@ -189,6 +189,62 @@ class AutofindScannerService:
                                         f"AutofindScanner: falha ao reconciliar ONU {unauth.serial}: {rec_res.message}"
                                     )
 
+                            # 1.5. ONU Pré-Provisionada (Fase 3): Zero-Touch Activation ao acender no autofind
+                            elif inv_item and inv_item.contract_status == "PRE_PROVISIONED":
+                                if inv_item.current_olt_id and inv_item.current_olt_id != olt.id:
+                                    logger.info(
+                                        f"AutofindScanner: ONU pré-provisionada {unauth.serial} acendeu na OLT {olt.name}, "
+                                        f"mas aguardava OLT {inv_item.current_olt_id}. Provisionando na OLT detectada."
+                                    )
+                                try:
+                                    from app.models.provision import ProvisionRequest
+                                    from app.core.circuit_id import generate_circuit_id
+                                    target_vlan = inv_item.vlan or 100
+                                    prov_req = ProvisionRequest(
+                                        port=unauth.port,
+                                        serial=unauth.serial,
+                                        vlan=target_vlan,
+                                        profile=inv_item.profile or "DEFAULT",
+                                        mode="transparent",
+                                        description=inv_item.subscriber_name or inv_item.description or f"PRE_{unauth.serial}",
+                                    )
+                                    prov_res = await asyncio.to_thread(driver.provision_onu, olt, prov_req)
+                                    if prov_res and prov_res.success:
+                                        inv_item.contract_status = "ACTIVE"
+                                        inv_item.current_olt_id = olt.id
+                                        inv_item.current_port = unauth.port
+                                        inv_item.current_onu_id = prov_res.onu_id
+                                        inv_item.vlan = target_vlan
+                                        inv_item.circuit_id = generate_circuit_id(
+                                            olt.name, unauth.port, prov_res.onu_id, target_vlan
+                                        )
+                                        self.onu_repo.upsert(inv_item)
+                                        cycle_reconciled += 1
+                                        summary.reconciled_serials.append(unauth.serial)
+                                        logger.info(
+                                            f"AutofindScanner: ONU pré-provisionada {unauth.serial} ativada automaticamente "
+                                            f"em {olt.name} {unauth.port} (VLAN {target_vlan})."
+                                        )
+                                        if self.webhook_dispatcher:
+                                            self.webhook_dispatcher.dispatch(
+                                                "onu.auto_provisioned",
+                                                {
+                                                    "serial": unauth.serial,
+                                                    "subscriber_name": inv_item.subscriber_name,
+                                                    "contract_id": inv_item.contract_id,
+                                                    "olt_id": olt.id,
+                                                    "olt_name": olt.name,
+                                                    "port": unauth.port,
+                                                    "onu_id": prov_res.onu_id,
+                                                    "vlan": target_vlan,
+                                                    "source": "pre_provisioned",
+                                                },
+                                            )
+                                except Exception as pre_err:
+                                    logger.warning(
+                                        f"AutofindScanner: erro ao ativar ONU pré-provisionada {unauth.serial}: {pre_err}"
+                                    )
+
                             # 2. ONU Virgem: sem cadastro prévio no inventário
                             elif inv_item is None:
                                 # Verifica se há uma Task temporizada ativa ou Política com auto-autorização

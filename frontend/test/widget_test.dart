@@ -323,6 +323,87 @@ void main() {
         );
       } else if (path.endsWith('/api/v1/onus')) {
         return http.Response('[]', 200, headers: {'content-type': 'application/json'});
+      } else if (path.endsWith('/api/v1/topology/zones')) {
+        return http.Response(
+          jsonEncode([
+            {'id': 'z-1', 'name': 'Centro Sul', 'city': 'Curitiba'}
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/topology/odbs')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': 'odb-1',
+              'name': 'CTO Rua XV Poste 10',
+              'code': 'CTO-XV-10',
+              'splitter_capacity': 16,
+              'used_ports': 4,
+              'available_ports': 12,
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/topology/health-map')) {
+        return http.Response(
+          jsonEncode({
+            'total_zones': 1,
+            'total_odbs': 1,
+            'healthy_odbs': 0,
+            'degraded_odbs': 0,
+            'power_outage_odbs': 1,
+            'fiber_cut_odbs': 0,
+            'nodes': [
+              {
+                'odb_id': 'odb-1',
+                'name': 'CTO Rua XV Poste 10',
+                'code': 'CTO-XV-10',
+                'splitter_capacity': 16,
+                'total_onus': 4,
+                'online_onus': 1,
+                'dying_gasp_onus': 3,
+                'los_onus': 0,
+                'degraded_onus': 0,
+                'health_status': 'power_outage',
+                'diagnosis_summary': 'Queda elétrica coletiva detectada',
+              }
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/presets')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': 'p-1',
+              'name': 'Plano Fibra 600M',
+              'vlan': 621,
+              'line_profile': 'PLAN_600M',
+              'srv_profile': 'PLAN_600M',
+              'mode': 'transparent',
+              'is_default': true,
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      } else if (path.endsWith('/api/v1/acs/servers')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': 'acs-1',
+              'name': 'GenieACS Core',
+              'nbi_url': 'http://10.0.0.50:7557',
+              'cwmp_inform_url': 'http://10.0.0.50:7547',
+              'is_active': true,
+            }
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
       }
 
       return http.Response('{"status": "ok"}', 200, headers: {'content-type': 'application/json'});
@@ -555,6 +636,18 @@ void main() {
     expect(find.text('Admin Master'), findsOneWidget);
     expect(find.text('admin@oltapi.local'), findsOneWidget);
     expect(find.text('Chave ERP'), findsOneWidget);
+
+    // 5. Sub-tab 4: Topologia & CTOs (Fase 4)
+    await tester.tap(find.text('Topologia & CTOs'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('CTO-XV-10'), findsOneWidget);
+    expect(find.text('⚡ QUEDA ELÉTRICA'), findsOneWidget);
+
+    // 6. Sub-tab 5: ACS TR-069 & Presets (Fases 3 e 5)
+    await tester.tap(find.text('ACS TR-069 & Presets'));
+    await tester.pumpAndSettle();
+    expect(find.text('Plano Fibra 600M'), findsOneWidget);
+    expect(find.text('GenieACS Core'), findsOneWidget);
   });
 
   testWidgets('BackupsScreen renders Onda B (Audit Drift, Multi-FTP, Unified Diff Dialog) without overflow',

@@ -80,6 +80,7 @@ class BaseDriverComplianceTest(ABC):
             "list_unauthorized_onus",
             "get_port_onus",
             "get_onu_details",
+            "get_onu_mac_table",
             "provision_onu",
             "deprovision_onu",
             "reboot_onu",
@@ -106,6 +107,24 @@ class BaseDriverComplianceTest(ABC):
             assert callable(getattr(driver_instance, method_name)), (
                 f"Atributo {method_name} no driver {self.driver_class.__name__} deve ser um método executável."
             )
+
+    def test_down_cause_and_mac_formatting_contract(self, driver_instance):
+        assert driver_instance.normalize_down_cause("DyingGasp") == "dying_gasp"
+        assert driver_instance.normalize_down_cause("dying-gasp") == "dying_gasp"
+        assert driver_instance.normalize_down_cause("LOS") == "los"
+        assert driver_instance.normalize_down_cause("LOFi") == "lofi"
+        assert driver_instance.normalize_down_cause("disable") == "admin_down"
+        assert driver_instance.normalize_down_cause("working") is None
+
+        parsed_macs = driver_instance.parse_mac_table_generic(
+            "100  aabb.ccdd.eeff  dynamic  gpon0/1:1\n200  11-22-33-44-55-66  eth1",
+            default_port="0/1:1",
+        )
+        assert len(parsed_macs) == 2
+        assert parsed_macs[0].mac_address == "AA:BB:CC:DD:EE:FF"
+        assert parsed_macs[0].vlan == 100
+        assert parsed_macs[1].mac_address == "11:22:33:44:55:66"
+        assert parsed_macs[1].vlan == 200
 
     # 3. Assinatura de Métodos Críticos
     def test_backup_config_signature(self, driver_instance):

@@ -1,7 +1,15 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.api.deps import get_olt_repo, get_onu_repo, get_security_context, get_webhook_dispatcher, require_api_key
+from app.api.deps import (
+    get_olt_repo,
+    get_onu_repo,
+    get_preset_repo,
+    get_security_context,
+    get_topology_repo,
+    get_webhook_dispatcher,
+    require_api_key,
+)
 from app.core.circuit_id import generate_circuit_id
 from app.core.rbac import SecurityContext
 from app.core.security import sanitize_port, sanitize_safe_string, sanitize_serial, sanitize_vlan
@@ -14,12 +22,21 @@ from app.models.onu_inventory import (
     RegisterONUInventoryRequest,
     UpdateONUInventoryRequest,
 )
+from app.models.optical_telemetry import (
+    DegradedONUReportItem,
+    OpticalTelemetryHistoryResponse,
+)
+from app.models.presets import PreProvisionONURequest
+from app.models.topology import ONUTopologyAssignRequest
 from app.services.onu_reconciliation_service import ONUReconciliationService
 from app.services.webhook_dispatcher import WebhookDispatcher
 from app.storage.olt_repository import OLTRepository
 from app.storage.onu_repository import ONUInventoryRepository
+from app.storage.sql.preset_repository import SQLPresetRepository
+from app.storage.sql.topology_repository import SQLTopologyRepository
 
 router = APIRouter(prefix="/onus", tags=["Inventário Global & Auto-Recuperação de ONUs"], dependencies=[Depends(require_api_key)])
+
 
 
 @router.get("", response_model=List[ONUInventoryItem])
@@ -232,7 +249,113 @@ def register_onu(
     return item
 
 
+@router.get("/degraded", response_model=List[DegradedONUReportItem])
+def list_degraded_onus(
+    olt_id: Optional[str] = Query(default=None, description="Filtrar por OLT"),
+    threshold_dbm: float = Query(default=-25.5, description="Limiar de potência óptica Rx (dBm) para atenção"),
+    drift_threshold_db: float = Query(default=-2.5, description="Limiar de deriva óptica negativa (dB) em relação à linha de base"),
+    repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Radar de Degradação Óptica: lista ONUs com potência Rx crítica, deriva acentuada (drift) ou alarme LoS/LoFi."""
+    ctx.enforce_scope("onus:read")
+    if olt_id:
+        ctx.enforce_olt(olt_id)
+
+    items = repo.list_degraded_onus(
+        olt_id=olt_id,
+        threshold_dbm=threshold_dbm,
+        drift_threshold_db=drift_threshold_db,
+    )
+    if ctx.allowed_olt_ids is not None:
+        items = [i for i in items if i.olt_id in ctx.allowed_olt_ids]
+
+    for item in items:
+        item.links = {
+            "onu": Link(href=f"/api/v1/onus/{item.serial}", method="GET", description="Ver inventário da ONU"),
+            "optical_history": Link(
+                href=f"/api/v1/onus/{item.serial}/optical-history",
+                method="GET",
+                description="Ver série temporal de potência óptica",
+            ),
+        }
+    return items
+
+
+@router.post("/pre-provision", response_model=ONUInventoryItem, status_code=status.HTTP_201_CREATED)
+def pre_provision_onu(
+    req: PreProvisionONURequest,
+    response: Response,
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
+    preset_repo: SQLPresetRepository = Depends(get_preset_repo),
+    topology_repo: SQLTopologyRepository = Depends(get_topology_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Pré-Provisionamento por Serial (Zero-Touch Field Activation - Fase 3).
+    Agenda a ativação de uma ONU enviada a campo antes de ser conectada na fibra.
+    Assim que o serial acender no autofind, o scanner aplica automaticamente VLAN, perfil e TR-101.
+    """
+    ctx.enforce_scope("onus:provision")
+    clean_serial = sanitize_serial(req.serial)
+    if req.olt_id:
+        ctx.enforce_olt(req.olt_id)
+
+    target_vlan = req.vlan
+    target_profile = req.profile or "DEFAULT"
+    if req.preset_id:
+        preset = preset_repo.get_preset(req.preset_id)
+        if not preset:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Preset '{req.preset_id}' não encontrado.")
+        if target_vlan is None:
+            target_vlan = preset.vlan
+        if not req.profile and preset.line_profile:
+            target_profile = preset.line_profile
+
+    if target_vlan is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Informe uma VLAN ou selecione um Preset de provisionamento válido.",
+        )
+    clean_vlan = sanitize_vlan(target_vlan)
+    if req.olt_id:
+        ctx.enforce_vlan(req.olt_id, clean_vlan)
+
+    topo_data = {"zone_id": req.zone_id, "odb_id": req.odb_id, "odb_splitter_port": req.odb_splitter_port}
+    if req.odb_id:
+        topo_data = topology_repo.validate_and_assign_onu_topology(
+            clean_serial,
+            ONUTopologyAssignRequest(
+                zone_id=req.zone_id,
+                odb_id=req.odb_id,
+                odb_splitter_port=req.odb_splitter_port,
+            ),
+        )
+
+    existing = onu_repo.get_by_serial(clean_serial)
+    item = existing or ONUInventoryItem(serial=clean_serial)
+    item.subscriber_name = req.subscriber_name.strip()
+    item.contract_id = req.contract_id.strip() if req.contract_id else None
+    item.contract_status = "PRE_PROVISIONED"
+    item.vlan = clean_vlan
+    item.profile = sanitize_safe_string(target_profile, "profile")
+    item.current_olt_id = req.olt_id
+    item.current_port = sanitize_port(req.port) if req.port else None
+    item.zone_id = topo_data.get("zone_id")
+    item.odb_id = topo_data.get("odb_id")
+    item.odb_splitter_port = topo_data.get("odb_splitter_port")
+    item.description = req.description.strip() if req.description else "Aguardando conexão física em campo (Pré-Provisionada)"
+
+    saved = onu_repo.upsert(item)
+    response.headers["Location"] = f"/api/v1/onus/{saved.serial}"
+    saved.links = {
+        "self": Link(href=f"/api/v1/onus/{saved.serial}", method="GET", description="Consultar status da ONU"),
+    }
+    return saved
+
+
 @router.get("/{serial}", response_model=ONUInventoryItem)
+
 def get_onu_by_serial(
     serial: str,
     repo: ONUInventoryRepository = Depends(get_onu_repo),
@@ -336,6 +459,12 @@ def update_onu(
         item.profile = sanitize_safe_string(req.profile, "profile") if req.profile else "DEFAULT"
     if req.vlan is not None:
         item.vlan = sanitize_vlan(req.vlan)
+    if req.zone_id is not None:
+        item.zone_id = req.zone_id
+    if req.odb_id is not None:
+        item.odb_id = req.odb_id
+    if req.odb_splitter_port is not None:
+        item.odb_splitter_port = req.odb_splitter_port
 
     updated_item = repo.upsert(item)
     updated_item.links = {
@@ -351,3 +480,54 @@ def update_onu(
         ),
     }
     return updated_item
+
+
+@router.get("/{serial}/optical-history", response_model=OpticalTelemetryHistoryResponse)
+def get_onu_optical_history(
+    serial: str,
+    limit: int = Query(default=100, ge=1, le=500, description="Quantidade máxima de amostras da série temporal"),
+    repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Consulta a série temporal de potência óptica (Rx/Tx/OLT Rx em dBm) e cálculo de deriva (drift_db) da ONU."""
+    ctx.enforce_scope("onus:read")
+    clean_serial = sanitize_serial(serial)
+    hist = repo.get_optical_history(clean_serial, limit=limit)
+    hist.links = {
+        "onu": Link(href=f"/api/v1/onus/{clean_serial}", method="GET", description="Ver cadastro da ONU"),
+    }
+    return hist
+
+
+@router.patch("/{serial}/topology", response_model=ONUInventoryItem)
+def assign_onu_topology(
+    serial: str,
+    req: ONUTopologyAssignRequest,
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
+    topology_repo: SQLTopologyRepository = Depends(get_topology_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Vincula uma ONU a uma Zona FTTH, CTO/ODB e porta física do splitter com validação anti-colisão."""
+    if "*" not in ctx.scopes and "onus:write" not in ctx.scopes and "onus:provision" not in ctx.scopes:
+        ctx.enforce_scope("onus:write")
+    clean_serial = sanitize_serial(serial)
+    item = onu_repo.get_by_serial(clean_serial)
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ONU '{clean_serial}' não encontrada no inventário.")
+
+    validated = topology_repo.validate_and_assign_onu_topology(clean_serial, req)
+    item.zone_id = validated["zone_id"]
+    item.odb_id = validated["odb_id"]
+    item.odb_splitter_port = validated["odb_splitter_port"]
+    if validated["latitude"] is not None:
+        item.latitude = validated["latitude"]
+    if validated["longitude"] is not None:
+        item.longitude = validated["longitude"]
+
+    saved = onu_repo.upsert(item)
+    saved.links = {
+        "self": Link(href=f"/api/v1/onus/{saved.serial}", method="GET", description="Ver cadastro da ONU"),
+        "topology_map": Link(href="/api/v1/topology/health-map", method="GET", description="Mapa de saúde das CTOs"),
+    }
+    return saved
+

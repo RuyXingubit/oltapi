@@ -81,6 +81,19 @@ class ONUInventoryModel(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     description = Column(Text, nullable=True)
+    last_rx_power_dbm = Column(Float, nullable=True)
+    last_tx_power_dbm = Column(Float, nullable=True)
+    last_olt_rx_power_dbm = Column(Float, nullable=True)
+    last_down_cause = Column(String(32), nullable=True, index=True)
+    last_down_time = Column(String(64), nullable=True)
+    last_telemetry_at = Column(DateTime(timezone=True), nullable=True)
+    zone_id = Column(
+        String(36), ForeignKey("network_zones.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    odb_id = Column(
+        String(36), ForeignKey("optical_distribution_boxes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    odb_splitter_port = Column(Integer, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -478,4 +491,113 @@ class AutoProvisionTaskModel(Base):
     )
 
     olt = relationship("OLTModel")
+
+
+class ONUOpticalTelemetryHistoryModel(Base):
+    """Série temporal de potência óptica (Rx/Tx/OLT Rx) e estado operacional da ONU (Fase 2)."""
+    __tablename__ = "onu_optical_telemetry_history"
+
+    id = Column(String(36), primary_key=True)
+    serial = Column(String(32), index=True, nullable=False)
+    olt_id = Column(
+        String(36),
+        ForeignKey("olts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    port = Column(String(32), nullable=True)
+    onu_id = Column(Integer, nullable=True)
+    rx_power_dbm = Column(Float, nullable=True)
+    tx_power_dbm = Column(Float, nullable=True)
+    olt_rx_power_dbm = Column(Float, nullable=True)
+    status = Column(String(32), nullable=False, default="online")
+    last_down_cause = Column(String(32), nullable=True)
+    recorded_at = Column(
+        DateTime(timezone=True),
+        index=True,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class ProvisioningPresetModel(Base):
+    """Templates universais de provisionamento reutilizáveis (Fase 3)."""
+    __tablename__ = "provisioning_presets"
+
+    id = Column(String(36), primary_key=True)
+    name = Column(String(64), unique=True, index=True, nullable=False)
+    description = Column(String(256), nullable=True)
+    vlan = Column(Integer, nullable=False)
+    mode = Column(String(32), nullable=False, default="transparent")
+    line_profile = Column(String(64), nullable=True, default="DEFAULT")
+    srv_profile = Column(String(64), nullable=True, default="DEFAULT")
+    tenant_id = Column(
+        String(36), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    is_default = Column(Boolean, nullable=False, default=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class NetworkZoneModel(Base):
+    """Zonas de atendimento FTTH (Bairro / Setor / Cidade) para topologia passiva (Fase 4)."""
+    __tablename__ = "network_zones"
+
+    id = Column(String(36), primary_key=True)
+    name = Column(String(64), unique=True, index=True, nullable=False)
+    sector = Column(String(64), nullable=True)
+    city = Column(String(64), nullable=True)
+    description = Column(String(256), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class OpticalDistributionBoxModel(Base):
+    """Caixas de Terminação Óptica (CTO / ODB) e Splitters de campo (Fase 4)."""
+    __tablename__ = "optical_distribution_boxes"
+
+    id = Column(String(36), primary_key=True)
+    code = Column(String(32), unique=True, index=True, nullable=False)
+    name = Column(String(64), nullable=False)
+    zone_id = Column(
+        String(36), ForeignKey("network_zones.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    olt_id = Column(
+        String(36), ForeignKey("olts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    pon_port = Column(String(32), nullable=True)
+    splitter_capacity = Column(Integer, nullable=False, default=16)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    address = Column(String(256), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class ACSServerConfigModel(Base):
+    """Configuração de servidores ACS TR-069 / CWMP (ex: GenieACS NBI) para gerência L3/L7 (Fase 5)."""
+    __tablename__ = "acs_server_configs"
+
+    id = Column(String(36), primary_key=True)
+    name = Column(String(64), unique=True, index=True, nullable=False)
+    nbi_url = Column(String(256), nullable=False)
+    username = Column(String(64), nullable=True)
+    password_encrypted = Column(String(256), nullable=True)
+    cwmp_inform_url = Column(String(256), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
 

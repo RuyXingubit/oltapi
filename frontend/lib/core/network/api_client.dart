@@ -1003,4 +1003,372 @@ class ApiClient {
         .timeout(const Duration(seconds: 15));
     await _handleResponse(response);
   }
+
+  // =========================================================================
+  // FASE 1: Tabela MAC FDB por ONU
+  // =========================================================================
+  Future<List<OnuMacEntryModel>> getOnuMacTable(
+    String oltId,
+    String serialOrId, {
+    String? port,
+    int? onuId,
+  }) async {
+    final queryParams = <String, String>{};
+    if (port != null && port.isNotEmpty) queryParams['port'] = port;
+    if (onuId != null) queryParams['onu_id'] = onuId.toString();
+    final uri = Uri.parse(_cleanUrl('/api/v1/olts/$oltId/onus/$serialOrId/macs'))
+        .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => OnuMacEntryModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  // =========================================================================
+  // FASE 2: Telemetria Óptica Histórica & Radar de Degradação
+  // =========================================================================
+  Future<OpticalTelemetryHistoryModel> getOnuOpticalHistory(
+    String serial, {
+    int limit = 100,
+  }) async {
+    final uri = Uri.parse(_cleanUrl('/api/v1/onus/$serial/optical-history'))
+        .replace(queryParameters: {'limit': limit.toString()});
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return OpticalTelemetryHistoryModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<List<DegradedOnuItemModel>> getDegradedOnus({
+    String? oltId,
+    double thresholdDbm = -25.5,
+    double driftThresholdDb = -2.5,
+  }) async {
+    final queryParams = <String, String>{
+      'threshold_dbm': thresholdDbm.toString(),
+      'drift_threshold_db': driftThresholdDb.toString(),
+    };
+    if (oltId != null && oltId.isNotEmpty) queryParams['olt_id'] = oltId;
+    final uri = Uri.parse(_cleanUrl('/api/v1/onus/degraded'))
+        .replace(queryParameters: queryParams);
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => DegradedOnuItemModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> collectOpticalTelemetry(
+    String oltId, {
+    String? port,
+    int maxOnus = 64,
+  }) async {
+    final queryParams = <String, String>{'max_onus': maxOnus.toString()};
+    if (port != null && port.isNotEmpty) queryParams['port'] = port;
+    final uri =
+        Uri.parse(_cleanUrl('/api/v1/olts/$oltId/telemetry/collect-optical'))
+            .replace(queryParameters: queryParams);
+    final response = await _client
+        .post(uri, headers: _headers)
+        .timeout(const Duration(seconds: 60));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  // =========================================================================
+  // FASE 3: Presets Universais, Pré-Provisionamento & Ações em Lote
+  // =========================================================================
+  Future<List<ProvisioningPresetModel>> getPresets() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/presets')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => ProvisioningPresetModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<ProvisioningPresetModel> createPreset(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/presets')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return ProvisioningPresetModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deletePreset(String presetId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/presets/$presetId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
+  Future<ConfiguredOnu> preProvisionOnu(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/onus/pre-provision')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return ConfiguredOnu.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<BatchOnuActionResponseModel> batchOnuAction(
+    String oltId,
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/olts/$oltId/onus/batch-action')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 60));
+    final data = await _handleResponse(response);
+    return BatchOnuActionResponseModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // =========================================================================
+  // FASE 4: Topologia Passiva FTTH (Zonas, CTOs/ODBs & Mapa de Saúde)
+  // =========================================================================
+  Future<List<NetworkZoneModel>> getNetworkZones() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/topology/zones')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => NetworkZoneModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<NetworkZoneModel> createNetworkZone(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/topology/zones')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return NetworkZoneModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteNetworkZone(String zoneId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/topology/zones/$zoneId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
+  Future<List<OpticalDistributionBoxModel>> getOdbs({
+    String? zoneId,
+    String? oltId,
+  }) async {
+    final queryParams = <String, String>{};
+    if (zoneId != null && zoneId.isNotEmpty) queryParams['zone_id'] = zoneId;
+    if (oltId != null && oltId.isNotEmpty) queryParams['olt_id'] = oltId;
+    final uri = Uri.parse(_cleanUrl('/api/v1/topology/odbs'))
+        .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => OpticalDistributionBoxModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<OpticalDistributionBoxModel> createOdb(
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/topology/odbs')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return OpticalDistributionBoxModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteOdb(String odbId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/topology/odbs/$odbId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> assignOnuTopology(
+    String serial,
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .patch(
+          Uri.parse(_cleanUrl('/api/v1/onus/$serial/topology')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<TopologyHealthMapModel> getTopologyHealthMap() async {
+    final response = await _client
+        .get(
+          Uri.parse(_cleanUrl('/api/v1/topology/health-map')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return TopologyHealthMapModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // =========================================================================
+  // FASE 5: Integração ACS TR-069 / CWMP (GenieACS)
+  // =========================================================================
+  Future<List<AcsServerConfigModel>> getAcsServers() async {
+    final response = await _client
+        .get(Uri.parse(_cleanUrl('/api/v1/acs/servers')), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final data = await _handleResponse(response);
+    if (data is List) {
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((e) => AcsServerConfigModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<AcsServerConfigModel> createAcsServer(Map<String, dynamic> req) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/acs/servers')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return AcsServerConfigModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteAcsServer(String acsId) async {
+    final response = await _client
+        .delete(
+          Uri.parse(_cleanUrl('/api/v1/acs/servers/$acsId')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    await _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> testAcsServer(String acsId) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/acs/servers/$acsId/test')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<Tr069DeviceSummaryModel> getOnuTr069Summary(String serial) async {
+    final response = await _client
+        .get(
+          Uri.parse(_cleanUrl('/api/v1/onus/$serial/tr069')),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return Tr069DeviceSummaryModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> configureOnuTr069Wifi(
+    String serial,
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/onus/$serial/tr069/wifi')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> configureOnuTr069Wan(
+    String serial,
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/onus/$serial/tr069/wan')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 15));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> pushOnuTr069Firmware(
+    String serial,
+    Map<String, dynamic> req,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(_cleanUrl('/api/v1/onus/$serial/tr069/firmware')),
+          headers: _headers,
+          body: jsonEncode(req),
+        )
+        .timeout(const Duration(seconds: 20));
+    final data = await _handleResponse(response);
+    return data as Map<String, dynamic>;
+  }
 }

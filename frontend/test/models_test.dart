@@ -618,7 +618,298 @@ void main() {
       expect(batch.successful, 2);
       expect(batch.failed, 0);
     });
+
+    test('Fases 1 a 5 Tier-1 Models deserialize accurately', () {
+      // Fase 1: OnuDiagnostics with lastDownCause & macTable
+      final diagJson = {
+        'port': '0/1/1',
+        'onu_id': 2,
+        'serial': 'FHTT55667788',
+        'status': 'offline',
+        'rx_power_dbm': -28.4,
+        'last_down_cause': 'dying_gasp',
+        'last_down_time': '2026-10-19T12:00:00Z',
+        'mac_table': [
+          {
+            'mac_address': 'AA:BB:CC:11:22:33',
+            'vlan': 100,
+            'service_port_or_eth': 'eth1',
+            'type': 'dynamic',
+          }
+        ],
+      };
+      final diag = OnuDiagnostics.fromJson(diagJson);
+      expect(diag.lastDownCause, 'dying_gasp');
+      expect(diag.macTable.length, 1);
+      expect(diag.macTable.first.macAddress, 'AA:BB:CC:11:22:33');
+      expect(diag.macTable.first.vlan, 100);
+
+      // Fase 2: OpticalTelemetryHistoryModel & DegradedOnuItemModel
+      final histJson = {
+        'serial': 'FHTT55667788',
+        'current_rx_power_dbm': -28.4,
+        'min_rx_power_dbm': -28.4,
+        'max_rx_power_dbm': -19.2,
+        'avg_rx_power_dbm': -23.8,
+        'drift_db': 9.2,
+        'is_degraded': true,
+        'samples': [
+          {
+            'id': '0191eb58-6932-7000-8000-000000000801',
+            'serial': 'FHTT55667788',
+            'olt_id': '0191eb58-6932-7000-8000-000000000001',
+            'port': '0/1/1',
+            'onu_id': 2,
+            'rx_power_dbm': -28.4,
+            'status': 'online',
+            'collected_at': '2026-10-19T12:00:00Z',
+          }
+        ],
+      };
+      final hist = OpticalTelemetryHistoryModel.fromJson(histJson);
+      expect(hist.isDegraded, true);
+      expect(hist.driftDb, 9.2);
+      expect(hist.samples.first.rxPowerDbm, -28.4);
+
+      final degJson = {
+        'serial': 'FHTT55667788',
+        'subscriber_name': 'Cliente Teste',
+        'last_rx_power_dbm': -28.4,
+        'drift_db': 9.2,
+        'reason': 'low_rx_power',
+      };
+      final deg = DegradedOnuItemModel.fromJson(degJson);
+      expect(deg.reason, 'low_rx_power');
+
+      // Fase 3: ProvisioningPresetModel & BatchOnuActionResponseModel
+      final presetJson = {
+        'id': '0191eb58-6932-7000-8000-000000000901',
+        'name': 'Plano Fibra 600M',
+        'default_vlan': 621,
+        'default_profile': 'PLAN_600M',
+        'default_mode': 'bridge',
+        'onu_type_pattern': 'HG6143D',
+        'is_default': true,
+      };
+      final preset = ProvisioningPresetModel.fromJson(presetJson);
+      expect(preset.name, 'Plano Fibra 600M');
+      expect(preset.defaultVlan, 621);
+      expect(preset.isDefault, true);
+
+      final batchActJson = {
+        'action': 'reboot',
+        'total_requested': 2,
+        'succeeded': 2,
+        'failed': 0,
+        'results': [
+          {'serial': 'FHTT11112222', 'success': true, 'message': 'OK'},
+          {'serial': 'FHTT33334444', 'success': true, 'message': 'OK'},
+        ],
+      };
+      final batchAct = BatchOnuActionResponseModel.fromJson(batchActJson);
+      expect(batchAct.succeeded, 2);
+      expect(batchAct.results.length, 2);
+
+      // Fase 4: NetworkZoneModel, OpticalDistributionBoxModel & TopologyHealthMapModel
+      final zoneJson = {
+        'id': '0191eb58-6932-7000-8000-000000000910',
+        'name': 'Centro Sul',
+        'city': 'Curitiba',
+      };
+      final zone = NetworkZoneModel.fromJson(zoneJson);
+      expect(zone.name, 'Centro Sul');
+
+      final odbJson = {
+        'id': '0191eb58-6932-7000-8000-000000000911',
+        'name': 'CTO Rua XV Poste 10',
+        'code': 'CTO-XV-10',
+        'splitter_ratio': '1:16',
+        'used_ports_count': 4,
+      };
+      final odb = OpticalDistributionBoxModel.fromJson(odbJson);
+      expect(odb.code, 'CTO-XV-10');
+      expect(odb.usedPortsCount, 4);
+
+      final hmJson = {
+        'total_zones': 1,
+        'total_odbs': 1,
+        'healthy_odbs': 0,
+        'degraded_odbs': 0,
+        'power_outage_odbs': 1,
+        'fiber_cut_odbs': 0,
+        'nodes': [
+          {
+            'odb_id': '0191eb58-6932-7000-8000-000000000911',
+            'name': 'CTO Rua XV Poste 10',
+            'code': 'CTO-XV-10',
+            'splitter_ratio': '1:16',
+            'total_onus': 4,
+            'online_onus': 1,
+            'dying_gasp_onus': 3,
+            'los_onus': 0,
+            'degraded_onus': 0,
+            'health_status': 'power_outage',
+          }
+        ],
+      };
+      final hm = TopologyHealthMapModel.fromJson(hmJson);
+      expect(hm.powerOutageOdbs, 1);
+      expect(hm.nodes.first.healthStatus, 'power_outage');
+
+      // Fase 5: AcsServerConfigModel & Tr069DeviceSummaryModel
+      final acsJson = {
+        'id': '0191eb58-6932-7000-8000-000000000920',
+        'name': 'GenieACS Core',
+        'base_url': 'http://10.0.0.50:7557',
+        'cwmp_url': 'http://10.0.0.50:7547',
+        'has_password': true,
+        'periodic_inform_interval': 300,
+        'is_active': true,
+      };
+      final acs = AcsServerConfigModel.fromJson(acsJson);
+      expect(acs.name, 'GenieACS Core');
+      expect(acs.hasPassword, true);
+
+      final tr069Json = {
+        'serial': 'FHTT55667788',
+        'acs_device_id': '00259E-HG6143D-FHTT55667788',
+        'online_in_acs': true,
+        'ssid_24g': 'Fibra_2G',
+        'ssid_5g': 'Fibra_5G',
+        'wan_ip': '100.64.10.25',
+        'connected_hosts_count': 5,
+      };
+      final tr069 = Tr069DeviceSummaryModel.fromJson(tr069Json);
+      expect(tr069.onlineInAcs, true);
+      expect(tr069.ssid24g, 'Fibra_2G');
+      expect(tr069.connectedHostsCount, 5);
+    });
+
+    test('Canonical Backend OpenAPI schemas deserialize into Frontend models seamlessly', () {
+      // Fase 1: ONUMacEntry canonical fields (mac_address, vlan, port)
+      final mac = OnuMacEntryModel.fromJson({
+        'mac_address': '00:11:22:33:44:55',
+        'vlan': 621,
+        'port': 'eth1',
+      });
+      expect(mac.macAddress, '00:11:22:33:44:55');
+      expect(mac.vlan, 621);
+      expect(mac.servicePortOrEth, 'eth1');
+
+      // Fase 2: OpticalTelemetryHistoryResponse & DegradedONUReportItem canonical fields
+      final hist = OpticalTelemetryHistoryModel.fromJson({
+        'serial': 'FHTT99887766',
+        'current_rx_power_dbm': -27.2,
+        'baseline_rx_power_dbm': -21.0,
+        'drift_db': -6.2,
+        'is_degraded': true,
+        'degradation_reasons': ['Atenuação crítica (-27.2 dBm)', 'Deriva -6.2 dB'],
+        'samples': [
+          {
+            'id': 's1',
+            'serial': 'FHTT99887766',
+            'olt_id': 'olt-1',
+            'port': '0/1/1',
+            'onu_id': 1,
+            'rx_power_dbm': -21.0,
+            'status': 'online',
+            'recorded_at': '2026-10-19T10:00:00Z',
+          },
+          {
+            'id': 's2',
+            'serial': 'FHTT99887766',
+            'olt_id': 'olt-1',
+            'port': '0/1/1',
+            'onu_id': 1,
+            'rx_power_dbm': -27.2,
+            'status': 'online',
+            'recorded_at': '2026-10-19T12:00:00Z',
+          },
+        ],
+      });
+      expect(hist.currentRxPowerDbm, -27.2);
+      expect(hist.baselineRxPowerDbm, -21.0);
+      expect(hist.minRxPowerDbm, -27.2);
+      expect(hist.maxRxPowerDbm, -21.0);
+      expect(hist.degradationReasons.length, 2);
+
+      final deg = DegradedOnuItemModel.fromJson({
+        'serial': 'FHTT99887766',
+        'rx_power_dbm': -27.2,
+        'baseline_rx_power_dbm': -21.0,
+        'drift_db': -6.2,
+        'severity': 'critical',
+        'reasons': ['low_rx', 'drift'],
+      });
+      expect(deg.lastRxPowerDbm, -27.2);
+      expect(deg.severity, 'critical');
+      expect(deg.reason, 'low_rx • drift');
+
+      // Fase 3: ProvisioningPresetItem & BatchONUActionResponse canonical fields
+      final preset = ProvisioningPresetModel.fromJson({
+        'id': 'p-canonical',
+        'name': 'Residencial 500M',
+        'vlan': 300,
+        'mode': 'transparent',
+        'line_profile': 'LINE_500M',
+        'srv_profile': 'SRV_500M',
+        'is_default': true,
+      });
+      expect(preset.defaultVlan, 300);
+      expect(preset.defaultProfile, 'LINE_500M');
+      expect(preset.srvProfile, 'SRV_500M');
+      expect(preset.defaultMode, 'transparent');
+
+      final batch = BatchOnuActionResponseModel.fromJson({
+        'olt_id': 'olt-1',
+        'action': 'suspend',
+        'total': 3,
+        'succeeded': 3,
+        'failed': 0,
+        'results': [],
+      });
+      expect(batch.totalRequested, 3);
+
+      // Fase 4: OpticalDistributionBoxItem & ODBHealthNode canonical fields
+      final odb = OpticalDistributionBoxModel.fromJson({
+        'id': 'odb-canonical',
+        'code': 'CTO-01',
+        'name': 'CTO Principal',
+        'splitter_capacity': 16,
+        'used_ports': 5,
+        'available_ports': 11,
+        'occupied_splitter_ports': [1, 2, 3, 4, 5],
+      });
+      expect(odb.splitterCapacity, 16);
+      expect(odb.splitterRatio, '1:16');
+      expect(odb.usedPortsCount, 5);
+      expect(odb.availablePorts, 11);
+      expect(odb.occupiedSplitterPorts, [1, 2, 3, 4, 5]);
+
+      // Fase 5: ACSServerConfigItem & TR069DeviceSummary canonical fields
+      final acs = AcsServerConfigModel.fromJson({
+        'id': 'acs-canonical',
+        'name': 'GenieACS NBI',
+        'nbi_url': 'http://10.0.0.50:7557',
+        'cwmp_inform_url': 'http://10.0.0.50:7547',
+        'is_active': true,
+      });
+      expect(acs.baseUrl, 'http://10.0.0.50:7557');
+      expect(acs.cwmpUrl, 'http://10.0.0.50:7547');
+
+      final tr069 = Tr069DeviceSummaryModel.fromJson({
+        'serial': 'FHTT99887766',
+        'registered_in_acs': true,
+        'software_version': 'V5R020C10S202',
+        'wan_mode': 'pppoe',
+        'wan_ip': '100.64.22.10',
+      });
+      expect(tr069.onlineInAcs, true);
+      expect(tr069.firmwareVersion, 'V5R020C10S202');
+      expect(tr069.wanMode, 'pppoe');
+    });
   });
 }
+
 
 

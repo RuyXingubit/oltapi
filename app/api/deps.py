@@ -35,6 +35,10 @@ from app.services.olt_onboarding_service import OLTOnboardingService
 from app.services.onu_enrichment_service import ONUEnrichmentService
 from app.storage.sql.ftp_repository import SQLFTPRepository
 from app.storage.sql.pon_policy_repository import SQLPonPolicyRepository
+from app.storage.sql.preset_repository import SQLPresetRepository
+from app.storage.sql.topology_repository import SQLTopologyRepository
+from app.storage.sql.acs_repository import SQLACSRepository
+from app.services.acs_service import ACSService
 
 # Instâncias singleton padrão (persistência relacional via SQLAlchemy)
 _olt_repo = SQLOLTRepository()
@@ -43,6 +47,9 @@ _onu_repo = SQLONUInventoryRepository()
 _webhook_repo = SQLWebhookRepository()
 _ftp_repo = SQLFTPRepository()
 _pon_policy_repo = SQLPonPolicyRepository()
+_preset_repo = SQLPresetRepository()
+_topology_repo = SQLTopologyRepository()
+_acs_repo = SQLACSRepository()
 
 
 def get_olt_repo() -> Union[SQLOLTRepository, OLTRepository]:
@@ -63,6 +70,24 @@ def get_ftp_repo() -> SQLFTPRepository:
 
 def get_pon_policy_repo() -> SQLPonPolicyRepository:
     return _pon_policy_repo
+
+
+def get_preset_repo() -> SQLPresetRepository:
+    return _preset_repo
+
+
+def get_topology_repo() -> SQLTopologyRepository:
+    return _topology_repo
+
+
+def get_acs_repo() -> SQLACSRepository:
+    return _acs_repo
+
+
+def get_acs_service(
+    acs_repo: SQLACSRepository = Depends(get_acs_repo),
+) -> ACSService:
+    return ACSService(acs_repo=acs_repo)
 
 
 def get_webhook_dispatcher(

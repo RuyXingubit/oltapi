@@ -9,9 +9,15 @@ from app.drivers.factory import DriverFactory
 from app.models.hateoas import Link
 from app.models.onu import UnauthorizedONU
 from app.models.onu_inventory import ONUInventoryItem
+from app.models.presets import (
+    BatchONUActionItemResult,
+    BatchONUActionRequest,
+    BatchONUActionResponse,
+)
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.storage.olt_repository import OLTRepository
 from app.storage.onu_repository import ONUInventoryRepository
+
 
 logger = logging.getLogger(__name__)
 
@@ -342,4 +348,144 @@ def resume_onu(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao reativar ONU: {str(e)}")
+
+
+@router.post("/{olt_id}/onus/batch-action", response_model=BatchONUActionResponse)
+def batch_onu_action(
+    olt_id: str,
+    req: BatchONUActionRequest,
+    repo: OLTRepository = Depends(get_olt_repo),
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """
+    Executa operações em lote (Mass Operations - Fase 3) sobre múltiplas ONUs:
+    reboot, suspend, resume, deprovision ou change_vlan.
+    """
+    action = req.action.strip().lower()
+    if action not in ("reboot", "suspend", "resume", "deprovision", "change_vlan"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ação inválida. Use: reboot, suspend, resume, deprovision ou change_vlan.",
+        )
+
+    if action == "deprovision":
+        ctx.enforce_scope("onus:deprovision")
+    elif action == "change_vlan":
+        ctx.enforce_scope("onus:provision")
+        if req.target_vlan is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="target_vlan é obrigatório quando action='change_vlan'.",
+            )
+        ctx.enforce_vlan(olt_id, req.target_vlan)
+    else:
+        ctx.enforce_scope("onus:actions")
+
+    ctx.enforce_olt(olt_id)
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    driver = DriverFactory.get_driver(olt)
+    results: List[BatchONUActionItemResult] = []
+    succeeded = 0
+    failed = 0
+
+    for target in req.targets:
+        clean_serial = sanitize_safe_string(target.serial, "serial")
+        clean_port = sanitize_interface_port(target.port) if target.port else None
+        try:
+            if action == "reboot":
+                res = driver.reboot_onu(olt, clean_serial, port=clean_port, onu_id=target.onu_id)
+                ok = res.success
+                msg = res.message
+            elif action == "suspend":
+                res = driver.suspend_onu(olt, clean_serial, port=clean_port, onu_id=target.onu_id)
+                ok = res.success
+                msg = res.message
+                if ok:
+                    inv = onu_repo.get_by_serial(clean_serial)
+                    if inv:
+                        inv.contract_status = "SUSPENDED"
+                        onu_repo.upsert(inv)
+            elif action == "resume":
+                res = driver.resume_onu(olt, clean_serial, port=clean_port, onu_id=target.onu_id)
+                ok = res.success
+                msg = res.message
+                if ok:
+                    inv = onu_repo.get_by_serial(clean_serial)
+                    if inv:
+                        inv.contract_status = "ACTIVE"
+                        onu_repo.upsert(inv)
+            elif action == "deprovision":
+                res = driver.deprovision_onu(olt, clean_serial, port=clean_port, onu_id=target.onu_id)
+                ok = res.success
+                msg = res.message
+                if ok:
+                    inv = onu_repo.get_by_serial(clean_serial)
+                    if inv:
+                        inv.contract_status = "CANCELLED"
+                        onu_repo.upsert(inv)
+            else:  # change_vlan
+                inv = onu_repo.get_by_serial(clean_serial)
+                port_to_use = clean_port or (inv.current_port if inv else None)
+                if not port_to_use:
+                    raise ValueError("Porta PON é obrigatória para alterar VLAN.")
+                prov_res = driver.provision_onu(
+                    olt,
+                    ProvisionRequest(
+                        port=port_to_use,
+                        serial=clean_serial,
+                        vlan=req.target_vlan,
+                        profile=inv.profile if inv else "DEFAULT",
+                        onu_id=target.onu_id or (inv.current_onu_id if inv else None),
+                        description=inv.subscriber_name if inv else None,
+                    ),
+                )
+                ok = prov_res.success
+                msg = f"VLAN alterada para {req.target_vlan}."
+                if ok:
+                    if inv:
+                        inv.vlan = req.target_vlan
+                        onu_repo.upsert(inv)
+
+            if ok:
+                succeeded += 1
+            else:
+                failed += 1
+            results.append(
+                BatchONUActionItemResult(
+                    serial=clean_serial,
+                    port=clean_port,
+                    onu_id=target.onu_id,
+                    success=ok,
+                    message=msg,
+                )
+            )
+        except Exception as item_err:
+            failed += 1
+            results.append(
+                BatchONUActionItemResult(
+                    serial=clean_serial,
+                    port=clean_port,
+                    onu_id=target.onu_id,
+                    success=False,
+                    message=str(item_err),
+                )
+            )
+
+    return BatchONUActionResponse(
+        olt_id=olt_id,
+        action=action,
+        total=len(req.targets),
+        succeeded=succeeded,
+        failed=failed,
+        results=results,
+        links={
+            "olt": Link(href=f"/api/v1/olts/{olt_id}", method="GET", description="Ver OLT"),
+            "onus": Link(href=f"/api/v1/onus?olt_id={olt_id}", method="GET", description="Listar ONUs da OLT"),
+        },
+    )
+
 

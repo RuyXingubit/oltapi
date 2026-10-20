@@ -18,10 +18,15 @@ from app.storage.sql.webhook_repository import SQLWebhookRepository
 from app.storage.sql.backup_storage import SQLBackupStorage
 from app.storage.sql.ftp_repository import SQLFTPRepository
 from app.storage.sql.pon_policy_repository import SQLPonPolicyRepository
+from app.storage.sql.preset_repository import SQLPresetRepository
+from app.storage.sql.topology_repository import SQLTopologyRepository
+from app.storage.sql.acs_repository import SQLACSRepository
+from app.services.acs_service import ACSService
 from app.services.webhook_dispatcher import WebhookDispatcher
 from app.services.onu_reconciliation_service import ONUReconciliationService
 from app.services.autofind_scanner import AutofindScannerService
 from app.api import deps
+
 
 
 @pytest.fixture(scope="session")
@@ -92,6 +97,10 @@ def setup_test_env(postgres_container):
     test_webhook_repo = SQLWebhookRepository(session_factory=session_factory)
     test_ftp_repo = SQLFTPRepository(session_factory=session_factory)
     test_pon_policy_repo = SQLPonPolicyRepository(session_factory=session_factory)
+    test_preset_repo = SQLPresetRepository(session_factory=session_factory)
+    test_topology_repo = SQLTopologyRepository(session_factory=session_factory)
+    test_acs_repo = SQLACSRepository(session_factory=session_factory)
+    test_acs_service = ACSService(acs_repo=test_acs_repo)
     test_webhook_dispatcher = WebhookDispatcher(repo=test_webhook_repo)
 
     test_reconciliation_service = ONUReconciliationService(
@@ -123,6 +132,10 @@ def setup_test_env(postgres_container):
     app.dependency_overrides[deps.get_webhook_repo] = lambda: test_webhook_repo
     app.dependency_overrides[deps.get_ftp_repo] = lambda: test_ftp_repo
     app.dependency_overrides[deps.get_pon_policy_repo] = lambda: test_pon_policy_repo
+    app.dependency_overrides[deps.get_preset_repo] = lambda: test_preset_repo
+    app.dependency_overrides[deps.get_topology_repo] = lambda: test_topology_repo
+    app.dependency_overrides[deps.get_acs_repo] = lambda: test_acs_repo
+    app.dependency_overrides[deps.get_acs_service] = lambda: test_acs_service
     app.dependency_overrides[deps.get_webhook_dispatcher] = lambda: test_webhook_dispatcher
     app.dependency_overrides[deps.get_reconciliation_service] = lambda: test_reconciliation_service
     app.dependency_overrides[deps.get_scanner_service] = lambda: test_scanner_service
@@ -134,12 +147,17 @@ def setup_test_env(postgres_container):
         "webhook_repo": test_webhook_repo,
         "ftp_repo": test_ftp_repo,
         "pon_policy_repo": test_pon_policy_repo,
+        "preset_repo": test_preset_repo,
+        "topology_repo": test_topology_repo,
+        "acs_repo": test_acs_repo,
+        "acs_service": test_acs_service,
         "webhook_dispatcher": test_webhook_dispatcher,
         "reconciliation_service": test_reconciliation_service,
         "scanner_service": test_scanner_service,
         "session_factory": session_factory,
         "temp_dir": temp_dir,
     }
+
 
     shutil.rmtree(temp_dir, ignore_errors=True)
     app.dependency_overrides.clear()

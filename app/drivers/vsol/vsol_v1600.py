@@ -24,7 +24,7 @@ from app.models.olt import (
     OLTWizardOnboardRequest,
     VLANServicePurpose,
 )
-from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
+from app.models.onu import ONUMacEntry, ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.services.ftp_service import FTPService
 
@@ -218,22 +218,27 @@ class VSOLV1600Driver(BaseOLTDriver):
 
             # Formato compacto nativo do show onu state: 2:1enableenableworkingHWTC073545b7
             compact_m = re.search(
-                r"(\d+):(\d+)\s*(?:enable|disable)\s*(?:enable|disable)\s*(working|syncmib|initial|dormant|offline|dyinggasp|[a-zA-Z]+?)\s*([A-Za-z0-9]{8,24})",
+                r"(\d+):(\d+)\s*(enable|disable)\s*(enable|disable)\s*(working|syncmib|initial|dormant|offline|dyinggasp|dying-gasp|los|lofi|pwroff|[a-zA-Z_\-]+?)\s*([A-Za-z0-9]{8,24})",
                 line_str,
                 re.IGNORECASE,
             )
             if compact_m:
                 p_num = compact_m.group(1)
                 o_id = int(compact_m.group(2))
-                phase = compact_m.group(3).lower()
-                sn = compact_m.group(4)
+                admin_st = compact_m.group(3).lower()
+                phase = compact_m.group(5).lower()
+                sn = compact_m.group(6)
                 status = "online" if phase in ["working", "syncmib", "online", "up", "active"] else "offline"
+                down_cause = None
+                if status != "online":
+                    down_cause = "admin_down" if admin_st == "disable" else BaseOLTDriver.normalize_down_cause(phase)
                 results.append(
                     ONUSummary(
                         port=f"0/{p_num}",
                         onu_id=o_id,
                         serial=sn,
                         status=status,
+                        last_down_cause=down_cause,
                     )
                 )
                 continue
@@ -254,9 +259,9 @@ class VSOLV1600Driver(BaseOLTDriver):
                 )
                 continue
 
-            # Formato tabular padrão
+            # Formato tabular padrão (com possível 5ª coluna de DownCause ex: DyingGasp / LOS)
             match = re.search(
-                r"(?:0/)?([0-9]+)\s+(\d+)\s+([A-Za-z0-9\-]{4,24})\s+([a-zA-Z_\-]+)",
+                r"(?:0/)?([0-9]+)\s+(\d+)\s+([A-Za-z0-9\-]{4,24})\s+([a-zA-Z_\-]+)(?:\s+([a-zA-Z0-9_\-]+))?",
                 line_str,
             )
             if match:
@@ -264,8 +269,12 @@ class VSOLV1600Driver(BaseOLTDriver):
                 onu_id = int(match.group(2))
                 serial = match.group(3)
                 raw_status = match.group(4).lower()
+                extra_cause = match.group(5)
 
                 status = "online" if raw_status in ["online", "up", "active", "working"] else "offline"
+                down_cause = None
+                if status != "online":
+                    down_cause = BaseOLTDriver.normalize_down_cause(extra_cause or raw_status)
 
                 results.append(
                     ONUSummary(
@@ -273,6 +282,7 @@ class VSOLV1600Driver(BaseOLTDriver):
                         onu_id=onu_id,
                         serial=serial,
                         status=status,
+                        last_down_cause=down_cause,
                     )
                 )
 
@@ -488,6 +498,40 @@ class VSOLV1600Driver(BaseOLTDriver):
 
         return rx_power, tx_power
 
+    @staticmethod
+    def parse_onu_down_cause(output: str) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Extrai Last Down Cause e Last Down Time de saídas CLI V-SOL
+        (ex: 'Last Down Cause : DyingGasp', 'Last Down Time : 2026-10-18 14:22:10').
+        """
+        down_cause: Optional[str] = None
+        down_time: Optional[str] = None
+
+        cause_m = re.search(
+            r"(?:Last\s+Down\s+Cause|Down\s+Cause|Deactive\s+Reason|Phase\s+State)\s*[:=]\s*([^\r\n]+)",
+            output or "",
+            re.IGNORECASE,
+        )
+        if cause_m:
+            down_cause = BaseOLTDriver.normalize_down_cause(cause_m.group(1).strip())
+
+        time_m = re.search(
+            r"(?:Last\s+Down\s+Time|Down\s+Time|Offline\s+Time)\s*[:=]\s*([^\r\n]+)",
+            output or "",
+            re.IGNORECASE,
+        )
+        if time_m:
+            raw_t = time_m.group(1).strip()
+            if raw_t and raw_t.lower() not in ("none", "n/a", "--", "0000-00-00"):
+                down_time = raw_t
+
+        return down_cause, down_time
+
+    @classmethod
+    def parse_mac_table(cls, output: str, default_port: Optional[str] = None) -> List[ONUMacEntry]:
+        """Interpreta saída de tabela MAC da ONU na V-SOL V1600."""
+        return cls.parse_mac_table_generic(output, default_port=default_port)
+
     # ----------------------------------------------------------------------
     # Métodos da Interface BaseOLTDriver
     # ----------------------------------------------------------------------
@@ -597,6 +641,7 @@ class VSOLV1600Driver(BaseOLTDriver):
         safe_id = sanitize_safe_string(serial_or_id, "identificador da onu")
         target_pon = "1"
         target_idx = 1
+        summary_down_cause: Optional[str] = None
 
         try:
             all_onus = self.list_all_authorized_onus(olt)
@@ -606,6 +651,7 @@ class VSOLV1600Driver(BaseOLTDriver):
                     if nums:
                         target_pon = str(nums[-1])
                     target_idx = o.onu_id
+                    summary_down_cause = o.last_down_cause
                     break
         except Exception as e:
             logger.debug(f"Aviso ao localizar porta da ONU {safe_id}: {e}")
@@ -619,8 +665,11 @@ class VSOLV1600Driver(BaseOLTDriver):
         ]
         output = self._execute_cli_commands(olt, commands)
         rx, tx = self.parse_optical_info(output)
+        down_cause, down_time = self.parse_onu_down_cause(output)
+        macs = self.parse_mac_table(output, default_port=f"0/{target_pon}:{target_idx}")
 
         status = "online" if rx is not None else "offline"
+        final_down_cause = down_cause or (summary_down_cause if status != "online" else None)
 
         return ONUDetails(
             port=f"0/{target_pon}",
@@ -629,7 +678,33 @@ class VSOLV1600Driver(BaseOLTDriver):
             status=status,
             rx_power_dbm=rx,
             tx_power_dbm=tx,
+            last_down_cause=final_down_cause,
+            last_down_time=down_time,
+            mac_table=macs,
         )
+
+    def get_onu_mac_table(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> List[ONUMacEntry]:
+        safe_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        target_pon = "1"
+        if port:
+            _, p_num = self.parse_port_components(sanitize_port(port))
+            target_pon = str(p_num)
+        target_idx = onu_id if onu_id is not None else 1
+        commands = [
+            "configure terminal",
+            f"interface gpon 0/{target_pon}",
+            f"show mac address-table onu {target_idx}",
+            "exit",
+            "exit",
+        ]
+        output = self._execute_cli_commands(olt, commands)
+        return self.parse_mac_table(output, default_port=f"0/{target_pon}:{target_idx}")
 
     def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
         safe_port = sanitize_port(req.port)

@@ -143,6 +143,268 @@ class _UnconfiguredScreenState extends State<UnconfiguredScreen> {
     );
   }
 
+  Future<void> _showPreProvisionDialog() async {
+    final settings = context.read<SettingsProvider>();
+    final appState = context.read<AppState>();
+
+    List<ProvisioningPresetModel> presets = [];
+    List<NetworkZoneModel> zones = [];
+    List<OpticalDistributionBoxModel> odbs = [];
+    try {
+      final results = await Future.wait([
+        settings.apiClient
+            .getPresets()
+            .catchError((_) => <ProvisioningPresetModel>[]),
+        settings.apiClient
+            .getNetworkZones()
+            .catchError((_) => <NetworkZoneModel>[]),
+        settings.apiClient
+            .getOdbs()
+            .catchError((_) => <OpticalDistributionBoxModel>[]),
+      ]);
+      presets = results[0] as List<ProvisioningPresetModel>;
+      zones = results[1] as List<NetworkZoneModel>;
+      odbs = results[2] as List<OpticalDistributionBoxModel>;
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    final defPreset = presets.where((p) => p.isDefault).firstOrNull;
+    String? selectedPresetId = defPreset?.id;
+    String? selectedZoneId;
+    String? selectedOdbId;
+
+    final serialCtrl = TextEditingController();
+    final subCtrl = TextEditingController();
+    final contractCtrl = TextEditingController();
+    final vlanCtrl = TextEditingController(
+      text: (defPreset?.defaultVlan ?? 100).toString(),
+    );
+    final profileCtrl = TextEditingController(
+      text: defPreset?.defaultProfile ?? 'DEFAULT',
+    );
+    final splitterPortCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Pré-Provisionar ONU (Estoque / Plug-and-Play)'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Cadastre o serial antes da instalação física. Quando o técnico conectar a fibra, o Scanner Autônomo provisionará automaticamente.',
+                  style:
+                      TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                if (presets.isNotEmpty) ...[
+                  DropdownButtonFormField<String?>(
+                    initialValue: selectedPresetId,
+                    decoration: const InputDecoration(
+                      labelText: 'Preset Universal (Auto-preenchimento)',
+                      prefixIcon: Icon(Icons.auto_awesome_outlined, size: 18),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Manual / Personalizado'),
+                      ),
+                      ...presets.map(
+                        (p) => DropdownMenuItem<String?>(
+                          value: p.id,
+                          child: Text(
+                            '${p.name} (VLAN ${p.defaultVlan} • ${p.defaultProfile})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      setModalState(() {
+                        selectedPresetId = val;
+                        final chosen =
+                            presets.where((p) => p.id == val).firstOrNull;
+                        if (chosen != null) {
+                          vlanCtrl.text = chosen.defaultVlan.toString();
+                          profileCtrl.text = chosen.defaultProfile;
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                TextField(
+                  controller: serialCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Serial da ONU (SN) *',
+                    hintText: 'Ex: FHTT99887766',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: subCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nome do Assinante *',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: contractCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'ID do Contrato (CRM/ERP)',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: vlanCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'VLAN *'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: profileCtrl,
+                        decoration: const InputDecoration(labelText: 'Perfil'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (zones.isNotEmpty || odbs.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  if (zones.isNotEmpty)
+                    DropdownButtonFormField<String?>(
+                      initialValue: selectedZoneId,
+                      decoration: const InputDecoration(
+                        labelText: 'Zona FTTH / Bairro (Opcional)',
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Sem Zona'),
+                        ),
+                        ...zones.map(
+                          (z) => DropdownMenuItem<String?>(
+                            value: z.id,
+                            child: Text(z.name),
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) =>
+                          setModalState(() => selectedZoneId = val),
+                    ),
+                  const SizedBox(height: 10),
+                  if (odbs.isNotEmpty)
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<String?>(
+                            initialValue: selectedOdbId,
+                            decoration: const InputDecoration(
+                              labelText: 'CTO / ODB (Opcional)',
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('Sem CTO'),
+                              ),
+                              ...odbs.map(
+                                (o) => DropdownMenuItem<String?>(
+                                  value: o.id,
+                                  child: Text(
+                                    '${o.code} (${o.splitterRatio})',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (val) =>
+                                setModalState(() => selectedOdbId = val),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: splitterPortCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Porta Splitter',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Salvar Pré-Registro'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    final serial = serialCtrl.text.trim().toUpperCase();
+    if (serial.length < 4) return;
+
+    try {
+      await settings.apiClient.preProvisionOnu({
+        'serial': serial,
+        'subscriber_name': subCtrl.text.trim().isNotEmpty
+            ? subCtrl.text.trim()
+            : 'Assinante $serial',
+        'contract_id': contractCtrl.text.trim().isNotEmpty
+            ? contractCtrl.text.trim()
+            : null,
+        if (selectedPresetId != null) 'preset_id': selectedPresetId,
+        'vlan': int.tryParse(vlanCtrl.text.trim()) ?? 100,
+        'profile': profileCtrl.text.trim().isNotEmpty
+            ? profileCtrl.text.trim()
+            : 'DEFAULT',
+        if (appState.selectedOlt?.id != null)
+          'olt_id': appState.selectedOlt!.id,
+        if (selectedZoneId != null) 'zone_id': selectedZoneId,
+        if (selectedOdbId != null) 'odb_id': selectedOdbId,
+        if (int.tryParse(splitterPortCtrl.text.trim()) != null)
+          'odb_splitter_port': int.parse(splitterPortCtrl.text.trim()),
+      });
+      await appState.loadConfiguredOnus();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.statusOnline,
+          content: Text(
+            'ONU $serial pré-provisionada com sucesso (status PRE_PROVISIONED)!',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.statusDanger,
+          content: Text('Erro ao pré-provisionar: $e'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -156,13 +418,17 @@ class _UnconfiguredScreenState extends State<UnconfiguredScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 16,
+            runSpacing: 12,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text(
                         'Aguardando Autorização',
@@ -174,7 +440,8 @@ class _UnconfiguredScreenState extends State<UnconfiguredScreen> {
                       ),
                       const SizedBox(width: 12),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
                           color: unconfigured.isEmpty
                               ? AppColors.surfaceBorder
@@ -211,21 +478,33 @@ class _UnconfiguredScreenState extends State<UnconfiguredScreen> {
                   ),
                 ],
               ),
-              ElevatedButton.icon(
-                onPressed: isLoading || selectedOlt == null
-                    ? null
-                    : () {
-                        appState.loadUnauthorizedOnus();
-                        _loadActiveTasks();
-                      },
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.refresh, size: 16),
-                label: const Text('Escanear PON'),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _showPreProvisionDialog,
+                    icon: const Icon(Icons.inventory_2_outlined, size: 16),
+                    label: const Text('Pré-Provisionar Serial'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: isLoading || selectedOlt == null
+                        ? null
+                        : () {
+                            appState.loadUnauthorizedOnus();
+                            _loadActiveTasks();
+                          },
+                    icon: isLoading
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.refresh, size: 16),
+                    label: const Text('Escanear PON'),
+                  ),
+                ],
               ),
             ],
           ),

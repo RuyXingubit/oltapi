@@ -17,7 +17,7 @@ from app.drivers.fiberhome.telnet_client import TelnetClient
 from app.drivers.registry import DriverRegistry
 from app.models.bootstrap import BootstrapMode, BootstrapRequest
 from app.models.olt import OLTInDB, OLTPortStatusItem, OLTVendor
-from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
+from app.models.onu import ONUMacEntry, ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.models.vlan import VLANItem, VLANCreateRequest, ProfileItem
 from app.services.ftp_service import FTPService
@@ -172,13 +172,6 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     def parse_unregistered_onus(response: str) -> List[UnauthorizedONU]:
         """
         Interpreta resposta TL1 de 'LST-UNREGONU'.
-        Exemplo:
-        IP 0
-        M  1 COMPLD
-        SLOTNO=1  PORTNO=1  ONUID=1  MAC=FHTT12345678  AUTHTYPE=MAC  DEVTYPE=AN5506-01-A
-        SLOTNO=1  PORTNO=3  ONUID=1  MAC=FHTT87654321  AUTHTYPE=MAC  DEVTYPE=AN5506-02-B
-        SLOTNO=2  PORTNO=1  ONUID=1  MAC=INCL99887766  AUTHTYPE=MAC  DEVTYPE=110B
-        ;
         """
         results: List[UnauthorizedONU] = []
         lines = response.splitlines()
@@ -188,7 +181,6 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             if not line_str or "COMPLD" in line_str or line_str.startswith(";") or line_str.startswith("IP"):
                 continue
 
-            # Captura SLOTNO, PORTNO, MAC/SN e opcionalmente DEVTYPE
             slot_match = re.search(r"SLOTNO[=:](\d+)", line_str, re.IGNORECASE)
             port_match = re.search(r"PORTNO[=:](\d+)", line_str, re.IGNORECASE)
             mac_match = re.search(r"(?:MAC|SN)[=:]([A-Za-z0-9\-]+)", line_str, re.IGNORECASE)
@@ -214,12 +206,6 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     def parse_port_onus(response: str, port: str) -> List[ONUSummary]:
         """
         Interpreta resposta TL1 de 'LST-ONU'.
-        Exemplo:
-        IP 0
-        M  1 COMPLD
-        SLOTNO=1  PORTNO=1  ONUID=1  NAME=Cliente_01  MAC=FHTT12345678  STATUS=up  RX=-19.50
-        SLOTNO=1  PORTNO=1  ONUID=2  NAME=Cliente_02  MAC=FHTT87654321  STATUS=down  RX=--
-        ;
         """
         results: List[ONUSummary] = []
         lines = response.splitlines()
@@ -232,6 +218,8 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             onuid_match = re.search(r"ONUID[=:](\d+)", line_str, re.IGNORECASE)
             mac_match = re.search(r"(?:MAC|SN)[=:]([A-Za-z0-9\-]+)", line_str, re.IGNORECASE)
             status_match = re.search(r"STATUS[=:]([a-zA-Z_\-]+)", line_str, re.IGNORECASE)
+            cause_match = re.search(r"(?:LASTDOWNCAUSE|DOWNCAUSE)[=:]([a-zA-Z0-9_\-]+)", line_str, re.IGNORECASE)
+            time_match = re.search(r"(?:LASTDOWNTIME|DOWNTIME)[=:]([^\s;,]+)", line_str, re.IGNORECASE)
 
             if onuid_match:
                 onu_id = int(onuid_match.group(1))
@@ -239,6 +227,11 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                 raw_status = status_match.group(1).lower() if status_match else "unknown"
 
                 status = "online" if raw_status in ["up", "online", "active"] else "offline"
+                down_cause = None
+                if status != "online":
+                    raw_cause = cause_match.group(1) if cause_match else raw_status
+                    down_cause = BaseOLTDriver.normalize_down_cause(raw_cause)
+                down_time = time_match.group(1) if time_match else None
 
                 results.append(
                     ONUSummary(
@@ -246,6 +239,8 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                         onu_id=onu_id,
                         serial=serial,
                         status=status,
+                        last_down_cause=down_cause,
+                        last_down_time=down_time,
                     )
                 )
 
@@ -255,11 +250,6 @@ class FiberhomeTL1Driver(BaseOLTDriver):
     def parse_optical_info(response: str) -> Tuple[Optional[float], Optional[float]]:
         """
         Interpreta resposta TL1 de 'MEAS-OPTICAL'.
-        Exemplo:
-        IP 0
-        M  1 COMPLD
-        RX=-19.45  TX=2.15  VOLTAGE=3.30  BIAS=15.00
-        ;
         """
         rx_power: Optional[float] = None
         tx_power: Optional[float] = None
@@ -300,6 +290,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             mac_match = re.search(r"(?:MAC|SN)[=:]([A-Za-z0-9\-]+)", line_str, re.IGNORECASE)
             name_match = re.search(r'NAME[=:](?:"([^"]*)"|([^\s;,]+))', line_str, re.IGNORECASE)
             status_match = re.search(r"STATUS[=:]([a-zA-Z_\-]+)", line_str, re.IGNORECASE)
+            cause_match = re.search(r"(?:LASTDOWNCAUSE|DOWNCAUSE)[=:]([a-zA-Z0-9_\-]+)", line_str, re.IGNORECASE)
 
             if onuid_match and mac_match:
                 onu_id = int(onuid_match.group(1))
@@ -309,6 +300,9 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                 desc = name_match.group(1) or name_match.group(2) if name_match else None
                 raw_status = status_match.group(1).lower() if status_match else "unknown"
                 status = "online" if raw_status in ["up", "online", "active"] else "offline"
+                down_cause = None
+                if status != "online":
+                    down_cause = BaseOLTDriver.normalize_down_cause(cause_match.group(1) if cause_match else raw_status)
 
                 results.append(
                     ONUSummary(
@@ -317,6 +311,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                         serial=serial,
                         status=status,
                         name=desc,
+                        last_down_cause=down_cause,
                     )
                 )
                 continue
@@ -335,6 +330,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                 raw_status = (pos_match.group(6) or "unknown").lower()
                 status = "ACTIVE" if raw_status in ["up", "online", "active"] else ("INACTIVE" if raw_status in ["down", "inactive", "offline"] else raw_status)
                 desc = pos_match.group(7).strip() if pos_match.group(7) else None
+                down_cause = BaseOLTDriver.normalize_down_cause(raw_status) if status != "ACTIVE" else None
 
                 results.append(
                     ONUSummary(
@@ -343,6 +339,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                         serial=serial,
                         status=status,
                         name=desc,
+                        last_down_cause=down_cause,
                     )
                 )
 
@@ -861,8 +858,13 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         ]
         output = self._execute_tl1_commands(olt, commands)
         rx, tx = self.parse_optical_info(output)
+        cause_m = re.search(r"(?:LASTDOWNCAUSE|DOWNCAUSE)[=:]([a-zA-Z0-9_\-]+)", output, re.IGNORECASE)
+        time_m = re.search(r"(?:LASTDOWNTIME|DOWNTIME)[=:]([^\s;,]+)", output, re.IGNORECASE)
 
         status = "online" if rx is not None else "offline"
+        down_cause = BaseOLTDriver.normalize_down_cause(cause_m.group(1)) if cause_m else None
+        down_time = time_m.group(1) if time_m else None
+        macs = self.parse_mac_table_generic(output, default_port="1/1:1")
 
         return ONUDetails(
             port="1/1",
@@ -871,7 +873,37 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             status=status,
             rx_power_dbm=rx,
             tx_power_dbm=tx,
+            last_down_cause=down_cause,
+            last_down_time=down_time,
+            mac_table=macs,
         )
+
+    def get_onu_mac_table(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> List[ONUMacEntry]:
+        safe_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        slot, pon = self.parse_port_components(sanitize_port(port or "1/1"))
+        target_onu = onu_id if onu_id is not None else 1
+
+        if self.is_telnet_cli(olt):
+            client = self._open_telnet_session(olt)
+            try:
+                client.write("cd onu\r\n")
+                time.sleep(0.2)
+                client.read_until([b"#"])
+                out = self._exec_telnet_cmd(client, f"show mac slot {slot} pon {pon} onu {target_onu}")
+                return self.parse_mac_table_generic(out, default_port=f"{slot}/{pon}:{target_onu}")
+            finally:
+                client.write("exit\r\n")
+                client.close()
+
+        commands = [f"LST-ONUMAC::OLTID={slot},PONID={pon},ONUID={target_onu}:1::;"]
+        output = self._execute_tl1_commands(olt, commands)
+        return self.parse_mac_table_generic(output, default_port=f"{slot}/{pon}:{target_onu}")
 
     @staticmethod
     def build_telnet_provision_commands(

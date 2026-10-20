@@ -3,6 +3,7 @@ import '../../core/theme/app_colors.dart';
 import '../../models/onu_model.dart';
 import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
+import '../../providers/settings_provider.dart';
 
 class AuthorizeOnuDialog extends StatefulWidget {
   final UnauthorizedOnu onu;
@@ -28,12 +29,34 @@ class _AuthorizeOnuDialogState extends State<AuthorizeOnuDialog> {
   late final TextEditingController _vlanController;
   late final TextEditingController _profileController;
   bool _isSubmitting = false;
+  List<ProvisioningPresetModel> _presets = [];
+  String? _selectedPresetId;
 
   @override
   void initState() {
     super.initState();
-    _vlanController = TextEditingController(text: (widget.initialVlan ?? 100).toString());
-    _profileController = TextEditingController(text: widget.initialProfile ?? 'DEFAULT');
+    _vlanController =
+        TextEditingController(text: (widget.initialVlan ?? 100).toString());
+    _profileController =
+        TextEditingController(text: widget.initialProfile ?? 'DEFAULT');
+    _loadPresets();
+  }
+
+  Future<void> _loadPresets() async {
+    final settings = context.read<SettingsProvider>();
+    try {
+      final list = await settings.apiClient.getPresets();
+      if (!mounted) return;
+      setState(() {
+        _presets = list;
+        final def = list.where((p) => p.isDefault).firstOrNull;
+        if (def != null && widget.initialVlan == null) {
+          _selectedPresetId = def.id;
+          _vlanController.text = def.defaultVlan.toString();
+          _profileController.text = def.defaultProfile;
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -250,6 +273,45 @@ class _AuthorizeOnuDialogState extends State<AuthorizeOnuDialog> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                if (_presets.isNotEmpty) ...[
+                  DropdownButtonFormField<String?>(
+                    initialValue: _presets.any((p) => p.id == _selectedPresetId)
+                        ? _selectedPresetId
+                        : null,
+                    dropdownColor: AppColors.surfaceHover,
+                    decoration: const InputDecoration(
+                      labelText: 'Preset Universal (Auto-preenchimento)',
+                      prefixIcon: Icon(Icons.auto_awesome_outlined, size: 18),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Manual / Personalizado'),
+                      ),
+                      ..._presets.map(
+                        (p) => DropdownMenuItem<String?>(
+                          value: p.id,
+                          child: Text(
+                            '${p.name} (VLAN ${p.defaultVlan} • ${p.defaultProfile})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedPresetId = val;
+                        final chosen =
+                            _presets.where((p) => p.id == val).firstOrNull;
+                        if (chosen != null) {
+                          _vlanController.text = chosen.defaultVlan.toString();
+                          _profileController.text = chosen.defaultProfile;
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 TextFormField(
                   controller: _subscriberController,
                   decoration: const InputDecoration(

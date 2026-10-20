@@ -13,7 +13,7 @@ class ONUInventoryItem(BaseModel):
     subscriber_name: Optional[str] = Field(default=None, description="Nome do assinante")
     contract_status: str = Field(
         default="ACTIVE",
-        description="Estado do contrato no ERP: ACTIVE, SUSPENDED, CANCELLED, IN_STOCK",
+        description="Estado do contrato no ERP: ACTIVE, SUSPENDED, CANCELLED, IN_STOCK, PRE_PROVISIONED",
     )
     vlan: Optional[int] = Field(default=None, ge=1, le=4094, description="VLAN de serviço")
     profile: str = Field(default="DEFAULT", description="Perfil de linha/tráfego")
@@ -24,6 +24,18 @@ class ONUInventoryItem(BaseModel):
     current_port: Optional[str] = Field(default=None, description="Porta PON atual")
     current_onu_id: Optional[int] = Field(default=None, description="Índice ONU ID na porta atual")
     circuit_id: Optional[str] = Field(default=None, description="Identificador de circuito físico Broadband Forum TR-101")
+    last_rx_power_dbm: Optional[float] = Field(default=None, description="Última potência óptica Rx lida (dBm)")
+    last_tx_power_dbm: Optional[float] = Field(default=None, description="Última potência óptica Tx lida (dBm)")
+    last_olt_rx_power_dbm: Optional[float] = Field(default=None, description="Última potência óptica OLT Rx lida (dBm)")
+    last_down_cause: Optional[str] = Field(
+        default=None,
+        description="Última causa de desconexão: dying_gasp, los, lofi, admin_down, power_off, unknown",
+    )
+    last_down_time: Optional[str] = Field(default=None, description="Timestamp da última desconexão registrada")
+    last_telemetry_at: Optional[datetime] = Field(default=None, description="Timestamp da última coleta óptica")
+    zone_id: Optional[str] = Field(default=None, description="ID da Zona de Rede FTTH vinculada")
+    odb_id: Optional[str] = Field(default=None, description="ID da CTO / ODB vinculada")
+    odb_splitter_port: Optional[int] = Field(default=None, ge=1, le=128, description="Porta física do splitter na CTO/ODB")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     links: Dict[str, Link] = Field(default_factory=dict, alias="_links", serialization_alias="_links")
@@ -67,11 +79,17 @@ class RegisterONUInventoryRequest(BaseModel):
     profile: Optional[str] = Field(default="DEFAULT", description="Perfil de tráfego")
     contract_id: Optional[str] = Field(default=None, description="Código do contrato no ERP")
     subscriber_name: Optional[str] = Field(default=None, description="Nome do assinante")
-    contract_status: Optional[str] = Field(default="ACTIVE", description="ACTIVE, SUSPENDED, CANCELLED, IN_STOCK")
+    contract_status: Optional[str] = Field(
+        default="ACTIVE",
+        description="ACTIVE, SUSPENDED, CANCELLED, IN_STOCK, PRE_PROVISIONED",
+    )
     description: Optional[str] = Field(default=None, description="Descrição ou notas de campo")
     notes: Optional[str] = Field(default=None, description="Alias para description")
     latitude: Optional[float] = Field(default=None, description="Latitude geográfica")
     longitude: Optional[float] = Field(default=None, description="Longitude geográfica")
+    zone_id: Optional[str] = Field(default=None, description="ID da Zona FTTH")
+    odb_id: Optional[str] = Field(default=None, description="ID da CTO / ODB")
+    odb_splitter_port: Optional[int] = Field(default=None, ge=1, le=128, description="Porta física do splitter na CTO")
 
 
 class ReconcileFieldEventRequest(BaseModel):
@@ -114,3 +132,7 @@ class UpdateONUInventoryRequest(BaseModel):
     circuit_id: Optional[str] = Field(default=None, description="Identificador do circuito TR-101")
     vlan: Optional[int] = Field(default=None, ge=1, le=4094, description="VLAN de serviço")
     profile: Optional[str] = Field(default=None, description="Perfil de linha/tráfego")
+    zone_id: Optional[str] = Field(default=None, description="ID da Zona FTTH")
+    odb_id: Optional[str] = Field(default=None, description="ID da CTO / ODB")
+    odb_splitter_port: Optional[int] = Field(default=None, ge=1, le=128, description="Porta física do splitter na CTO")
+

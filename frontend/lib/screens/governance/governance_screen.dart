@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/governance_models.dart';
 import '../../models/olt_model.dart';
+import '../../models/onu_model.dart';
 import '../../providers/app_state.dart';
 
 class GovernanceScreen extends StatefulWidget {
@@ -41,6 +42,19 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
   bool _loadingRbac = false;
   String? _rbacError;
 
+  // Fase 4: Topology & CTO Health Map state
+  List<NetworkZoneModel> _zones = [];
+  List<OpticalDistributionBoxModel> _odbs = [];
+  TopologyHealthMapModel? _healthMap;
+  bool _loadingTopology = false;
+  String? _topologyError;
+
+  // Fase 3 & 5: Presets & ACS TR-069 state
+  List<ProvisioningPresetModel> _presets = [];
+  List<AcsServerConfigModel> _acsServers = [];
+  bool _loadingAcsPresets = false;
+  String? _acsPresetsError;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +82,12 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
         break;
       case 3:
         await _loadRbacData();
+        break;
+      case 4:
+        await _loadTopologyData();
+        break;
+      case 5:
+        await _loadAcsAndPresetsData();
         break;
     }
   }
@@ -1206,6 +1226,16 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
                     label: 'Usuários & API Keys',
                     icon: Icons.shield_outlined,
                   ),
+                  _buildSubTabButton(
+                    index: 4,
+                    label: 'Topologia & CTOs',
+                    icon: Icons.account_tree_outlined,
+                  ),
+                  _buildSubTabButton(
+                    index: 5,
+                    label: 'ACS TR-069 & Presets',
+                    icon: Icons.wifi_tethering,
+                  ),
                 ],
               ),
             ],
@@ -1220,6 +1250,8 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
                 _buildWebhooksTab(),
                 _buildTenantsTab(),
                 _buildRbacTab(),
+                _buildTopologyTab(),
+                _buildAcsAndPresetsTab(),
               ],
             ),
           ),
@@ -2424,4 +2456,978 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
       ),
     );
   }
+
+  // ==================== FASE 4: TOPOLOGIA & CTO HEALTH MAP ====================
+
+  Future<void> _loadTopologyData() async {
+    if (!mounted) return;
+    setState(() {
+      _loadingTopology = true;
+      _topologyError = null;
+    });
+    final api = context.read<AppState>().apiClient;
+    try {
+      final zones = await api.getNetworkZones();
+      final odbs = await api.getOdbs();
+      final health = await api.getTopologyHealthMap();
+      if (!mounted) return;
+      setState(() {
+        _zones = zones;
+        _odbs = odbs;
+        _healthMap = health;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _topologyError = e.toString());
+    } finally {
+      if (mounted) setState(() => _loadingTopology = false);
+    }
+  }
+
+  Future<void> _showCreateZoneModal() async {
+    final nameCtrl = TextEditingController();
+    final cityCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Nova Zona / Bairro FTTH'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Nome da Zona / Bairro *',
+                  hintText: 'Ex: Centro Histórico',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: cityCtrl,
+                decoration: const InputDecoration(labelText: 'Cidade'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: 'Descrição'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Criar Zona'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    if (nameCtrl.text.trim().length < 2) return;
+    try {
+      await context.read<AppState>().apiClient.createNetworkZone({
+        'name': nameCtrl.text.trim(),
+        'city': cityCtrl.text.trim().isNotEmpty ? cityCtrl.text.trim() : null,
+        'description':
+            descCtrl.text.trim().isNotEmpty ? descCtrl.text.trim() : null,
+      });
+      if (!mounted) return;
+      _showSnack('Zona criada com sucesso!');
+      await _loadTopologyData();
+    } catch (e) {
+      _showSnack('Erro ao criar zona: $e', isError: true);
+    }
+  }
+
+  Future<void> _showCreateOdbModal() async {
+    final codeCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    final ponCtrl = TextEditingController(text: '0/1/1');
+    final addrCtrl = TextEditingController();
+    String selectedRatio = '1:16';
+    String? selectedZoneId = _zones.isNotEmpty ? _zones.first.id : null;
+    final selectedOltId = context.read<AppState>().selectedOlt?.id;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('Nova Caixa de Atendimento Óptico (CTO/ODB)'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: codeCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Código Único da CTO *',
+                    hintText: 'Ex: CTO-CEN-01',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nome / Identificação *',
+                    hintText: 'Ex: CTO Rua XV Poste 12',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (_zones.isNotEmpty)
+                  DropdownButtonFormField<String?>(
+                    initialValue: selectedZoneId,
+                    decoration: const InputDecoration(labelText: 'Zona / Bairro'),
+                    items: _zones
+                        .map(
+                          (z) => DropdownMenuItem<String?>(
+                            value: z.id,
+                            child: Text(z.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) => setModalState(() => selectedZoneId = val),
+                  ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: ponCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Porta PON'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: selectedRatio,
+                        decoration:
+                            const InputDecoration(labelText: 'Splitter'),
+                        items: const [
+                          DropdownMenuItem(value: '1:8', child: Text('1:8')),
+                          DropdownMenuItem(value: '1:16', child: Text('1:16')),
+                          DropdownMenuItem(value: '1:32', child: Text('1:32')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setModalState(() => selectedRatio = v);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: addrCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Endereço / Referência'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Cadastrar CTO'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    if (codeCtrl.text.trim().length < 2 || nameCtrl.text.trim().length < 2) {
+      return;
+    }
+    try {
+      final cap = int.tryParse(selectedRatio.replaceFirst('1:', '')) ?? 16;
+      await context.read<AppState>().apiClient.createOdb({
+        'code': codeCtrl.text.trim().toUpperCase(),
+        'name': nameCtrl.text.trim(),
+        'zone_id': selectedZoneId,
+        'olt_id': selectedOltId,
+        'pon_port': ponCtrl.text.trim(),
+        'splitter_capacity': cap,
+        'address':
+            addrCtrl.text.trim().isNotEmpty ? addrCtrl.text.trim() : null,
+      });
+      if (!mounted) return;
+      _showSnack('CTO/ODB cadastrada com sucesso!');
+      await _loadTopologyData();
+    } catch (e) {
+      _showSnack('Erro ao cadastrar CTO: $e', isError: true);
+    }
+  }
+
+  Future<void> _handleDeleteZone(NetworkZoneModel z) async {
+    try {
+      await context.read<AppState>().apiClient.deleteNetworkZone(z.id);
+      if (!mounted) return;
+      _showSnack('Zona ${z.name} removida.');
+      await _loadTopologyData();
+    } catch (e) {
+      _showSnack('Erro ao remover zona: $e', isError: true);
+    }
+  }
+
+  Future<void> _handleDeleteOdb(String odbId, String code) async {
+    try {
+      await context.read<AppState>().apiClient.deleteOdb(odbId);
+      if (!mounted) return;
+      _showSnack('CTO/ODB $code removida.');
+      await _loadTopologyData();
+    } catch (e) {
+      _showSnack('Erro ao remover CTO: $e', isError: true);
+    }
+  }
+
+  Widget _buildTopologyTab() {
+    final hm = _healthMap;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_topologyError != null)
+            _buildErrorBanner(_topologyError!, _loadTopologyData),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.surfaceBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.account_tree_outlined,
+                            color: AppColors.accentCyan, size: 20),
+                        SizedBox(width: 10),
+                        Text(
+                          'Mapa de Saúde FTTH por CTO / ODB (Correlação de Quedas)',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _showCreateZoneModal,
+                          icon: const Icon(Icons.location_city, size: 16),
+                          label: const Text('Nova Zona'),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _showCreateOdbModal,
+                          icon: const Icon(Icons.add_box_outlined, size: 16),
+                          label: const Text('Nova CTO / ODB'),
+                        ),
+                        IconButton(
+                          onPressed: _loadingTopology ? null : _loadTopologyData,
+                          icon: const Icon(Icons.refresh, size: 18),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _buildMetricTile(
+                      'Zonas FTTH',
+                      '${hm?.totalZones ?? _zones.length}',
+                      Icons.map_outlined,
+                    ),
+                    _buildMetricTile(
+                      'Total CTOs',
+                      '${hm?.totalOdbs ?? _odbs.length}',
+                      Icons.inventory_2_outlined,
+                    ),
+                    _buildMetricTile(
+                      'CTOs Saudáveis',
+                      '${hm?.healthyOdbs ?? 0}',
+                      Icons.check_circle_outline,
+                    ),
+                    _buildMetricTile(
+                      'Queda Elétrica (Dying Gasp)',
+                      '${hm?.powerOutageOdbs ?? 0}',
+                      Icons.flash_off_outlined,
+                    ),
+                    _buildMetricTile(
+                      'Rompimento Fibra (LoS)',
+                      '${hm?.fiberCutOdbs ?? 0}',
+                      Icons.content_cut_outlined,
+                    ),
+                  ],
+                ),
+                if (_zones.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _zones
+                        .map(
+                          (z) => Chip(
+                            backgroundColor: AppColors.surfaceHover,
+                            label: Text(
+                              'Zona: ${z.name}${z.city != null ? " (${z.city})" : ""}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            onDeleted: () => _handleDeleteZone(z),
+                            deleteIconColor: AppColors.statusDanger,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                if (hm == null || hm.nodes.isEmpty)
+                  _buildEmptyBox(
+                    'Nenhuma CTO/ODB cadastrada. Crie zonas e CTOs acima para correlacionar quedas elétricas vs rompimentos de fibra.',
+                  )
+                else
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: hm.nodes.map((node) {
+                      Color statusColor = AppColors.statusOnline;
+                      String statusLabel = 'OPERACIONAL';
+                      if (node.healthStatus == 'fiber_cut') {
+                        statusColor = AppColors.statusDanger;
+                        statusLabel = '✂️ ROMPIMENTO FIBRA (LoS)';
+                      } else if (node.healthStatus == 'power_outage') {
+                        statusColor = AppColors.statusWarning;
+                        statusLabel = '⚡ QUEDA ELÉTRICA';
+                      } else if (node.healthStatus == 'degraded') {
+                        statusColor = AppColors.statusWarning;
+                        statusLabel = '⚠️ SINAL DEGRADADO';
+                      }
+                      return Container(
+                        width: 290,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceHover,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: statusColor.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    '${node.code} • ${node.name}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      node.splitterRatio,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.accentCyan,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    InkWell(
+                                      onTap: () => _handleDeleteOdb(
+                                          node.odbId, node.code),
+                                      child: const Icon(
+                                        Icons.delete_outline,
+                                        size: 16,
+                                        color: AppColors.statusDanger,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            _buildBadge(statusLabel, statusColor),
+                            const SizedBox(height: 8),
+                            Text(
+                              'ONUs: ${node.onlineOnus}/${node.totalOnus} online • LoS: ${node.losOnus} • DyingGasp: ${node.dyingGaspOnus}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            if (node.diagnosisSummary.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                node.diagnosisSummary,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== FASE 3 & 5: ACS TR-069 & PRESETS ====================
+
+  Future<void> _loadAcsAndPresetsData() async {
+    if (!mounted) return;
+    setState(() {
+      _loadingAcsPresets = true;
+      _acsPresetsError = null;
+    });
+    final api = context.read<AppState>().apiClient;
+    try {
+      final presets = await api.getPresets();
+      final servers = await api.getAcsServers();
+      if (!mounted) return;
+      setState(() {
+        _presets = presets;
+        _acsServers = servers;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _acsPresetsError = e.toString());
+    } finally {
+      if (mounted) setState(() => _loadingAcsPresets = false);
+    }
+  }
+
+  Future<void> _showCreatePresetModal() async {
+    final nameCtrl = TextEditingController();
+    final vlanCtrl = TextEditingController(text: '100');
+    final profileCtrl = TextEditingController(text: 'DEFAULT');
+    final patternCtrl = TextEditingController(text: '*');
+    bool isDefault = false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('Novo Preset Universal de Provisionamento'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nome do Preset *',
+                    hintText: 'Ex: Plano Residencial 500M',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: vlanCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'VLAN Padrão *'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: profileCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Perfil DBA *'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: patternCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Filtro de Modelo ONU (* para todos)',
+                  ),
+                ),
+                CheckboxListTile(
+                  value: isDefault,
+                  onChanged: (v) =>
+                      setModalState(() => isDefault = v ?? false),
+                  title: const Text(
+                    'Definir como Preset Padrão (1-Clique)',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Salvar Preset'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    if (nameCtrl.text.trim().length < 2) return;
+    try {
+      final parsedVlan = int.tryParse(vlanCtrl.text.trim()) ?? 100;
+      final prof = profileCtrl.text.trim().isNotEmpty
+          ? profileCtrl.text.trim()
+          : 'DEFAULT';
+      await context.read<AppState>().apiClient.createPreset({
+        'name': nameCtrl.text.trim(),
+        'vlan': parsedVlan,
+        'mode': 'transparent',
+        'line_profile': prof,
+        'srv_profile': prof,
+        'is_default': isDefault,
+      });
+      if (!mounted) return;
+      _showSnack('Preset Universal criado com sucesso!');
+      await _loadAcsAndPresetsData();
+    } catch (e) {
+      _showSnack('Erro ao criar preset: $e', isError: true);
+    }
+  }
+
+  Future<void> _handleDeletePreset(ProvisioningPresetModel p) async {
+    try {
+      await context.read<AppState>().apiClient.deletePreset(p.id);
+      if (!mounted) return;
+      _showSnack('Preset ${p.name} removido.');
+      await _loadAcsAndPresetsData();
+    } catch (e) {
+      _showSnack('Erro ao remover preset: $e', isError: true);
+    }
+  }
+
+  Future<void> _showCreateAcsModal() async {
+    final nameCtrl = TextEditingController(text: 'GenieACS Principal');
+    final nbiCtrl = TextEditingController(text: 'http://10.0.0.50:7557');
+    final cwmpCtrl = TextEditingController(text: 'http://10.0.0.50:7547');
+    final userCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Cadastrar Servidor ACS TR-069 (GenieACS NBI)'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration:
+                    const InputDecoration(labelText: 'Nome do Servidor ACS *'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: nbiCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'URL da API NBI (GenieACS) *',
+                  hintText: 'http://10.0.0.50:7557',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: cwmpCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'URL CWMP Inform para CPEs *',
+                  hintText: 'http://10.0.0.50:7547',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: userCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'Usuário HTTP'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: passCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                          labelText: 'Senha (Fernet AES)'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Salvar ACS'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<AppState>().apiClient.createAcsServer({
+        'name': nameCtrl.text.trim(),
+        'nbi_url': nbiCtrl.text.trim(),
+        'cwmp_inform_url': cwmpCtrl.text.trim(),
+        'username':
+            userCtrl.text.trim().isNotEmpty ? userCtrl.text.trim() : null,
+        'password':
+            passCtrl.text.trim().isNotEmpty ? passCtrl.text.trim() : null,
+      });
+      if (!mounted) return;
+      _showSnack('Servidor ACS TR-069 cadastrado com sucesso!');
+      await _loadAcsAndPresetsData();
+    } catch (e) {
+      _showSnack('Erro ao cadastrar ACS: $e', isError: true);
+    }
+  }
+
+  Future<void> _handleTestAcsServer(AcsServerConfigModel s) async {
+    try {
+      final res = await context.read<AppState>().apiClient.testAcsServer(s.id);
+      if (!mounted) return;
+      final ok = res['reachable'] == true;
+      _showSnack(
+        res['message']?.toString() ??
+            (ok ? 'Conexão NBI validada!' : 'Servidor ACS inacessível.'),
+        isError: !ok,
+      );
+    } catch (e) {
+      _showSnack('Falha no teste de conexão ACS: $e', isError: true);
+    }
+  }
+
+  Future<void> _handleDeleteAcsServer(AcsServerConfigModel s) async {
+    try {
+      await context.read<AppState>().apiClient.deleteAcsServer(s.id);
+      if (!mounted) return;
+      _showSnack('Servidor ACS ${s.name} removido.');
+      await _loadAcsAndPresetsData();
+    } catch (e) {
+      _showSnack('Erro ao remover ACS: $e', isError: true);
+    }
+  }
+
+  Widget _buildAcsAndPresetsTab() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_acsPresetsError != null)
+            _buildErrorBanner(_acsPresetsError!, _loadAcsAndPresetsData),
+
+          // Seção Presets Universais (Fase 3)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.surfaceBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_awesome_outlined,
+                            color: AppColors.accentCyan, size: 20),
+                        SizedBox(width: 10),
+                        Text(
+                          'Presets Universais de Provisionamento (Fase 3)',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    ElevatedButton.icon(
+                      onPressed:
+                          _loadingAcsPresets ? null : _showCreatePresetModal,
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Novo Preset Universal'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (_presets.isEmpty)
+                  _buildEmptyBox(
+                    'Nenhum Preset Universal cadastrado. Crie templates reutilizáveis para autorização em 1 clique.',
+                  )
+                else
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: _presets.map((p) {
+                      return Container(
+                        width: 270,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceHover,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: p.isDefault
+                                ? AppColors.accentCyan
+                                : AppColors.surfaceBorder,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    p.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (p.isDefault) ...[
+                                      _buildBadge(
+                                          'PADRÃO', AppColors.accentCyan),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    InkWell(
+                                      onTap: () => _handleDeletePreset(p),
+                                      child: const Icon(
+                                        Icons.delete_outline,
+                                        size: 16,
+                                        color: AppColors.statusDanger,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'VLAN ${p.defaultVlan} • Perfil: ${p.defaultProfile} • Modo: ${p.defaultMode}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Seção Servidores ACS TR-069 / CWMP (Fase 5)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.surfaceBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.wifi_tethering,
+                            color: AppColors.primaryLight, size: 20),
+                        SizedBox(width: 10),
+                        Text(
+                          'Servidores ACS TR-069 / CWMP (GenieACS NBI)',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _showCreateAcsModal,
+                      icon: const Icon(Icons.add_link, size: 16),
+                      label: const Text('Conectar Servidor ACS'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (_acsServers.isEmpty)
+                  _buildEmptyBox(
+                    'Nenhum servidor ACS TR-069 cadastrado. Conecte seu GenieACS para gerência remota de Wi-Fi 2.4G/5G, PPPoE e OTA.',
+                  )
+                else
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: _acsServers.map((s) {
+                      return Container(
+                        width: 320,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceHover,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.surfaceBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    s.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                _buildBadge(
+                                  s.isActive ? 'ATIVO' : 'INATIVO',
+                                  s.isActive
+                                      ? AppColors.statusOnline
+                                      : AppColors.textMuted,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'NBI: ${s.baseUrl}\nCWMP: ${s.cwmpUrl}',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () => _handleTestAcsServer(s),
+                                  icon: const Icon(Icons.network_check,
+                                      size: 14),
+                                  label: const Text(
+                                    'Testar NBI',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  onPressed: () => _handleDeleteAcsServer(s),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                    color: AppColors.statusDanger,
+                                  ),
+                                  tooltip: 'Excluir Servidor ACS',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+

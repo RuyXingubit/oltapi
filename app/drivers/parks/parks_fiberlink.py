@@ -27,7 +27,7 @@ from app.models.olt import (
     OLTWizardOnboardRequest,
     VLANServicePurpose,
 )
-from app.models.onu import ONUDetails, ONUSummary, UnauthorizedONU
+from app.models.onu import ONUDetails, ONUMacEntry, ONUSummary, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.models.vlan import ProfileItem, VLANCreateRequest, VLANItem
 from app.services.ftp_service import FTPService
@@ -330,7 +330,6 @@ class ParksFiberlinkDriver(BaseOLTDriver):
 
         port_pattern = re.compile(r"^Interface\s+(gpon\d+/\d+)", re.IGNORECASE)
         onu_header_pattern = re.compile(r"^\s*(\d+)-([a-zA-Z0-9]+):")
-        alias_pattern = re.compile(r"^\s*Alias:\s*(.*)", re.IGNORECASE)
 
         for line in output.splitlines():
             port_match = port_pattern.match(line.strip())
@@ -373,6 +372,8 @@ class ParksFiberlinkDriver(BaseOLTDriver):
         rx_power: Optional[float] = None
         olt_rx_power: Optional[float] = None
         status = "offline"
+        down_cause: Optional[str] = None
+        down_time: Optional[str] = None
 
         power_match = re.search(r"Power\s+Level\s*:\s*(-?\d+(?:\.\d+)?)\s*dBm", output, re.IGNORECASE)
         if power_match:
@@ -382,20 +383,40 @@ class ParksFiberlinkDriver(BaseOLTDriver):
         if rssi_match:
             olt_rx_power = float(rssi_match.group(1))
 
+        cause_match = re.search(
+            r"(?:Last\s+Down\s+Cause|Down\s+Cause|Deactive\s+Reason|Alarm)\s*:\s*([^\r\n]+)",
+            output,
+            re.IGNORECASE,
+        )
+        if cause_match:
+            down_cause = BaseOLTDriver.normalize_down_cause(cause_match.group(1).strip())
+
+        time_match = re.search(
+            r"(?:Last\s+Down\s+Time|Down\s+Time)\s*:\s*([^\r\n]+)",
+            output,
+            re.IGNORECASE,
+        )
+        if time_match:
+            down_time = time_match.group(1).strip()
+
         if "Status" in output:
-            status_match = re.search(r"Status\s*:\s*([A-Za-z]+)", output)
+            status_match = re.search(r"Status\s*:\s*([A-Za-z0-9_\-\s\(\)]+)", output)
             if status_match:
-                raw_st = status_match.group(1).upper()
+                raw_st = status_match.group(1).upper().strip()
                 if "ACT" in raw_st:
                     status = "online"
-                elif "DIS" in raw_st or "INV" in raw_st:
+                elif "DIS" in raw_st or "INV" in raw_st or "BLACKLIST" in raw_st:
                     status = "suspended"
+                    down_cause = down_cause or "admin_down"
                 else:
                     status = "offline"
+                    down_cause = down_cause or BaseOLTDriver.normalize_down_cause(raw_st)
 
         if rx_power is not None and rx_power > -40.0:
             status = "online"
+            down_cause = None
 
+        macs = self.parse_mac_table_generic(output, default_port="gpon1/1")
         serial_upper = serial.upper()
         return ONUDetails(
             serial=serial_upper,
@@ -406,7 +427,25 @@ class ParksFiberlinkDriver(BaseOLTDriver):
             tx_power_dbm=None,
             olt_rx_power_dbm=olt_rx_power,
             vlan=None,
+            last_down_cause=down_cause,
+            last_down_time=down_time,
+            mac_table=macs,
         )
+
+    def get_onu_mac_table(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> List[ONUMacEntry]:
+        serial = sanitize_serial(serial_or_id).lower()
+        canonical_port = self.normalize_port(port) if port else "gpon1/1"
+        output = self._execute_cli_commands(
+            olt,
+            [f"show gpon onu {serial} mac"],
+        )
+        return self.parse_mac_table_generic(output, default_port=canonical_port)
 
     def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
         """

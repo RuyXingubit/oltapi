@@ -1,14 +1,105 @@
 from abc import ABC, abstractmethod
+import re
 from typing import List, Optional, Tuple
 from app.models.bootstrap import BootstrapRequest
 from app.models.olt import OLTInDB, OLTPortStatusItem
-from app.models.onu import ONUSummary, ONUDetails, UnauthorizedONU
+from app.models.onu import ONUMacEntry, ONUSummary, ONUDetails, UnauthorizedONU
 from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
 from app.models.vlan import VLANItem, VLANCreateRequest, ProfileItem
 
 
 class BaseOLTDriver(ABC):
     """Interface abstrata base para drivers de OLT de todos os fabricantes."""
+
+    @staticmethod
+    def normalize_down_cause(raw_cause: Optional[str]) -> Optional[str]:
+        """
+        Normaliza strings brutas de causa de desconexão da CLI de diferentes fabricantes
+        para o vocabulário canônico do OLTAPI:
+        - 'dying_gasp': Queda de energia elétrica na CPE do assinante
+        - 'los': Perda de sinal óptico (rompimento de fibra / conector solto)
+        - 'lofi': Perda de quadro óptico / atenuação severa
+        - 'admin_down': Bloqueio administrativo / blacklist / disable
+        - 'power_off': Desligamento de energia reportado
+        - 'unknown': Desconhecido
+        """
+        if not raw_cause:
+            return None
+        cleaned = raw_cause.strip().lower().replace("-", "_").replace(" ", "_")
+        if not cleaned or cleaned in ("none", "null", "n/a", "--", "up", "online", "working", "active", "syncmib"):
+            return None
+        if any(k in cleaned for k in ("dying", "dgasp", "dying_gasp", "dyinggasp", "power_down")):
+            return "dying_gasp"
+        if any(k in cleaned for k in ("lofi", "lof", "loami")):
+            return "lofi"
+        if any(k in cleaned for k in ("los", "loss_of_signal", "optical_los", "link_down")):
+            return "los"
+        if any(k in cleaned for k in ("admin", "disable", "blacklist", "suspend", "deactive")):
+            return "admin_down"
+        if any(k in cleaned for k in ("pwr", "power_off", "poweroff")):
+            return "power_off"
+        if cleaned in ("offline", "down", "inactive", "dormant", "initial"):
+            return "unknown"
+        return "unknown"
+
+    @staticmethod
+    def format_canonical_mac(raw_mac: str) -> Optional[str]:
+        """Normaliza qualquer representação de MAC (XX:XX..., XX-XX..., XXXX.XXXX.XXXX) para AA:BB:CC:DD:EE:FF."""
+        hex_only = re.sub(r"[^0-9A-Fa-f]", "", raw_mac or "")
+        if len(hex_only) != 12:
+            return None
+        upper_hex = hex_only.upper()
+        return ":".join(upper_hex[i : i + 2] for i in range(0, 12, 2))
+
+    @classmethod
+    def parse_mac_table_generic(cls, output: str, default_port: Optional[str] = None) -> List[ONUMacEntry]:
+        """
+        Extrai entradas FDB/MAC de saídas CLI de OLTs (formatos XX:XX:XX:XX:XX:XX,
+        XX-XX-XX-XX-XX-XX ou XXXX.XXXX.XXXX), capturando VLAN e porta quando disponíveis.
+        """
+        entries: List[ONUMacEntry] = []
+        seen = set()
+        mac_regex = re.compile(
+            r"(?:[0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}|(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}"
+        )
+        for line in (output or "").splitlines():
+            line_s = line.strip()
+            if not line_s or line_s.startswith("---") or "mac address" in line_s.lower() and "vlan" in line_s.lower():
+                continue
+            m = mac_regex.search(line_s)
+            if not m:
+                continue
+            canonical_mac = cls.format_canonical_mac(m.group(0))
+            if not canonical_mac or canonical_mac in seen:
+                continue
+            seen.add(canonical_mac)
+
+            # Remove o MAC da linha para procurar VLAN (1..4094) e porta
+            remainder = (line_s[: m.start()] + " " + line_s[m.end() :]).strip()
+            vlan_val: Optional[int] = None
+            vlan_m = re.search(r"\b(?:vlan\s*[:=]?\s*)?(\d{1,4})\b", remainder, re.IGNORECASE)
+            if vlan_m:
+                cand = int(vlan_m.group(1))
+                if 1 <= cand <= 4094:
+                    vlan_val = cand
+
+            port_val = default_port
+            port_m = re.search(
+                r"\b((?:eth|uni|veip|gemport|gpon|pon|fe|ge)[_\-\s/]*\d+(?:/\d+(?::\d+)?)?)\b",
+                remainder,
+                re.IGNORECASE,
+            )
+            if port_m:
+                port_val = port_m.group(1).strip()
+
+            entries.append(
+                ONUMacEntry(
+                    mac_address=canonical_mac,
+                    vlan=vlan_val,
+                    port=port_val,
+                )
+            )
+        return entries
 
     @abstractmethod
     def get_running_config(self, olt: OLTInDB) -> str:
@@ -34,6 +125,16 @@ class BaseOLTDriver(ABC):
     def get_onu_details(self, olt: OLTInDB, serial_or_id: str) -> ONUDetails:
         """Obtém diagnóstico detalhado e níveis de potência óptica (dBm) de uma ONU."""
         pass
+
+    def get_onu_mac_table(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> List[ONUMacEntry]:
+        """Obtém a tabela de endereços MAC aprendidos nas portas da ONU."""
+        return []
 
     @abstractmethod
     def provision_onu(self, olt: OLTInDB, req: ProvisionRequest) -> ProvisionResponse:
