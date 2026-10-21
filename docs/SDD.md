@@ -1,7 +1,7 @@
 # SDD — System Design & Specification Document (`oltapi`)
 
-**Versão:** 1.0 (Realinhamento Arquitetural & Spec-Driven Development)  
-**Data de Atualização:** 14 de Outubro de 2026  
+**Versão:** 1.1 (Homologação Huawei MA5800-X2 Brownfield & Greenfield + 100 Operações OpenAPI)  
+**Data de Atualização:** 21 de Outubro de 2026  
 **Status:** Especificação Oficial Ativa (Fonte Única da Verdade de Engenharia)
 
 ---
@@ -12,7 +12,7 @@ Este **System Design & Specification Document (SDD)** consolida a arquitetura re
 
 Qualquer nova funcionalidade, refatoração, homologação de equipamento ou correção deve respeitar estritamente os 5 pilares abaixo:
 
-1. **Workflow API-First & Sincronia Obrigatória ([`docs/api_contracts/`](file:///Volumes/240/Code/oltapi/docs/api_contracts)):** O backend é 100% REST JSON (sem servir páginas estáticas em `app/static/`). Antes de qualquer commit/push, `python -m scripts.export_openapi` sincroniza `openapi.yaml` e `openapi.json` (**75 rotas**, **96 operações HTTP** e **96 schemas**).
+1. **Workflow API-First & Sincronia Obrigatória ([`docs/api_contracts/`](file:///Volumes/240/Code/oltapi/docs/api_contracts)):** O backend é 100% REST JSON (sem servir páginas estáticas em `app/static/`). Antes de qualquer commit/push, `python -m scripts.export_openapi` sincroniza `openapi.yaml` e `openapi.json` (**100 operações HTTP** e **126 schemas**).
 2. **Governança de Drivers & Proibição de Fabricantes Teóricos ([`AGENTS.md`](file:///Volumes/240/Code/oltapi/AGENTS.md)):** É terminantemente proibido adicionar drivers de fabricantes sem acesso a hardware físico de bancada para homologação com tráfego real. Todo driver herda de [`BaseOLTDriver`](file:///Volumes/240/Code/oltapi/app/drivers/base.py), auto-registra-se via `@DriverRegistry.register` em [`app/drivers/registry.py`](file:///Volumes/240/Code/oltapi/app/drivers/registry.py) e passa na suíte [`BaseDriverComplianceTest`](file:///Volumes/240/Code/oltapi/tests/unit/test_driver_compliance.py).
 3. **Isolamento Radical (Ports & Adapters):** Um driver nunca importa outro driver. É proibido usar `hasattr(driver, ...)` ou condicionais de fabricante (`if olt.vendor == ...`) nos serviços de negócio.
 4. **Zero Dados Falsos e Desenvolvimento Estritamente Sob Demanda:** Proibição total de dados mocados, cards inventados ou funcionalidades não solicitadas. Em telas Flutter, aplicação obrigatória de constraints defensivas (`Expanded`, `Flexible`, `SingleChildScrollView`, `TextOverflow.ellipsis`) com tolerância zero a pixel overflow.
@@ -51,9 +51,11 @@ flowchart TB
         FH["FiberhomeTL1Driver\nAN5516 / AN6000 (Telnet CLI + TL1)"]
         VS["VSOLV1600Driver\nV1600G / V1600GT (SSH / Telnet CLI)"]
         PK["ParksFiberlinkDriver\nFiberlink 10008S / 21000 (Telnet CLI)"]
+        HW["HuaweiVRPDriver\nMA5800-X2 / MA5600T (Telnet / SSH VRP)"]
         Registry --> FH
         Registry --> VS
         Registry --> PK
+        Registry --> HW
     end
 
     FlutterApp -->|REST JSON + X-API-Key / Bearer JWT| Routers
@@ -115,6 +117,7 @@ flowchart TB
 | **`fiberhome`** | `an5516`, `an6000` | [`FiberhomeTL1Driver`](file:///Volumes/240/Code/oltapi/app/drivers/fiberhome/fiberhome_tl1.py) | Telnet CLI (23) / TL1 (3337) | Paginação suprimida, navegação `cd service` para descoberta SNMP, leitura óptica dupla (ONU RX + OLT RX), modos Router PPPoE, Bridge e VEIP, upload FTP nativo com fallback terminal. |
 | **`vsol`** | `v1600` (`v1600g`, `v1600gt`) | [`VSOLV1600Driver`](file:///Volumes/240/Code/oltapi/app/drivers/vsol/vsol_v1600.py) | SSH (22) / Telnet (23) | Senha em `enable`, submodo obrigatório `commit` em perfis (`dba`, `line`, `srv`), `p2p enable` intra-PON, desbloqueio ACL SNMP (`login-access-list`), inspeção AUX vs SVI In-Band e gravação via `write`. Relatório: [`HOMOLOGACAO_VSOL_V1600.md`](file:///Volumes/240/Code/oltapi/docs/HOMOLOGACAO_VSOL_V1600.md). |
 | **`parks`** | `fiberlink`, `10008`, `21000`, `2000` | [`ParksFiberlinkDriver`](file:///Volumes/240/Code/oltapi/app/drivers/parks/parks_fiberlink.py) | Telnet (23) | Contorno de segfault do Dropbear SSH via Telnet RFC 854 com handshake `<RETURN>`, `terminal length 0`, ativação de LANs via `ethernet-profile auto-on uni-port 1-4`, bloqueio por `gpon blacklist`, leitura dupla (`status` + `rssi`) e gravação via `copy running-config startup-config`. Relatório: [`HOMOLOGACAO_PARKS_FIBERLINK.md`](file:///Volumes/240/Code/oltapi/docs/HOMOLOGACAO_PARKS_FIBERLINK.md). |
+| **`huawei`** | `ma5800`, `ma5800-x2`, `ma5800-x7`, `ma5800-x15`, `ma5800-x17`, `ma5608t`, `ma5683t`, `ma5680t` | [`HuaweiVRPDriver`](file:///Volumes/240/Code/oltapi/app/drivers/huawei/huawei_vrp.py) | Telnet (23) / SSH (22) | Paginação via `scroll 512`, auto-resposta a prompts `{ <cr> }` e `(y/n)`, filtro de avisos assíncronos de duplicação de flash Dual-MPU, migração Brownfield do SmartOLT + comissionamento Greenfield `OLTAPI_*`, troca de VLAN in-place via `ont modify` (0s queda), movimentação automática de porta PON (`move_onu_port`), revelação de SNMP `cipher` em texto plano (`display snmp-agent community read`) e backup FTP com fallback terminal. Relatório: [`HOMOLOGACAO_HUAWEI_MA5800.md`](file:///Volumes/240/Code/oltapi/docs/HOMOLOGACAO_HUAWEI_MA5800.md). |
 
 ### 4.2. Suíte de Conformidade Obrigatória (`BaseDriverComplianceTest`)
 Todo driver registrado no [`DriverRegistry`](file:///Volumes/240/Code/oltapi/app/drivers/registry.py) é submetido automaticamente aos testes polimórficos em [`tests/unit/test_driver_compliance.py`](file:///Volumes/240/Code/oltapi/tests/unit/test_driver_compliance.py), cobrindo:

@@ -14,7 +14,13 @@ from app.models.presets import (
     BatchONUActionRequest,
     BatchONUActionResponse,
 )
-from app.models.provision import ONUActionResponse, ProvisionRequest, ProvisionResponse
+from app.models.provision import (
+    ONUActionResponse,
+    ONUChangeVLANRequest,
+    ONUMovePortRequest,
+    ProvisionRequest,
+    ProvisionResponse,
+)
 from app.storage.olt_repository import OLTRepository
 from app.storage.onu_repository import ONUInventoryRepository
 
@@ -348,6 +354,125 @@ def resume_onu(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao reativar ONU: {str(e)}")
+
+
+@router.patch("/{olt_id}/onus/{serial_or_id}/vlan", response_model=ONUActionResponse)
+def change_onu_vlan(
+    olt_id: str,
+    serial_or_id: str,
+    req: ONUChangeVLANRequest,
+    repo: OLTRepository = Depends(get_olt_repo),
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Altera a VLAN de serviço de uma ONU já provisionada na OLT."""
+    ctx.enforce_scope("onus:provision")
+    ctx.enforce_olt(olt_id)
+    ctx.enforce_vlan(olt_id, req.vlan)
+
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    try:
+        clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        clean_port = sanitize_interface_port(req.port) if req.port else None
+        driver = DriverFactory.get_driver(olt)
+        result = driver.change_onu_vlan(
+            olt,
+            clean_id,
+            new_vlan=req.vlan,
+            port=clean_port,
+            onu_id=req.onu_id,
+            mode=req.mode or "bridge",
+        )
+        try:
+            onu_item = onu_repo.get_by_serial(result.serial or clean_id)
+            if onu_item:
+                onu_item.vlan = req.vlan
+                onu_repo.upsert(onu_item)
+        except Exception as e:
+            logger.warning(f"Não foi possível atualizar VLAN no inventário para {clean_id}: {e}")
+
+        result.links = {
+            "details": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}",
+                method="GET",
+                description="Consultar detalhes e VLAN atualizada da ONU",
+            ),
+        }
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao alterar VLAN da ONU: {str(e)}")
+
+
+@router.post("/{olt_id}/onus/{serial_or_id}/move-port", response_model=ONUActionResponse)
+def move_onu_port(
+    olt_id: str,
+    serial_or_id: str,
+    req: ONUMovePortRequest,
+    repo: OLTRepository = Depends(get_olt_repo),
+    onu_repo: ONUInventoryRepository = Depends(get_onu_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Move uma ONU de sua porta PON atual para uma nova porta PON na mesma OLT."""
+    ctx.enforce_scope("onus:provision")
+    ctx.enforce_olt(olt_id)
+    if req.vlan:
+        ctx.enforce_vlan(olt_id, req.vlan)
+
+    olt = repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    try:
+        clean_id = sanitize_safe_string(serial_or_id, "identificador da onu")
+        clean_target_port = sanitize_interface_port(req.target_port)
+        driver = DriverFactory.get_driver(olt)
+        result = driver.move_onu_port(
+            olt,
+            clean_id,
+            target_port=clean_target_port,
+            target_onu_id=req.target_onu_id,
+            vlan=req.vlan,
+            mode=req.mode or "bridge",
+            description=req.description,
+        )
+        try:
+            onu_item = onu_repo.get_by_serial(result.serial or clean_id)
+            if onu_item:
+                onu_item.current_olt_id = olt_id
+                onu_item.current_port = result.port
+                onu_item.current_onu_id = result.onu_id
+                if req.vlan:
+                    onu_item.vlan = req.vlan
+                onu_repo.upsert(onu_item)
+        except Exception as e:
+            logger.warning(f"Não foi possível atualizar porta no inventário para {clean_id}: {e}")
+
+        result.links = {
+            "details": Link(
+                href=f"/api/v1/olts/{olt_id}/onus/{result.serial}",
+                method="GET",
+                description="Consultar detalhes da ONU na nova porta",
+            ),
+            "port_onus": Link(
+                href=f"/api/v1/olts/{olt_id}/ports/{result.port}/onus",
+                method="GET",
+                description="Listar ONUs da nova porta PON",
+            ),
+        }
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao mover ONU de porta: {str(e)}")
 
 
 @router.post("/{olt_id}/onus/batch-action", response_model=BatchONUActionResponse)

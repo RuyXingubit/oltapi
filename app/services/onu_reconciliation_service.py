@@ -90,23 +90,13 @@ class ONUReconciliationService:
             except Exception:
                 target_onu_id = 1
 
-        # A) Provisiona na nova posição física (onde a luz acendeu)
-        prov_req = ProvisionRequest(
-            port=req.detected_port,
-            serial=req.serial,
-            vlan=item.vlan,
-            profile=item.profile,
-            description=item.subscriber_name or item.description or "Cliente",
-        )
-        target_driver.provision_onu(detected_olt, prov_req)
-        logger.info(f"ONU {req.serial} provisionada na nova OLT/porta {detected_olt.name} {req.detected_port}.")
-
         old_olt_id = item.current_olt_id
         old_port = item.current_port
         old_onu_id = item.current_onu_id
         old_circuit_id = item.circuit_id or ""
 
-        # B) Se houve deslocamento físico de porta ou OLT: limpa a posição antiga fantasma
+        # A) Se houve deslocamento físico de porta ou OLT: limpa a posição antiga fantasma primeiro
+        # (obrigatório em OLTs como Huawei onde o Serial Number é único em todo o chassi)
         if old_olt_id != req.detected_olt_id or old_port != req.detected_port:
             old_olt = self.olt_repo.get_by_id(old_olt_id)
             if old_olt:
@@ -116,6 +106,20 @@ class ONUReconciliationService:
                     logger.info(f"ONU fantasma {req.serial} desprovisionada da posição antiga {old_olt.name} {old_port}.")
                 except Exception as e:
                     logger.warning(f"Aviso ao limpar posição antiga da ONU {req.serial} na OLT {old_olt.name}: {e}")
+
+        # B) Provisiona na nova posição física (onde a luz acendeu)
+        prov_req = ProvisionRequest(
+            port=req.detected_port,
+            serial=req.serial,
+            vlan=item.vlan,
+            profile=item.profile,
+            description=item.subscriber_name or item.description or "Cliente",
+            onu_id=target_onu_id,
+        )
+        prov_res = target_driver.provision_onu(detected_olt, prov_req)
+        if getattr(prov_res, "onu_id", None) is not None:
+            target_onu_id = prov_res.onu_id
+        logger.info(f"ONU {req.serial} provisionada na nova OLT/porta {detected_olt.name} {req.detected_port}.")
 
         # C) Recalcula o Circuit ID oficial Broadband Forum TR-101
         new_circuit_id = generate_circuit_id(detected_olt.name, req.detected_port, target_onu_id, item.vlan)

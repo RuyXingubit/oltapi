@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-brightgreen.svg" alt="Python Versions">
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/Pydantic-v2.10+-e92063.svg" alt="Pydantic v2">
-  <img src="https://img.shields.io/badge/tests-253%20backend%20%2B%2021%20flutter%20passed-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-282%20backend%20%2B%2021%20flutter%20passed-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Testcontainers-PostgreSQL%2016-blue.svg" alt="Testcontainers PostgreSQL 16">
   <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg" alt="SQLAlchemy 2.0">
   <img src="https://img.shields.io/badge/Alembic-Migrations-orange.svg" alt="Alembic Migrations">
@@ -90,6 +90,7 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
 | **Fiberhome** | AN5516-01 / 04 / 06 / AN6000 | 4 a 16 GPON | Telnet (23) / TL1 (3337) | 🟢 Homologado em Campo | 100% Homologado em hardware real: Leitura de VLANs, perfis, ONUs ativas, running-config, backup FTP com fallback, telemetria óptica dupla (ONU/OLT RX), ciclo de vida e provisionamento ponta a ponta (Router PPPoE, Bridge e VEIP). |
 | **V-SOL** | V1600GT / Série V1600G | 4 a 16 GPON | SSH / Telnet | 🟢 Homologado em Bancada Física | 100% Homologado em hardware real: Onboarding Wizard em 2 fases, detecção determinística AUX vs In-Band, VLANs híbridas, comutação inter-ONU LAN-to-LAN (`p2p enable`), porta de teste untagged, compilação de perfis com submodo `commit`, persistência na flash (`write`) e provisionamento com tráfego real de ONUs Huawei Wi-Fi 6 e Intelbras Bridge. |
 | **Parks** | Fiberlink 10008S / Série 21000 | 8 a 16 GPON | Telnet (23) | 🟢 Homologado em Bancada Física | 100% Homologado em hardware real: Contorno de segfault Dropbear via Telnet resiliente (`<RETURN>` + `terminal length 0`), autofind tabular, provisionamento multi-fabricante com ativação LAN (`ethernet-profile auto-on uni-port 1-4`), bloqueio por `gpon blacklist`, telemetria óptica dupla (`status` + `rssi`) e backup FTP com fallback via terminal. |
+| **Huawei** | SmartAX MA5800-X2 / Série MA5800 & MA5600T | 16 a 256 GPON | Telnet (23) / SSH (22) | 🟢 Homologado em Bancada Física | 100% Homologado em hardware real (`MA5800V100R021`): Migração Brownfield do SmartOLT (`Generic_1_V*`, `SMARTOLT_FLEXIBLE_GPON`) e Comissionamento Greenfield do zero (`OLTAPI_*`), autofind tabular, provisionamento simultâneo Bridge (`native-vlan`) e Router HGU (`mapping-mode priority`), troca de VLAN in-place com 0s de queda (`ont modify`), movimentação automática de porta PON (`move_onu_port`), revelação de SNMP `cipher` em texto plano e backup FTP com fallback via terminal. |
 | **Novos Fabricantes** | Bancada Física Requerida | GPON / EPON | Telnet / SSH / TL1 | ⚪ Sob Demanda de Hardware | [Contribuição com Hardware de Bancada](CONTRIBUTING.md) |
 
 ---
@@ -107,13 +108,13 @@ O **OLTAPI** inclui uma moderna **Central de Operações NOC** desenvolvida em *
                                          ▼
                             [ DriverRegistry Dinâmico ]
                                          │
-             ┌───────────────────────────┼───────────────────────────┐
-             ▼                           ▼                           ▼
-     [ Fiberhome TL1 ]             [ V-SOL V1600 ]           [ Parks Fiberlink ]
-      (AN5516/AN6000)               (V1600G / GT)             (10008S / 21000)
-             │                           │                           │
-             ▼                           ▼                           ▼
-       [ OLT Física ]              [ OLT Física ]              [ OLT Física ]
+      ┌──────────────────────┬───────────┴───────────┬──────────────────────┐
+      ▼                      ▼                       ▼                      ▼
+[ Fiberhome TL1 ]      [ V-SOL V1600 ]      [ Parks Fiberlink ]      [ Huawei VRP ]
+ (AN5516/AN6000)        (V1600G / GT)         (10008S / 21000)       (MA5800 / MA5600T)
+      │                      │                       │                      │
+      ▼                      ▼                       ▼                      ▼
+  [ OLT Física ]         [ OLT Física ]          [ OLT Física ]         [ OLT Física ]
 ```
 
 - **Inversão de Dependência Radical:** A camada de serviço conversa exclusivamente com métodos polimórficos da interface `BaseOLTDriver`. Cada driver se auto-registra com `@DriverRegistry.register`.
@@ -235,6 +236,8 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 | `POST` | `/api/v1/olts/{id}/sync` | Onboarding Brownfield com Snapshot v0 e descoberta de ONUs/VLANs |
 | `GET` | `/api/v1/olts/{id}/vlans` | Listar VLANs configuradas no concentrador com links HATEOAS |
 | `POST` | `/api/v1/olts/{id}/vlans` | Criar nova VLAN de serviço e gravar na memória flash (NVRAM) |
+| `PATCH` | `/api/v1/olts/{id}/vlans/{vid}/ports` | Passar ou remover uma VLAN nas interfaces de uplink |
+| `DELETE` | `/api/v1/olts/{id}/vlans/{vid}` | Excluir VLAN e desfazer bindings de uplink na OLT |
 | `GET` | `/api/v1/olts/{id}/profiles` | Listar perfis de linha e DBA configurados no concentrador |
 | `POST` | `/api/v1/olts/{id}/backups` | Disparar backup com hash SHA-256 e UUIDv7 |
 | `GET` | `/api/v1/olts/{id}/backups` | Listar backups realizados de uma OLT |
@@ -249,10 +252,12 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 | `GET` | `/api/v1/olts/{id}/onus/{serial}` | Consultar potência óptica (Rx/Tx dBm) e atalhos de controle |
 | `GET` | `/api/v1/olts/{id}/unauthorized` | Varredura de ONUs pendentes de ativação com link de provision |
 | `POST` | `/api/v1/olts/{id}/onus` | Provisionar ONU com VLAN, profile e Location header |
+| `PATCH` | `/api/v1/olts/{id}/onus/{serial}/vlan` | Alterar VLAN de serviço de uma ONU in-place (0s de queda óptica) |
+| `POST` | `/api/v1/olts/{id}/onus/{serial}/move-port` | Mover ONU entre portas PON liberando o registro antigo |
 | `DELETE` | `/api/v1/olts/{id}/onus/{serial}` | Desprovisionar ONU e liberar recursos da porta PON |
 | `POST` | `/api/v1/olts/{id}/onus/{serial}/reboot` | Reiniciar remotamente a ONU do cliente via OMCI |
 | `POST` | `/api/v1/olts/{id}/onus/{serial}/suspend` | Bloquear administrativamente a ONU por inadimplência |
-| `POST` | `/api/v1/olts/{id}/onus/{serial}/resume` | Reativar / desbloquear financeiramente a ONU |
+| `POST` | `/api/v1/olts/{id}/onus/{serial}/resume` | Reativar / desbloqueio financeiro da ONU |
 | `POST` | `/api/v1/bootstrap/preview` | Pré-visualizar comandos CLI de inicialização zero-touch |
 | `POST` | `/api/v1/bootstrap/apply` | Aplicar comandos de inicialização na OLT |
 | `GET` | `/api/v1/onus` | Listar inventário global de ONUs e Circuit IDs |
@@ -272,7 +277,7 @@ Todas as rotas exigem o cabeçalho `X-API-Key: oltapi_secret_default_key_change_
 
 ## 🧪 Testes Automatizados com Testcontainers & PostgreSQL 16
 
-A integridade do projeto é garantida por **253 testes automatizados no backend** (além da suíte de testes Flutter) executados diretamente contra uma instância real de **PostgreSQL 16** via **Testcontainers**, aplicando as migrações canônicas do **Alembic** e cobrindo segurança RBAC Multi-Tenant, prevenção contra injeção/SSRF, conformidade polimórfica de drivers (`BaseDriverComplianceTest`), fluxos HATEOAS, ações remotas, auto-conciliação física e webhooks HMAC:
+A integridade do projeto é garantida por **282 testes automatizados no backend** (além da suíte de testes Flutter) executados diretamente contra uma instância real de **PostgreSQL 16** via **Testcontainers**, aplicando as migrações canônicas do **Alembic** e cobrindo segurança RBAC Multi-Tenant, prevenção contra injeção/SSRF, conformidade polimórfica de drivers (`BaseDriverComplianceTest`), fluxos HATEOAS, ações remotas, auto-conciliação física e webhooks HMAC:
 
 ```bash
 # Executar a suite de testes (sobe o container Postgres 16 automaticamente)

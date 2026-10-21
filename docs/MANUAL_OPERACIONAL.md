@@ -71,6 +71,7 @@ Para cadastrar um novo equipamento gerenciado:
 > - **Fiberhome:** `vendor: "fiberhome"` / `model: "an5516"`, `"an5516-01"`, `"an5516-04"`, `"an5516-06"`, `"an6000"` (🟢 100% Homologado em Campo e Bancada Física)
 > - **V-SOL:** `vendor: "vsol"` / `model: "v1600gt"`, `"v1600g"`, `"v1600g-04"`, `"v1600g-08"`, `"v1600g-16"` (🟢 100% Homologado em Bancada Física)
 > - **Parks:** `vendor: "parks"` / `model: "fiberlink-10008s"`, `"fiberlink-21000"`, `"10008s"`, `"2000"` (🟢 100% Homologado em Bancada Física)
+> - **Huawei:** `vendor: "huawei"` / `model: "ma5800-x2"`, `"ma5800"`, `"ma5800-x7"`, `"ma5800-x15"`, `"ma5800-x17"`, `"ma5608t"`, `"ma5683t"`, `"ma5680t"` (🟢 100% Homologado em Bancada Física — Brownfield SmartOLT & Greenfield OLTAPI)
 
 ### Resposta de Sucesso (`201 Created`):
 **Cabeçalho HTTP:** `Location: /api/v1/olts/0191e4f2-51a8-7d84-a12b-3456789abcde`

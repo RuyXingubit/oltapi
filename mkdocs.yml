@@ -69,6 +69,7 @@ nav:
       - Visão Geral do Roadmap: ROADMAP.md
       - Homologação V-SOL V1600GT: HOMOLOGACAO_VSOL_V1600.md
       - Homologação Parks Fiberlink: HOMOLOGACAO_PARKS_FIBERLINK.md
+      - Homologação Huawei MA5800-X2: HOMOLOGACAO_HUAWEI_MA5800.md
 
 exclude_docs: |
   brainstorming/**

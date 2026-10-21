@@ -46,15 +46,16 @@ A plataforma cobre as operações essenciais para o ciclo de vida operacional de
 - **Fiberhome:** `AN5516-01` / `AN5516-04` / `AN5516-06` / `AN6000` (Telnet CLI + TL1 Bellcore).
 - **V-SOL:** `V1600GT` / Série `V1600G` (SSH / Telnet CLI).
 - **Parks:** `Fiberlink 10008S` / Série `21000` (Telnet CLI).
+- **Huawei:** `SmartAX MA5800-X2` / Série `MA5800` & `MA5600T` (Telnet / SSH VRP).
 
 ---
 
 ## 4. Critérios de Aceite
-- [x] Especificação SDD ([`docs/SDD.md`](file:///Volumes/240/Code/oltapi/docs/SDD.md)) e Contrato OpenAPI 3.1.0 ([`docs/api_contracts/openapi.yaml`](file:///Volumes/240/Code/oltapi/docs/api_contracts/openapi.yaml)) sincronizados (75 rotas / 96 operações / 96 schemas).
+- [x] Especificação SDD ([`docs/SDD.md`](file:///Volumes/240/Code/oltapi/docs/SDD.md)) e Contrato OpenAPI 3.1.0 ([`docs/api_contracts/openapi.yaml`](file:///Volumes/240/Code/oltapi/docs/api_contracts/openapi.yaml)) sincronizados (100 operações / 126 schemas).
 - [x] Toda entidade e backup identificado por **UUIDv7** (RFC 9562).
 - [x] Proteção ativa contra injeção de comandos CLI e SSRF em todos os parâmetros de entrada.
 - [x] Controle de acesso RBAC Multi-Tenant (JWT Bearer + API Keys SHA-256 com validação de subconjunto de escopos) e criptografia Fernet AES em repouso.
-- [x] 3 Drivers de fabricantes homologados em bancada física real (Fiberhome, V-SOL e Parks) aprovados na `BaseDriverComplianceTest`.
+- [x] 4 Drivers de fabricantes homologados em bancada física real (Fiberhome, V-SOL, Parks e Huawei) aprovados na `BaseDriverComplianceTest`.
 - [x] Ciclo de vida completo de ONUs: Descoberta, Provisionamento, Reboot, Suspensão, Reativação e Desprovisionamento.
 - [x] Central de Operações NOC em Flutter (Desktop e Web) integrada à API REST sem dados fictícios.
 - [x] Motor de Auto-Recuperação Reativa de Campo e Circuit ID Broadband Forum TR-101.

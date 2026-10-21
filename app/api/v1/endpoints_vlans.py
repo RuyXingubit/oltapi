@@ -14,6 +14,7 @@ from app.models.vlan import (
     VLANHistoryItem,
     VLANItem,
     VLANMetricsItem,
+    VLANPortBindingRequest,
 )
 from app.storage.olt_repository import OLTRepository
 
@@ -240,6 +241,92 @@ def create_olt_vlan(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao criar VLAN na OLT: {str(e)}")
+
+
+@router.patch("/vlans/{vlan_id}/ports", status_code=status.HTTP_200_OK)
+def update_olt_vlan_ports(
+    olt_id: str,
+    vlan_id: int,
+    req: VLANPortBindingRequest,
+    olt_repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Passa (add_ports) ou remove (remove_ports) uma VLAN nas interfaces de uplink da OLT."""
+    ctx.enforce_scope("olts:admin")
+    ctx.enforce_olt(olt_id)
+    olt = olt_repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    try:
+        driver = DriverFactory.get_driver(olt)
+        success = driver.update_vlan_ports(
+            olt=olt,
+            vlan_id=vlan_id,
+            add_ports=req.add_ports,
+            remove_ports=req.remove_ports,
+        )
+        driver.save_running_config(olt)
+        return {
+            "success": success,
+            "olt_id": olt_id,
+            "vlan_id": vlan_id,
+            "added_ports": req.add_ports,
+            "removed_ports": req.remove_ports,
+            "message": f"Interfaces da VLAN {vlan_id} atualizadas e gravadas na flash da OLT {olt.name}.",
+            "_links": {
+                "vlans": {"href": f"/api/v1/olts/{olt_id}/vlans", "method": "GET"},
+                "olt": {"href": f"/api/v1/olts/{olt_id}", "method": "GET"},
+            },
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao atualizar interfaces da VLAN na OLT: {str(e)}",
+        )
+
+
+@router.delete("/vlans/{vlan_id}", status_code=status.HTTP_200_OK)
+def delete_olt_vlan(
+    olt_id: str,
+    vlan_id: int,
+    olt_repo: OLTRepository = Depends(get_olt_repo),
+    ctx: SecurityContext = Depends(get_security_context),
+):
+    """Remove uma VLAN de serviço e seus bindings de porta da OLT física e grava na flash."""
+    ctx.enforce_scope("olts:admin")
+    ctx.enforce_olt(olt_id)
+    olt = olt_repo.get_by_id(olt_id)
+    if not olt:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"OLT '{olt_id}' não encontrada.")
+
+    try:
+        driver = DriverFactory.get_driver(olt)
+        success = driver.delete_vlan(olt=olt, vlan_id=vlan_id)
+        driver.save_running_config(olt)
+        return {
+            "success": success,
+            "olt_id": olt_id,
+            "vlan_id": vlan_id,
+            "message": f"VLAN {vlan_id} removida com sucesso da OLT {olt.name}.",
+            "_links": {
+                "vlans": {"href": f"/api/v1/olts/{olt_id}/vlans", "method": "GET"},
+                "olt": {"href": f"/api/v1/olts/{olt_id}", "method": "GET"},
+            },
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao remover VLAN da OLT: {str(e)}",
+        )
 
 
 @router.get("/profiles", response_model=List[ProfileItem])

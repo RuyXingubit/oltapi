@@ -17,13 +17,14 @@ graph LR
     API -->|Telnet TL1 Bellcore| FH[Fiberhome AN5516 / AN6000]
     API -->|Telnet / SSH CLI| VS[V-SOL V1600G / GT]
     API -->|Telnet CLI| PK[Parks Fiberlink 10008S / 21000]
+    API -->|Telnet / SSH VRP| HW[Huawei SmartAX MA5800 / MA5600T]
 ```
 
 ---
 
 ## 🖥️ Central de Operações NOC (Desktop & Web)
 
-Além dos endpoints RESTful de alta performance, o projeto disponibiliza uma **Central de Operações NOC (Flutter)** completa, homologada diretamente contra hardware físico de bancada (V-SOL, Fiberhome e Parks) com tráfego e potências ópticas reais:
+Além dos endpoints RESTful de alta performance, o projeto disponibiliza uma **Central de Operações NOC (Flutter)** completa, homologada diretamente contra hardware físico de bancada (V-SOL, Fiberhome, Parks e Huawei) com tráfego e potências ópticas reais:
 
 ![Inventário de ONUs e Telemetria em Tempo Real](assets/screenshots/02_configured_vsol_onus.png)
 
@@ -50,7 +51,7 @@ Além dos endpoints RESTful de alta performance, o projeto disponibiliza uma **C
 
 ## 🚀 Principais Capacidades
 
-* 🟢 **Concentradores 100% Homologados em Bancada:** Drivers homologados em hardware físico com tráfego real para **Fiberhome** (AN5516/AN6000 via TL1), **V-SOL** (série V1600 via CLI) e **Parks** (série Fiberlink 10008S / 21000 via CLI).
+* 🟢 **Concentradores 100% Homologados em Bancada:** Drivers homologados em hardware físico com tráfego real para **Fiberhome** (AN5516/AN6000 via TL1), **V-SOL** (série V1600 via CLI), **Parks** (série Fiberlink 10008S / 21000 via CLI) e **Huawei** (SmartAX MA5800-X2 / MA5800 / MA5600T via VRP CLI).
 * 🖥️ **Central de Operações NOC em Flutter:** Interface gráfica moderna (Desktop macOS/Linux/Windows e Web) com tema Dark NOC de alto contraste, telemetria óptica colorimétrica, aprovação de ONUs em 1-clique e ações operacionais com proteção defensiva de segurança.
 * ⚡ **Onboarding Zero-Touch & Wizard Guiado:** Detecção de protocolos, inspeção não-destrutiva de portas AUX e In-Band, comissionamento de VLANs com gravação atômica na flash e backup Baseline v0 obrigatório.
 * 📊 **Telemetria Óptica Dupla em Tempo Real:** Leitura direta de **ONU RX** (potência recebida pelo assinante), **ONU TX** e **OLT RX** (potência recebida na porta PON da OLT) em dBm.
@@ -76,5 +77,5 @@ Explore as seções da documentação:
 - [🛠️ **Manual do Desenvolvedor**](MANUAL_DESENVOLVEDOR.md)  
   Entenda a arquitetura de drivers baseada em Inversão de Dependência e conformidade de testes.
 - [📖 **Referência da API (ReDoc)**](referencia-api.md)  
-  Especificação interativa e detalhada das 75 rotas (96 operações HTTP) e 96 esquemas da API REST.
+  Especificação interativa e detalhada das 100 operações HTTP e 126 esquemas da API REST.
 :::

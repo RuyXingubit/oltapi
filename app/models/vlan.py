@@ -22,6 +22,17 @@ class VLANCreateRequest(BaseModel):
     tagged_uplink_ports: Optional[List[str]] = Field(default=None, description="Lista opcional de portas de uplink para taggear")
 
 
+class VLANPortBindingRequest(BaseModel):
+    add_ports: List[str] = Field(
+        default_factory=list,
+        description="Lista de interfaces de uplink onde a VLAN deve ser passada (ex: ['0/4/3', '0/3/0'])",
+    )
+    remove_ports: List[str] = Field(
+        default_factory=list,
+        description="Lista de interfaces de uplink de onde a VLAN deve ser removida",
+    )
+
+
 class ProfileItem(BaseModel):
     name: str = Field(..., description="Nome do perfil")
     profile_type: str = Field(default="line", description="Tipo do perfil: line, dba, traffic")

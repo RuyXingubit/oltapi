@@ -120,16 +120,23 @@ class OLTOnboardingService:
                 try:
                     tn = TelnetClient(host=host, port=port, timeout=4)
                     tn.connect()
-                    # Aguarda prompt de login
-                    banner_bytes = tn.read_until([b":", b">", b"#", b"%", b"login", b"Username"], timeout=3)
+                    # Aguarda prompt de login (evita parar no ':' de 'Warning: Telnet is not a secure protocol')
+                    banner_bytes = tn.read_until(
+                        [b"name:", b"Username:", b"login:", b"Press <RETURN>", b">", b"#", b"%"],
+                        timeout=3,
+                    )
                     banner_str = banner_bytes.decode("ascii", errors="ignore")
+                    if "Press <RETURN>" in banner_str:
+                        tn.write(b"\r\n")
+                        more_bytes = tn.read_until([b"name:", b"Username:", b"login:", b">", b"#"], timeout=3)
+                        banner_str += " " + more_bytes.decode("ascii", errors="ignore")
 
                     # Se pediu login/user, envia credenciais
-                    if any(w in banner_str.lower() for w in ["login", "user", "username", ":"]):
-                        tn.write(username.encode() + b"\n")
-                        tn.read_until([b"password", b"Password", b"Pass", b":"], timeout=3)
-                        tn.write(password.encode() + b"\n")
-                        prompt_bytes = tn.read_until([b">", b"#", b"%", b"$", b":"], timeout=3)
+                    if any(w in banner_str.lower() for w in ["login", "user", "username", "name:"]):
+                        tn.write(username.encode() + b"\r\n")
+                        tn.read_until([b"password:", b"Password:", b"Pass:"], timeout=3)
+                        tn.write(password.encode() + b"\r\n")
+                        prompt_bytes = tn.read_until([b">", b"#", b"%", b"$"], timeout=3)
                         banner_str += " " + prompt_bytes.decode("ascii", errors="ignore")
 
                     tn.close()

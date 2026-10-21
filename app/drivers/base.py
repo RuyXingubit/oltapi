@@ -185,6 +185,77 @@ class BaseOLTDriver(ABC):
         """Reativa o serviço da ONU na OLT."""
         pass
 
+    def change_onu_vlan(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        new_vlan: int,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+        mode: str = "bridge",
+    ) -> ONUActionResponse:
+        """Altera a VLAN de serviço de uma ONU já provisionada mantendo sua porta e ID."""
+        details = self.get_onu_details(olt, serial_or_id)
+        resolved_port = port or details.port
+        resolved_id = onu_id if onu_id is not None else details.onu_id
+        self.deprovision_onu(olt, serial_or_id, port=resolved_port, onu_id=resolved_id)
+        prov = self.provision_onu(
+            olt,
+            ProvisionRequest(
+                port=resolved_port,
+                serial=details.serial or serial_or_id,
+                vlan=new_vlan,
+                onu_id=resolved_id,
+                mode=mode,
+            ),
+        )
+        return ONUActionResponse(
+            success=prov.success,
+            action="change_vlan",
+            olt_id=str(olt.id),
+            serial=prov.serial,
+            port=prov.port,
+            onu_id=prov.onu_id,
+            message=f"VLAN da ONU {prov.serial} ({prov.port}:{prov.onu_id}) alterada para {new_vlan} com sucesso.",
+        )
+
+    def move_onu_port(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        target_port: str,
+        target_onu_id: Optional[int] = None,
+        vlan: Optional[int] = None,
+        mode: str = "bridge",
+        description: Optional[str] = None,
+    ) -> ONUActionResponse:
+        """Move uma ONU de sua porta PON atual para uma nova porta PON, preservando VLAN e descrição."""
+        details = self.get_onu_details(olt, serial_or_id)
+        old_port = details.port
+        old_id = details.onu_id
+        resolved_vlan = vlan or details.vlan or 100
+        self.deprovision_onu(olt, serial_or_id, port=old_port, onu_id=old_id)
+        prov = self.provision_onu(
+            olt,
+            ProvisionRequest(
+                port=target_port,
+                serial=details.serial or serial_or_id,
+                vlan=resolved_vlan,
+                onu_id=target_onu_id,
+                mode=mode,
+                description=description or details.serial,
+            ),
+        )
+        return ONUActionResponse(
+            success=prov.success,
+            action="move_port",
+            olt_id=str(olt.id),
+            serial=prov.serial,
+            port=prov.port,
+            onu_id=prov.onu_id,
+            message=f"ONU {prov.serial} movida da porta {old_port}:{old_id} para {prov.port}:{prov.onu_id} (VLAN {resolved_vlan}).",
+        )
+
     @abstractmethod
     def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:
         """Gera a sequência de comandos CLI para configuração inicial da OLT virgem."""
@@ -201,6 +272,20 @@ class BaseOLTDriver(ABC):
 
     def create_vlan(self, olt: OLTInDB, req: "VLANCreateRequest") -> bool:
         """Cria uma nova VLAN de serviço na OLT."""
+        return True
+
+    def delete_vlan(self, olt: OLTInDB, vlan_id: int) -> bool:
+        """Remove uma VLAN de serviço da OLT (desfazendo bindings de portas antes)."""
+        return True
+
+    def update_vlan_ports(
+        self,
+        olt: OLTInDB,
+        vlan_id: int,
+        add_ports: Optional[List[str]] = None,
+        remove_ports: Optional[List[str]] = None,
+    ) -> bool:
+        """Passa (add_ports) ou remove (remove_ports) uma VLAN nas interfaces de uplink da OLT."""
         return True
 
     def list_profiles(self, olt: OLTInDB) -> List["ProfileItem"]:

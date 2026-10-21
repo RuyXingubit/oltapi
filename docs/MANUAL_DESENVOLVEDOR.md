@@ -29,7 +29,8 @@ O **OLTAPI** foi projetado com os seguintes princípios:
 [ Driver Abstraction (BaseOLTDriver) ]
                ├──> FiberhomeTL1Driver (AN5516 / AN6000 TL1)
                ├──> VSOLV1600Driver (V1600G / V1600GT CLI)
-               └──> ParksFiberlinkDriver (Fiberlink 10008S / 21000 CLI)
+               ├──> ParksFiberlinkDriver (Fiberlink 10008S / 21000 CLI)
+               └──> HuaweiVRPDriver (SmartAX MA5800 / MA5600T VRP)
 ```
 
 ---
@@ -70,14 +71,15 @@ oltapi/
 │   │   ├── factory.py               # DriverFactory integrada ao Registry
 │   │   ├── fiberhome/               # Fiberhome AN5516 (TL1 Bellcore)
 │   │   ├── vsol/                    # V-SOL série V1600 (CLI)
-│   │   └── parks/                   # Parks série Fiberlink (CLI)
+│   │   ├── parks/                   # Parks série Fiberlink (CLI)
+│   │   └── huawei/                  # Huawei SmartAX MA5800 / MA5600T (VRP CLI)
 │   ├── models/                      # Schemas Pydantic v2 tipados
 │   ├── services/                    # Orquestradores de negócio desacoplados
 │   └── main.py                      # Ponto de entrada FastAPI 100% REST JSON
 ├── docs/                            # Documentação SDD e MkDocs Material
 ├── frontend/                        # Central de Operações NOC em Flutter (Desktop/Web)
 ├── tests/
-│   └── unit/                        # Suíte de 253 testes unitários e de conformidade
+│   └── unit/                        # Suíte de 282 testes unitários e de conformidade
 ├── docker-compose.yml               # Orquestração local e produção com PostgreSQL 16
 ├── requirements.txt                 # Dependências Python
 └── mkdocs.yml                       # Configuração do site de documentação

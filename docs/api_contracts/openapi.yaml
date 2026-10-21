@@ -1929,6 +1929,91 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}/vlan:
+    patch:
+      tags:
+      - Provisionamento & Descoberta
+      summary: Change Onu Vlan
+      description: Altera a VLAN de serviço de uma ONU já provisionada na OLT.
+      operationId: change_onu_vlan_api_v1_olts__olt_id__onus__serial_or_id__vlan_patch
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: serial_or_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial Or Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ONUChangeVLANRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUActionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/onus/{serial_or_id}/move-port:
+    post:
+      tags:
+      - Provisionamento & Descoberta
+      summary: Move Onu Port
+      description: Move uma ONU de sua porta PON atual para uma nova porta PON na
+        mesma OLT.
+      operationId: move_onu_port_api_v1_olts__olt_id__onus__serial_or_id__move_port_post
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: serial_or_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial Or Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ONUMovePortRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ONUActionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/olts/{olt_id}/onus/batch-action:
     post:
       tags:
@@ -2974,6 +3059,84 @@ paths:
                   $ref: '#/components/schemas/VLANHistoryItem'
                 title: Response Get Vlan History Api V1 Olts  Olt Id  Vlans  Vlan
                   Id  History Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/vlans/{vlan_id}/ports:
+    patch:
+      tags:
+      - VLANs & Serviços de Rede
+      summary: Update Olt Vlan Ports
+      description: Passa (add_ports) ou remove (remove_ports) uma VLAN nas interfaces
+        de uplink da OLT.
+      operationId: update_olt_vlan_ports_api_v1_olts__olt_id__vlans__vlan_id__ports_patch
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: vlan_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Vlan Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VLANPortBindingRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/olts/{olt_id}/vlans/{vlan_id}:
+    delete:
+      tags:
+      - VLANs & Serviços de Rede
+      summary: Delete Olt Vlan
+      description: Remove uma VLAN de serviço e seus bindings de porta da OLT física
+        e grava na flash.
+      operationId: delete_olt_vlan_api_v1_olts__olt_id__vlans__vlan_id__delete
+      security:
+      - APIKeyHeader: []
+      - HTTPBearer: []
+      parameters:
+      - name: olt_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Olt Id
+      - name: vlan_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Vlan Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -6296,7 +6459,8 @@ components:
         action:
           type: string
           title: Action
-          description: 'Tipo de ação: deprovision, reboot, suspend, resume'
+          description: 'Tipo de ação: deprovision, reboot, suspend, resume, change_vlan,
+            move_port'
         olt_id:
           type: string
           title: Olt Id
@@ -6328,6 +6492,39 @@ components:
       - serial
       - message
       title: ONUActionResponse
+    ONUChangeVLANRequest:
+      properties:
+        vlan:
+          type: integer
+          maximum: 4094.0
+          minimum: 1.0
+          title: Vlan
+          description: Nova VLAN de serviço da ONU
+          example: 621
+        port:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Port
+          description: Porta PON atual da ONU (detectada automaticamente se omitida)
+        onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Onu Id
+          description: ID numérico da ONU na porta PON (detectado automaticamente
+            se omitido)
+        mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mode
+          description: 'Modo de operação: ''bridge'' ou ''router'''
+          default: bridge
+      type: object
+      required:
+      - vlan
+      title: ONUChangeVLANRequest
     ONUDetails:
       properties:
         port:
@@ -6668,6 +6865,44 @@ components:
       - to_onu_id
       - to_circuit_id
       title: ONUMigrationEvent
+    ONUMovePortRequest:
+      properties:
+        target_port:
+          type: string
+          title: Target Port
+          description: 'Nova porta PON de destino (ex: 0/1/2)'
+          example: 0/1/2
+        target_onu_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Target Onu Id
+          description: ID numérico na nova porta PON (auto-alocado se omitido)
+        vlan:
+          anyOf:
+          - type: integer
+            maximum: 4094.0
+            minimum: 1.0
+          - type: 'null'
+          title: Vlan
+          description: VLAN de serviço na nova porta (mantém a VLAN atual se omitida)
+        mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mode
+          description: 'Modo de operação: ''bridge'' ou ''router'''
+          default: bridge
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Descrição/nome do cliente (mantém a descrição atual se omitida)
+      type: object
+      required:
+      - target_port
+      title: ONUMovePortRequest
     ONUSummary:
       properties:
         port:
@@ -9178,6 +9413,23 @@ components:
       required:
       - vlan_id
       title: VLANMetricsItem
+    VLANPortBindingRequest:
+      properties:
+        add_ports:
+          items:
+            type: string
+          type: array
+          title: Add Ports
+          description: 'Lista de interfaces de uplink onde a VLAN deve ser passada
+            (ex: [''0/4/3'', ''0/3/0''])'
+        remove_ports:
+          items:
+            type: string
+          type: array
+          title: Remove Ports
+          description: Lista de interfaces de uplink de onde a VLAN deve ser removida
+      type: object
+      title: VLANPortBindingRequest
     VLANServiceItem:
       properties:
         vlan_id:
