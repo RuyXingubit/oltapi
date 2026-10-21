@@ -48,7 +48,7 @@ class _OltFormDialogState extends State<OltFormDialog> {
 
     _vendors = context.read<AppState>().supportedVendors;
     if (_vendors.isEmpty) {
-      _vendors = ['fiberhome', 'vsol', 'parks'];
+      _vendors = ['fiberhome', 'vsol', 'parks', 'huawei'];
     }
     if (!_vendors.contains(_vendor)) _vendor = _vendors.first;
 
