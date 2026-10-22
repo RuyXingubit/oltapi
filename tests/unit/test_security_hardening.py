@@ -169,3 +169,113 @@ def test_olt_concurrency_manager():
 
     assert lock1 is lock2
     assert lock1 is not lock3
+
+
+def test_driver_regex_and_config_hardening_coverage(tmp_path):
+    """Cobre os fluxos de limpeza de CLI, sessão SSH/Telnet, bootstrap e sanitização de logs."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from app.drivers.fiberhome.fiberhome_tl1 import FiberhomeTL1Driver
+    from app.drivers.huawei.huawei_vrp import HuaweiVRPDriver
+    from app.drivers.parks.parks_fiberlink import ParksFiberlinkDriver
+    from app.models.bootstrap import BootstrapRequest
+    from app.storage.onu_repository import ONUInventoryRepository
+
+    # 1. Huawei clean_cli_output & bootstrap & wizard inband defaults
+    cleaned = HuaweiVRPDriver.clean_cli_output("  Command: \r\n  display board 0\r\nMA5608T#")
+    assert "MA5608T#" in cleaned
+    assert "Command:" not in cleaned
+
+    hw = HuaweiVRPDriver()
+    boot_cmds = hw.generate_bootstrap_commands(BootstrapRequest(hostname="HW-TEST"))
+    assert any(settings.OLT_HUAWEI_DEFAULT_INBAND_GW in c for c in boot_cmds)
+
+    olt_hw = OLTInDB(
+        id="hw-1",
+        name="HW-1",
+        vendor=OLTVendor.HUAWEI,
+        model="ma5608t",
+        host="10.0.0.1",
+        port=23,
+        protocol=OLTProtocol.TELNET,
+        username="root",
+        password="admin123",
+    )
+    wiz_req = SimpleNamespace(
+        inband_config=SimpleNamespace(vlan_id=100, uplink_port="0/2/0", ip_cidr="", gateway="10.0.0.254"),
+        vlans=[],
+        uplink_ports=["0/2/0"],
+    )
+    with patch.object(hw, "_execute_cli_commands", return_value="OK"):
+        wiz_cmds = hw.execute_wizard_commissioning(olt_hw, wiz_req)
+        assert any("interface Vlanif100" in c for c in wiz_cmds)
+
+    # 2. Huawei _execute_telnet_commands & _execute_ssh_commands prompt parsing
+    with patch("app.drivers.huawei.huawei_vrp.TelnetClient") as mock_tn_cls, \
+         patch.object(hw, "_run_interactive_telnet_cmd", return_value="output_ok"):
+        tn_inst = MagicMock()
+        tn_inst.read_until.side_effect = [b"User name:", b"User password:", b"Welcome MA5608T(config)#"]
+        mock_tn_cls.return_value = tn_inst
+        out = hw._execute_telnet_commands(olt_hw, ["display version"])
+        assert "output_ok" in out
+
+    with patch("app.drivers.huawei.huawei_vrp.paramiko.SSHClient") as mock_ssh_cls, \
+         patch("app.drivers.huawei.huawei_vrp.time.sleep"):
+        ssh_inst = MagicMock()
+        chan = MagicMock()
+        calls = {"n": 0}
+
+        def recv_ready_side_effect():
+            calls["n"] += 1
+            return calls["n"] in (1, 2, 3, 4)
+
+        chan.recv_ready.side_effect = recv_ready_side_effect
+        chan.recv.return_value = b"MA5608T(config)#"
+        ssh_inst.invoke_shell.return_value = chan
+        mock_ssh_cls.return_value = ssh_inst
+        ssh_out = hw._execute_ssh_commands(olt_hw, ["display version"], max_wait=1.0)
+        assert "MA5608T(config)#" in ssh_out
+
+    # 3. Parks generate_bootstrap_commands defaults
+    pk = ParksFiberlinkDriver()
+    pk_cmds = pk.generate_bootstrap_commands(
+        SimpleNamespace(hostname="PK-TEST", inband_vlan=None, ip_network=None, gateway=None)
+    )
+    assert any(settings.OLT_DEFAULT_INBAND_GW in c for c in pk_cmds)
+
+    # 4. Fiberhome _resolve_onu_location & save_running_config error paths
+    fh = FiberhomeTL1Driver()
+    fake_tn = MagicMock()
+    with patch.object(fh, "_exec_telnet_cmd", return_value="1  2  5  FHTT12345678"):
+        loc = fh._resolve_onu_location(fake_tn, "FHTT12345678")
+        assert loc == (1, 2, 5)
+
+    olt_fh_tn = OLTInDB(
+        id="fh-1",
+        name="FH-1",
+        vendor=OLTVendor.FIBERHOME,
+        model="an5516",
+        host="10.0.0.2",
+        port=23,
+        protocol=OLTProtocol.TELNET,
+        username="GEPON",
+        password="GEPON",
+    )
+    with patch.object(fh, "_open_telnet_session", side_effect=RuntimeError("telnet down")):
+        assert fh.save_running_config(olt_fh_tn) is False
+
+    olt_fh_tl1 = olt_fh_tn.model_copy(update={"port": 3337})
+    with patch.object(fh, "_execute_tl1_commands", side_effect=RuntimeError("tl1 down")):
+        assert fh.save_running_config(olt_fh_tl1) is False
+
+    # 5. ONURepository corrupt load & save error handling
+    inv_file = tmp_path / "onus.json"
+    hist_file = tmp_path / "history.json"
+    inv_file.write_text("{corrupt json", encoding="utf-8")
+    hist_file.write_text("{corrupt json", encoding="utf-8")
+    repo = ONUInventoryRepository(inventory_file=inv_file, history_file=hist_file)
+    with patch("builtins.open", side_effect=OSError("disk full\r\nerror")):
+        repo._save_inventory()
+        repo._save_history()
+
