@@ -65,7 +65,7 @@ def upgrade() -> None:
     op.create_table('webhook_subscriptions',
     sa.Column('id', sa.String(length=36), nullable=False),
     sa.Column('url', sa.String(length=256), nullable=False),
-    sa.Column('secret', sa.String(length=128), nullable=False),
+    sa.Column('secret', sa.String(length=512), nullable=False),
     sa.Column('events', sa.Text(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('description', sa.String(length=256), nullable=True),

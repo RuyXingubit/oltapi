@@ -163,7 +163,7 @@ class WebhookSubscriptionModel(Base):
 
     id = Column(String(36), primary_key=True)
     url = Column(String(256), nullable=False)
-    secret = Column(String(128), nullable=False)
+    secret = Column(String(512), nullable=False)
     events = Column(Text, nullable=False)  # Armazenado como JSON string ou lista delimitada
     is_active = Column(Boolean, nullable=False, default=True)
     description = Column(String(256), nullable=True)
