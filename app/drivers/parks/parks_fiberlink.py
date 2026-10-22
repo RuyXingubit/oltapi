@@ -253,7 +253,7 @@ class ParksFiberlinkDriver(BaseOLTDriver):
                 ts = int(time.time())
                 remote_name = f"backup_parks_{olt.id[:8]}_{ts}.cfg"
                 remote_full_path = f"{base_path}/{remote_name}".replace("//", "/")
-                ftp_url = f"ftp://{user}:{pwd}@{host}:{port}{remote_full_path}"
+                ftp_url = f"ftp://{user}:{pwd}@{host}:{port}{remote_full_path}"  # NOSONAR: Firmware Parks exige URL ftp:// nativa
 
                 cmd = f"copy startup-config {ftp_url}"
                 try:
@@ -287,7 +287,7 @@ class ParksFiberlinkDriver(BaseOLTDriver):
         output = self._execute_cli_commands(olt, ["show gpon onu unconfigured"])
         unauth_list: List[UnauthorizedONU] = []
 
-        line_regex = re.compile(r"^\s*(gpon\d+/\d+)\s*\|\s*([a-zA-Z0-9]{8,16})\s*\|\s*(.*)$")
+        line_regex = re.compile(r"^(gpon\d+/\d+)\s*\|\s*([a-zA-Z0-9]{8,16})\s*\|([^\r\n]*)$")
 
         for line in output.splitlines():
             line = line.strip()
@@ -621,8 +621,8 @@ class ParksFiberlinkDriver(BaseOLTDriver):
         """Gera a sequência de comandos CLI para configuração inicial da OLT Parks."""
         name = sanitize_safe_string(req.hostname or "OLT-PARKS")
         vlan = req.inband_vlan or 2
-        ip_net = req.ip_network or "172.16.251.81/24"
-        gw = req.gateway or "172.16.251.1"
+        ip_net = req.ip_network or "172.16.251.81/24"  # NOSONAR: Fallback IP de gerência in-band
+        gw = req.gateway or "172.16.251.1"  # NOSONAR: Fallback gateway de gerência in-band
 
         commands = [
             "conf t",
@@ -818,15 +818,15 @@ class ParksFiberlinkDriver(BaseOLTDriver):
         gateway = None
         svis: List[ExistingSVIItem] = []
 
-        aux_match = re.search(r"interface\s+mgmt\s*\n\s*ip\s+address\s+([0-9\.\/]+)", running_cfg)
+        aux_match = re.search(r"interface[ \t]+mgmt[ \t]*\r?\n[ \t]*ip[ \t]+address[ \t]+([0-9./]+)", running_cfg)
         if aux_match:
             aux_ip = aux_match.group(1)
 
-        gw_match = re.search(r"ip\s+route\s+0\.0\.0\.0/0\s+([0-9\.]+)", running_cfg)
+        gw_match = re.search(r"ip[ \t]+route[ \t]+0\.0\.0\.0/0[ \t]+([0-9.]+)", running_cfg)
         if gw_match:
             gateway = gw_match.group(1)
 
-        svi_matches = re.findall(r"interface\s+mgmt1\.(\d+)\s*\n\s*ip\s+address\s+([0-9\.\/]+)", running_cfg)
+        svi_matches = re.findall(r"interface[ \t]+mgmt1\.(\d+)[ \t]*\r?\n[ \t]*ip[ \t]+address[ \t]+([0-9./]+)", running_cfg)
         for vlan_str, ip_str in svi_matches:
             v_id = int(vlan_str)
             svis.append(
@@ -858,8 +858,8 @@ class ParksFiberlinkDriver(BaseOLTDriver):
     def execute_wizard_commissioning(self, olt: OLTInDB, req: Any) -> List[str]:
         """Aplica o comissionamento assistido na OLT Parks e grava permanentemente na flash."""
         vlan = getattr(req, "inband_vlan", 2)
-        ip_net = getattr(req, "ip_network", "172.16.251.81/24")
-        gw = getattr(req, "gateway", "172.16.251.1")
+        ip_net = getattr(req, "ip_network", "172.16.251.81/24")  # NOSONAR: Fallback IP de gerência in-band
+        gw = getattr(req, "gateway", "172.16.251.1")  # NOSONAR: Fallback gateway de gerência in-band
         uplink = getattr(req, "uplink_interface", "giga-ethernet1/0")
 
         commands = [

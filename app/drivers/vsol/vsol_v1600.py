@@ -181,7 +181,7 @@ class VSOLV1600Driver(BaseOLTDriver):
                 continue
 
             match = re.search(
-                r"(?:gpon\s+)?([0-9]+/[0-9]+)\s+([A-Za-z0-9\-]{4,24})(?:\s+([A-Za-z0-9_\-]+))?(?:\s+([A-Za-z0-9_\-]+))?",
+                r"^(?:gpon\s+)?([0-9]+/[0-9]+)\s+([A-Za-z0-9\-]{4,24})(?:\s+([A-Za-z0-9_\-]+)(?:\s+([A-Za-z0-9_\-]+))?)?",
                 line_str,
                 re.IGNORECASE,
             )
@@ -218,7 +218,7 @@ class VSOLV1600Driver(BaseOLTDriver):
 
             # Formato compacto nativo do show onu state: 2:1enableenableworkingHWTC073545b7
             compact_m = re.search(
-                r"(\d+):(\d+)\s*(enable|disable)\s*(enable|disable)\s*(working|syncmib|initial|dormant|offline|dyinggasp|dying-gasp|los|lofi|pwroff|[a-zA-Z_\-]+?)\s*([A-Za-z0-9]{8,24})",
+                r"\b(\d+):(\d+)\s*(enable|disable)\s*(enable|disable)\s*(working|syncmib|initial|dormant|offline|dyinggasp|dying-gasp|los|lofi|pwroff|online|up|down|active)\s*([A-Za-z0-9]{8,24})",
                 line_str,
                 re.IGNORECASE,
             )
@@ -261,7 +261,7 @@ class VSOLV1600Driver(BaseOLTDriver):
 
             # Formato tabular padrão (com possível 5ª coluna de DownCause ex: DyingGasp / LOS)
             match = re.search(
-                r"(?:0/)?([0-9]+)\s+(\d+)\s+([A-Za-z0-9\-]{4,24})\s+([a-zA-Z_\-]+)(?:\s+([a-zA-Z0-9_\-]+))?",
+                r"^(?:0/)?([0-9]+)\s+(\d+)\s+([A-Za-z0-9\-]{4,24})\s+([a-zA-Z_\-]+)(?:\s+([a-zA-Z0-9_\-]+))?",
                 line_str,
             )
             if match:
@@ -341,7 +341,7 @@ class VSOLV1600Driver(BaseOLTDriver):
         total_onus = len(re.findall(r"onu\s+add\s+\d+", running_config, re.IGNORECASE))
 
         # Detecção determinística do cenário de acesso
-        is_aux_access = (access_host == aux_ip) or (access_host == "192.168.8.200")
+        is_aux_access = (access_host == aux_ip) or (access_host == "192.168.8.200")  # NOSONAR: IP AUX padrão de fábrica V-SOL
         has_inband = len(existing_svis) > 0 and gateway is not None
 
         if is_aux_access:
@@ -482,14 +482,14 @@ class VSOLV1600Driver(BaseOLTDriver):
         rx_power: Optional[float] = None
         tx_power: Optional[float] = None
 
-        rx_match = re.search(r"Rx\s*(?:optical)?\s*(?:power|level)(?:\(dBm\))?\s*[:=]?\s*([-\d.]+)", output, re.IGNORECASE)
+        rx_match = re.search(r"\bRx(?:\s+optical)?\s+(?:power|level)(?:\(dBm\))?(?:\s*[:=]\s*|\s+)([-\d.]+)", output, re.IGNORECASE)
         if rx_match:
             try:
                 rx_power = float(rx_match.group(1))
             except ValueError:
                 pass
 
-        tx_match = re.search(r"Tx\s*(?:optical)?\s*(?:power|level)(?:\(dBm\))?\s*[:=]?\s*([-\d.]+)", output, re.IGNORECASE)
+        tx_match = re.search(r"\bTx(?:\s+optical)?\s+(?:power|level)(?:\(dBm\))?(?:\s*[:=]\s*|\s+)([-\d.]+)", output, re.IGNORECASE)
         if tx_match:
             try:
                 tx_power = float(tx_match.group(1))

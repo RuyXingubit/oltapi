@@ -26,8 +26,8 @@ class ONUInventoryRepository:
         inventory_file: Optional[Path] = None,
         history_file: Optional[Path] = None,
     ):
-        self.inventory_file = inventory_file or (settings.DATA_DIR / "onus_inventory.json")
-        self.history_file = history_file or (settings.DATA_DIR / "onus_history.json")
+        self.inventory_file = Path(inventory_file or (settings.DATA_DIR / "onus_inventory.json")).resolve()
+        self.history_file = Path(history_file or (settings.DATA_DIR / "onus_history.json")).resolve()
         self._items: Dict[str, ONUInventoryItem] = {}  # indexado por serial
         self._history: List[ONUMigrationEvent] = []
         self._optical_samples: Dict[str, List[OpticalTelemetrySample]] = {}
@@ -43,7 +43,7 @@ class ONUInventoryRepository:
                         item = ONUInventoryItem(**raw)
                         self._items[item.serial] = item
             except Exception as e:
-                logger.error(f"Erro ao carregar inventário de ONUs de {self.inventory_file}: {e}")
+                logger.error("Erro ao carregar inventário de ONUs: %s", str(e).replace("\n", " ").replace("\r", " "))
 
         # Carrega Histórico / Audit Trail
         if self.history_file.exists():
@@ -54,7 +54,7 @@ class ONUInventoryRepository:
                         ev = ONUMigrationEvent(**raw)
                         self._history.append(ev)
             except Exception as e:
-                logger.error(f"Erro ao carregar histórico de ONUs de {self.history_file}: {e}")
+                logger.error("Erro ao carregar histórico de ONUs: %s", str(e).replace("\n", " ").replace("\r", " "))
 
     def _save_inventory(self):
         try:
@@ -62,7 +62,7 @@ class ONUInventoryRepository:
                 json_data = [item.model_dump(mode="json") for item in self._items.values()]
                 json.dump(json_data, f, indent=2)
         except Exception as e:
-            logger.error(f"Erro ao salvar inventário de ONUs em {self.inventory_file}: {e}")
+            logger.error("Erro ao salvar inventário de ONUs: %s", str(e).replace("\n", " ").replace("\r", " "))
 
     def _save_history(self):
         try:
@@ -70,7 +70,7 @@ class ONUInventoryRepository:
                 json_data = [ev.model_dump(mode="json") for ev in self._history]
                 json.dump(json_data, f, indent=2)
         except Exception as e:
-            logger.error(f"Erro ao salvar histórico de ONUs em {self.history_file}: {e}")
+            logger.error("Erro ao salvar histórico de ONUs: %s", str(e).replace("\n", " ").replace("\r", " "))
 
     # -----------------------------------------------------------------------
     # Operações de Inventário

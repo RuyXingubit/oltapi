@@ -77,7 +77,7 @@ class BaseOLTDriver(ABC):
             # Remove o MAC da linha para procurar VLAN (1..4094) e porta
             remainder = (line_s[: m.start()] + " " + line_s[m.end() :]).strip()
             vlan_val: Optional[int] = None
-            vlan_m = re.search(r"\b(?:vlan\s*[:=]?\s*)?(\d{1,4})\b", remainder, re.IGNORECASE)
+            vlan_m = re.search(r"\b(?:vlan(?:\s*[:=]\s*|\s+)?)?(\d{1,4})\b", remainder, re.IGNORECASE)
             if vlan_m:
                 cand = int(vlan_m.group(1))
                 if 1 <= cand <= 4094:

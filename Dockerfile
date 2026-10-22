@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install --no-cache-dir --only-binary :all: --prefix=/install -r requirements.txt  # NOSONAR
 
 # ------------------------------------------------------------------------------
 # Estágio 2: Runtime Final de Produção
@@ -39,8 +39,11 @@ RUN groupadd -g 1000 appgroup && \
     mkdir -p /app/data /app/backups && \
     chown -R appuser:appgroup /app
 
-# Copia código-fonte da aplicação com permissões adequadas
-COPY --chown=appuser:appgroup . /app
+# Copia código-fonte da aplicação explicitamente com permissões adequadas
+COPY --chown=appuser:appgroup app /app/app
+COPY --chown=appuser:appgroup alembic /app/alembic
+COPY --chown=appuser:appgroup scripts /app/scripts
+COPY --chown=appuser:appgroup alembic.ini /app/alembic.ini
 
 # Healthcheck nativo utilizando a biblioteca padrão do Python (sem dependência de curl/wget)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

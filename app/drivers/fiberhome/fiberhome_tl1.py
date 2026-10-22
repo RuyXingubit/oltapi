@@ -774,7 +774,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
                 # 2. Localização física e status
                 out = self._exec_telnet_cmd(client, f"show onu-info by {serial_or_id}")
-                m = re.search(r"(\d+)\s+(\d+)\s+(\d+)\s+([A-Za-z]+)", out)
+                m = re.search(r"\b(\d+)\s+(\d+)\s+(\d+)\s+([A-Za-z]+)", out)
                 if m:
                     slot, pon, onu_id, _state = m.groups()
                     
@@ -996,7 +996,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
     def _resolve_onu_location(self, client: TelnetClient, serial_or_id: str) -> Optional[Tuple[int, int, int]]:
         out = self._exec_telnet_cmd(client, f"show onu-info by {serial_or_id}")
-        m = re.search(r"(\d+)\s+(\d+)\s+(\d+)\s+([A-Za-z]+)", out)
+        m = re.search(r"\b(\d+)\s+(\d+)\s+(\d+)\s+([A-Za-z]+)", out)
         if m:
             return int(m.group(1)), int(m.group(2)), int(m.group(3))
         return None
@@ -1408,7 +1408,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                 return True
             except Exception as e:
                 logger.warning(f"Aviso ao persistir flash via Telnet na Fiberhome {olt.name}: {e}")
-                return True
+                return False
 
         commands = [
             "SAVE::DEV=ALL:1::;",
@@ -1417,6 +1417,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             self._execute_tl1_commands(olt, commands)
         except Exception as e:
             logger.warning(f"Aviso ao persistir flash na Fiberhome {olt.name}: {e}")
+            return False
         return True
 
     def get_chassis_interfaces(self, olt: OLTInDB) -> List[OLTPortStatusItem]:

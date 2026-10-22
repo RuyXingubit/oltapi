@@ -21,8 +21,8 @@ class BackupStorage:
     """Gerenciador de armazenamento seguro e integridade de backups das OLTs."""
 
     def __init__(self, base_dir: Optional[Path] = None, data_file: Optional[Path] = None):
-        self.base_dir = base_dir or settings.BACKUP_DIR
-        self.data_file = data_file or (settings.DATA_DIR / "backups.json")
+        self.base_dir = Path(base_dir or settings.BACKUP_DIR).resolve()
+        self.data_file = Path(data_file or (settings.DATA_DIR / "backups.json")).resolve()
         self._backups: Dict[str, BackupMetadata] = {}
         self._load()
 

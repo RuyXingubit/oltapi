@@ -22,7 +22,7 @@ class FTPService:
         """
         Conecta ao servidor FTP, baixa o arquivo indicado e retorna seu conteúdo como texto decodificado.
         """
-        ftp = ftplib.FTP(timeout=timeout)
+        ftp = ftplib.FTP(timeout=timeout)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
         try:
             ftp.connect(host, port)
             ftp.login(username, password)
@@ -63,7 +63,7 @@ class FTPService:
         """
         Faz upload de conteúdo textual para o servidor FTP.
         """
-        ftp = ftplib.FTP(timeout=timeout)
+        ftp = ftplib.FTP(timeout=timeout)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
         try:
             ftp.connect(host, port)
             ftp.login(username, password)
@@ -97,7 +97,7 @@ class FTPService:
         """
         Remove um arquivo do servidor FTP caso exista.
         """
-        ftp = ftplib.FTP(timeout=timeout)
+        ftp = ftplib.FTP(timeout=timeout)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
         try:
             ftp.connect(host, port)
             ftp.login(username, password)

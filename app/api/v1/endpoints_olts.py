@@ -17,6 +17,8 @@ from app.api.deps import (
     require_api_key,
 )
 from app.core.rate_limit import limiter
+from app.services.olt_onboarding_service import OLTOnboardingService
+from app.services.olt_sync_service import OLTSyncService
 from app.services.onu_enrichment_service import ONUEnrichmentService
 from app.core.rbac import SecurityContext
 from app.drivers.factory import DriverFactory
@@ -116,7 +118,7 @@ def list_olts(
 @router.post("/inspect", response_model=OLTInspectResponse, status_code=status.HTTP_200_OK)
 def inspect_olt_endpoint(
     req: OLTInspectRequest,
-    onboarding_service=Depends(get_onboarding_service),
+    onboarding_service: OLTOnboardingService = Depends(get_onboarding_service),
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """
@@ -146,7 +148,7 @@ def inspect_olt_endpoint(
 def onboard_olt_wizard_endpoint(
     req: OLTWizardOnboardRequest,
     response: Response,
-    onboarding_service=Depends(get_onboarding_service),
+    onboarding_service: OLTOnboardingService = Depends(get_onboarding_service),
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """
@@ -181,7 +183,7 @@ def onboard_olt_wizard_endpoint(
 def onboard_olt(
     req: OLTOnboardRequest,
     response: Response,
-    onboarding_service=Depends(get_onboarding_service),
+    onboarding_service: OLTOnboardingService = Depends(get_onboarding_service),
     ctx: SecurityContext = Depends(get_security_context),
 ):
     """
@@ -590,7 +592,7 @@ def sync_olt(
     request: Request,
     olt_id: str,
     background_tasks: BackgroundTasks,
-    sync_service=Depends(get_sync_service),
+    sync_service: OLTSyncService = Depends(get_sync_service),
     enrichment_service: ONUEnrichmentService = Depends(get_enrichment_service),
     ctx: SecurityContext = Depends(get_security_context),
 ):

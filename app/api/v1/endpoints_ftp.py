@@ -82,7 +82,7 @@ def get_ftp_overview(
     if configured and host and username:
         start_time = time.time()
         try:
-            ftp = ftplib.FTP(timeout=2)
+            ftp = ftplib.FTP(timeout=2)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
             ftp.connect(host, port)
             banner = ftp.getwelcome()
             if password:
@@ -248,7 +248,7 @@ def test_ftp_server_connection(
 
     start_time = time.time()
     try:
-        ftp = ftplib.FTP(timeout=8)
+        ftp = ftplib.FTP(timeout=8)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
         ftp.connect(raw.host, raw.port)
         banner = ftp.getwelcome()
         ftp.login(raw.username, raw.password)

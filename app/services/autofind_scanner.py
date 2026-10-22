@@ -105,10 +105,7 @@ class AutofindScannerService:
 
         if self._task and not self._task.done():
             self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+            await asyncio.gather(self._task, return_exceptions=True)
 
         logger.info("AutofindScanner finalizado com sucesso.")
         return True

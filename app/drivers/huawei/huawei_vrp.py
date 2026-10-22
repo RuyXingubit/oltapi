@@ -164,7 +164,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
         text = re.sub(r"----\s*More\s*\(\s*Press\s*'Q'\s*to\s*break\s*\)\s*----\s*", "", text)
         text = re.sub(r"\[37D\s*\[37D", "", text)
         text = re.sub(r"\{\s*<cr>[^\r\n]*\}\s*:", "", text)
-        text = re.sub(r"^\s*Command:\s*\r?\n\s*[^\r\n]+\r?\n?", "", text, flags=re.MULTILINE)
+        text = re.sub(r"^[ \t]*Command:[ \t]*\r?\n[ \t]*\S[^\r\n]*\r?\n?", "", text, flags=re.MULTILINE)
         return text
 
     # ----------------------------------------------------------------------
@@ -214,7 +214,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
             prompt_re = re.compile(r"(?:^|[\r\n])\s*[A-Za-z0-9_\-]+(?:\([^\r\n\)]+\))?#\s*$")
 
         async_notice_re = re.compile(
-            r"\d+\s+\[\d{4}-\d{2}-\d{2}[^\]]*\]:[^\r\n]*(?:\r?\n)+\s*[A-Za-z0-9_\-\(\)/]+#",
+            r"\b\d+[ \t]+\[\d{4}-\d{2}-\d{2}[^\]]*\]:[^\r\n]*(?:\r?\n)+[ \t]*[A-Za-z0-9_\-\(\)/]+#",
             re.MULTILINE,
         )
 
@@ -320,7 +320,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
                     post_login += "\n" + en_out
 
                 prompt_prefix = ""
-                pm = re.search(r"([A-Za-z0-9_\-]+)#\s*$", post_login.rstrip())
+                pm = re.search(r"(?:^|(?<![A-Za-z0-9_\-]))([A-Za-z0-9_\-]+)#$", post_login.rstrip())
                 if pm:
                     prompt_prefix = pm.group(1)
 
@@ -403,11 +403,11 @@ class HuaweiVRPDriver(BaseOLTDriver):
                             sent_cr = True
                         elif "(y/n)" in buf[-200:].lower() or "are you sure" in buf[-200:].lower():
                             chan.send("y\r\n")
-                        elif re.search(r"[A-Za-z0-9_\-\(\)]+#\s*$", buf.rstrip()):
+                        elif re.search(r"[A-Za-z0-9_\-\(\)]#$", buf.rstrip()):
                             break
                     else:
                         time.sleep(0.15)
-                        if re.search(r"[A-Za-z0-9_\-\(\)]+#\s*$", buf.rstrip()):
+                        if re.search(r"[A-Za-z0-9_\-\(\)]#$", buf.rstrip()):
                             break
                 outputs.append(self.clean_cli_output(buf))
 
@@ -629,7 +629,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
         """Retorna o uptime do chassi Huawei em segundos via 'display sysuptime'."""
         output = self._execute_cli_commands(olt, ["display sysuptime"])
         match = re.search(
-            r"(\d+)\s*day\(?s?\)?\s*,?\s*(\d+)\s*hour\(?s?\)?\s*,?\s*(\d+)\s*minute\(?s?\)?\s*,?\s*(\d+)\s*second",
+            r"\b(\d+)\s*day\(?s?\)?(?:\s*,\s*|\s+)(\d+)\s*hour\(?s?\)?(?:\s*,\s*|\s+)(\d+)\s*minute\(?s?\)?(?:\s*,\s*|\s+)(\d+)\s*second",
             output,
             re.IGNORECASE,
         )
@@ -934,9 +934,9 @@ class HuaweiVRPDriver(BaseOLTDriver):
 
         # 5. Traffic Tables IP (Planos de velocidade comercial no SmartOLT)
         for m in re.finditer(
-            r'traffic\s+table\s+ip\s+index\s+(\d+)\s+name\s+"([^"]+)"\s+cir\s+(\d+|off)\s+.*?pir\s+(\d+|off)',
+            r'traffic\s+table\s+ip\s+index\s+(\d+)\s+name\s+"([^"]+)"\s+cir\s+(\d+|off)\s+[^\r\n]*?\bpir\s+(\d+|off)',
             raw_output,
-            re.IGNORECASE | re.DOTALL,
+            re.IGNORECASE,
         ):
             t_idx, t_name, cir, pir = m.groups()
             key = ("traffic", t_name)
@@ -1056,8 +1056,8 @@ class HuaweiVRPDriver(BaseOLTDriver):
                 # Tabela 1: ONT ID | Run State | Last UpTime | Last DownTime | Last DownCause
                 for line in sec_body.splitlines():
                     sm = re.match(
-                        r"^\s*(\d+)\s+(online|offline)\s+(\S+(?:\s+\S+)?)\s+(\S+(?:\s+\S+)?)\s+(.+?)\s*$",
-                        line,
+                        r"^(\d+)\s+(online|offline)\s+([\d/-]+(?:\s+[\d:]+)?|-)\s+([\d/-]+(?:\s+[\d:]+)?|-)\s+(\S.*)$",
+                        line.strip(),
                         re.IGNORECASE,
                     )
                     if sm:
@@ -1074,13 +1074,13 @@ class HuaweiVRPDriver(BaseOLTDriver):
                 # Tabela 2: ONT ID | SN | Type | Distance | Rx/Tx power | Description
                 for line in sec_body.splitlines():
                     dm = re.match(
-                        r"^\s*(\d+)\s+([0-9A-Fa-f]{16}|[A-Za-z0-9]{12})\s+(\S+)\s+(\S+)\s+(\S+)\s*(.*)$",
-                        line,
+                        r"^(\d+)\s+([0-9A-Fa-f]{16}|[A-Za-z0-9]{12})\s+(\S+)\s+(\S+)\s+(\S+)(?:\s+(\S.*))?$",
+                        line.strip(),
                     )
                     if dm:
                         oid = int(dm.group(1))
                         raw_sn = dm.group(2)
-                        desc = dm.group(6).strip()
+                        desc = (dm.group(6) or "").strip()
                         r_state, d_time, d_cause = state_by_id.get(oid, ("offline", None, None))
                         key = (port_norm, oid)
                         if key not in seen_keys:
@@ -1102,7 +1102,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
         if not onus:
             desc_map: Dict[Tuple[str, int], str] = {}
             for dm in re.finditer(
-                r"^\s*(\d+/\s*\d+/\s*\d+)\s+(\d+)\s+([^\r\n]+)$",
+                r"^[ \t]*(\d+/[ \t]*\d+/[ \t]*\d+)[ \t]+(\d+)[ \t]+(\S[^\r\n]*)$",
                 summary_or_board_out,
                 re.MULTILINE,
             ):
@@ -1933,7 +1933,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
         svis: List[ExistingSVIItem] = []
 
         meth_m = re.search(
-            r"interface\s+MEth0\s*\n\s*ip\s+address\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+\.\d+)",
+            r"interface[ \t]+MEth0[ \t]*\r?\n[ \t]*ip[ \t]+address[ \t]+(\d+\.\d+\.\d+\.\d+)[ \t]+(\d+\.\d+\.\d+\.\d+)",
             cfg,
             re.IGNORECASE,
         )
@@ -1959,7 +1959,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
                 tagged_by_vlan[vid].append(up_port)
 
         for vm in re.finditer(
-            r"interface\s+Vlanif(\d+)\s*\n\s*ip\s+address\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+\.\d+)",
+            r"interface[ \t]+Vlanif(\d+)[ \t]*\r?\n[ \t]*ip[ \t]+address[ \t]+(\d+\.\d+\.\d+\.\d+)[ \t]+(\d+\.\d+\.\d+\.\d+)",
             cfg,
             re.IGNORECASE,
         ):
@@ -2003,8 +2003,8 @@ class HuaweiVRPDriver(BaseOLTDriver):
         """Gera a sequência de comandos CLI para configuração inicial de uma OLT Huawei do zero."""
         name = sanitize_safe_string(getattr(req, "hostname", None) or getattr(req, "olt_name", None) or "MA5800-OLTAPI")
         vlan = int(getattr(req, "inband_vlan", None) or getattr(req, "mgmt_vlan", None) or 6)
-        ip_net = getattr(req, "ip_network", None) or "10.200.250.10/30"
-        gw = getattr(req, "gateway", None) or "10.200.250.9"
+        ip_net = getattr(req, "ip_network", None) or "10.200.250.10/30"  # NOSONAR: Fallback IP de gerência in-band
+        gw = getattr(req, "gateway", None) or "10.200.250.9"  # NOSONAR: Fallback gateway de gerência in-band
         ip_addr = ip_net.split("/")[0]
         prefix = int(ip_net.split("/")[1]) if "/" in ip_net else 24
         mask_int = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF if prefix > 0 else 0
@@ -2091,7 +2091,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
         if inband_cfg:
             mgmt_vlan = int(inband_cfg.vlan_id)
             fs, p = self.parse_uplink_slot_port(inband_cfg.uplink_port or "0/4/3")
-            ip_cidr = inband_cfg.ip_cidr or "10.200.250.10/30"
+            ip_cidr = inband_cfg.ip_cidr or "10.200.250.10/30"  # NOSONAR: Fallback IP de gerência in-band
             ip_addr = ip_cidr.split("/")[0]
             prefix = int(ip_cidr.split("/")[1]) if "/" in ip_cidr else 24
             mask_int = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF if prefix > 0 else 0
