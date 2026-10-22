@@ -617,18 +617,38 @@ void main() {
     expect(find.text('Governança, Automação & RBAC'), findsOneWidget);
     expect(find.text('RODANDO'), findsOneWidget);
     expect(find.text('ZTEGC9988776'), findsOneWidget);
+    await tester.tap(find.text('Reconciliar Evento de Campo'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
 
     // 2. Sub-tab 1: Webhooks ERP (HMAC)
     await tester.tap(find.text('Webhooks ERP (HMAC)'));
     await tester.pumpAndSettle();
     expect(find.text('https://erp.provedor.com.br/webhook'), findsWidgets);
     expect(find.text('HMAC-SHA256'), findsOneWidget);
+    await tester.tap(find.text('Novo Webhook'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('onu.discovered'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('onu.discovered'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
 
     // 3. Sub-tab 2: Inquilinos & Rede Neutra
     await tester.tap(find.text('Inquilinos & Rede Neutra'));
     await tester.pumpAndSettle();
     expect(find.text('FibraSul Neutra'), findsOneWidget);
     expect(find.textContaining('VLAN 621'), findsOneWidget);
+    await tester.tap(find.text('Novo Inquilino'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alocar VLAN na OLT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
 
     // 4. Sub-tab 3: Usuários & API Keys
     await tester.tap(find.text('Usuários & API Keys'));
@@ -636,6 +656,14 @@ void main() {
     expect(find.text('Admin Master'), findsOneWidget);
     expect(find.text('admin@oltapi.local'), findsOneWidget);
     expect(find.text('Chave ERP'), findsOneWidget);
+    await tester.tap(find.text('Novo Usuário'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nova API Key'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
 
     // 5. Sub-tab 4: Topologia & CTOs (Fase 4)
     await tester.tap(find.text('Topologia & CTOs'));
@@ -648,6 +676,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Plano Fibra 600M'), findsOneWidget);
     expect(find.text('GenieACS Core'), findsOneWidget);
+    await tester.tap(find.text('Novo Preset Universal'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conectar Servidor ACS'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('BackupsScreen renders Onda B (Audit Drift, Multi-FTP, Unified Diff Dialog) without overflow',

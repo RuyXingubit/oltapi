@@ -411,6 +411,7 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: selectedOltId,
+            isExpanded: true,
             dropdownColor: AppColors.surface,
             style: const TextStyle(color: AppColors.textPrimary),
             decoration: const InputDecoration(
@@ -622,6 +623,7 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: tenantType,
+            isExpanded: true,
             dropdownColor: AppColors.surface,
             style: const TextStyle(color: AppColors.textPrimary),
             decoration: const InputDecoration(
@@ -680,6 +682,7 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
         children: [
           DropdownButtonFormField<String>(
             initialValue: selectedOltId,
+            isExpanded: true,
             dropdownColor: AppColors.surface,
             style: const TextStyle(color: AppColors.textPrimary),
             decoration: const InputDecoration(labelText: 'OLT *'),
@@ -804,6 +807,7 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: selectedRole,
+            isExpanded: true,
             dropdownColor: AppColors.surface,
             style: const TextStyle(color: AppColors.textPrimary),
             decoration: const InputDecoration(labelText: 'Papel (Role) *'),
@@ -818,6 +822,7 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: selectedTenantId,
+              isExpanded: true,
               dropdownColor: AppColors.surface,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(
