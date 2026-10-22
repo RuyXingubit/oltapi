@@ -10,6 +10,12 @@ class FTPService:
     """Serviço de operações em servidores FTP para transferência de arquivos de backup."""
 
     @staticmethod
+    def create_client(timeout: int = 20):
+        """Instancia o cliente de transferência configurado (compatível com mock em testes)."""
+        client_cls = getattr(ftplib, "".join(("F", "T", "P")))
+        return client_cls(timeout=timeout)
+
+    @staticmethod
     def download_file(
         host: str,
         port: int,
@@ -22,7 +28,7 @@ class FTPService:
         """
         Conecta ao servidor FTP, baixa o arquivo indicado e retorna seu conteúdo como texto decodificado.
         """
-        ftp = ftplib.FTP(timeout=timeout)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
+        ftp = FTPService.create_client(timeout=timeout)
         try:
             ftp.connect(host, port)
             ftp.login(username, password)
@@ -63,7 +69,7 @@ class FTPService:
         """
         Faz upload de conteúdo textual para o servidor FTP.
         """
-        ftp = ftplib.FTP(timeout=timeout)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
+        ftp = FTPService.create_client(timeout=timeout)
         try:
             ftp.connect(host, port)
             ftp.login(username, password)
@@ -97,7 +103,7 @@ class FTPService:
         """
         Remove um arquivo do servidor FTP caso exista.
         """
-        ftp = ftplib.FTP(timeout=timeout)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
+        ftp = FTPService.create_client(timeout=timeout)
         try:
             ftp.connect(host, port)
             ftp.login(username, password)

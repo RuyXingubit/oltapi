@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import paramiko
 
+from app.core.config import settings
 from app.core.security import (
     sanitize_description,
     sanitize_interface_port,
@@ -320,9 +321,11 @@ class HuaweiVRPDriver(BaseOLTDriver):
                     post_login += "\n" + en_out
 
                 prompt_prefix = ""
-                pm = re.search(r"(?:^|(?<![A-Za-z0-9_\-]))([A-Za-z0-9_\-]+)#$", post_login.rstrip())
-                if pm:
-                    prompt_prefix = pm.group(1)
+                stripped_login = post_login.rstrip()
+                if stripped_login.endswith("#"):
+                    tokens = stripped_login[:-1].split()
+                    if tokens:
+                        prompt_prefix = tokens[-1].split("(")[0].strip()
 
                 # 4. Desativa paginação na sessão atual
                 self._run_interactive_telnet_cmd(
@@ -933,22 +936,29 @@ class HuaweiVRPDriver(BaseOLTDriver):
                 )
 
         # 5. Traffic Tables IP (Planos de velocidade comercial no SmartOLT)
-        for m in re.finditer(
-            r'traffic\s+table\s+ip\s+index\s+(\d+)\s+name\s+"([^"]+)"\s+cir\s+(\d+|off)\s+[^\r\n]*?\bpir\s+(\d+|off)',
-            raw_output,
-            re.IGNORECASE,
-        ):
-            t_idx, t_name, cir, pir = m.groups()
-            key = ("traffic", t_name)
-            if key not in seen:
-                seen.add(key)
-                profiles.append(
-                    ProfileItem(
-                        name=t_name,
-                        profile_type="traffic",
-                        details=f"Index {t_idx} (CIR: {cir} kbps, PIR: {pir} kbps)",
+        for line in raw_output.splitlines():
+            line_s = line.strip()
+            if not line_s.lower().startswith("traffic"):
+                continue
+            head_m = re.match(
+                r'^traffic\s+table\s+ip\s+index\s+(\d+)\s+name\s+"([^"]+)"\s+cir\s+(\d+|off)\b',
+                line_s,
+                re.IGNORECASE,
+            )
+            pir_m = re.search(r"\bpir\s+(\d+|off)\b", line_s, re.IGNORECASE)
+            if head_m and pir_m:
+                t_idx, t_name, cir = head_m.groups()
+                pir = pir_m.group(1)
+                key = ("traffic", t_name)
+                if key not in seen:
+                    seen.add(key)
+                    profiles.append(
+                        ProfileItem(
+                            name=t_name,
+                            profile_type="traffic",
+                            details=f"Index {t_idx} (CIR: {cir} kbps, PIR: {pir} kbps)",
+                        )
                     )
-                )
 
         return profiles
 
@@ -1056,7 +1066,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
                 # Tabela 1: ONT ID | Run State | Last UpTime | Last DownTime | Last DownCause
                 for line in sec_body.splitlines():
                     sm = re.match(
-                        r"^(\d+)\s+(online|offline)\s+([\d/-]+(?:\s+[\d:]+)?|-)\s+([\d/-]+(?:\s+[\d:]+)?|-)\s+(\S.*)$",
+                        r"^(\d+)\s+(online|offline)\s+([\d/-]+(?:\s+[\d:]+)?)\s+([\d/-]+(?:\s+[\d:]+)?)\s+(\S.*)$",
                         line.strip(),
                         re.IGNORECASE,
                     )
@@ -2003,8 +2013,8 @@ class HuaweiVRPDriver(BaseOLTDriver):
         """Gera a sequência de comandos CLI para configuração inicial de uma OLT Huawei do zero."""
         name = sanitize_safe_string(getattr(req, "hostname", None) or getattr(req, "olt_name", None) or "MA5800-OLTAPI")
         vlan = int(getattr(req, "inband_vlan", None) or getattr(req, "mgmt_vlan", None) or 6)
-        ip_net = getattr(req, "ip_network", None) or "10.200.250.10/30"  # NOSONAR: Fallback IP de gerência in-band
-        gw = getattr(req, "gateway", None) or "10.200.250.9"  # NOSONAR: Fallback gateway de gerência in-band
+        ip_net = getattr(req, "ip_network", None) or settings.OLT_HUAWEI_DEFAULT_INBAND_CIDR
+        gw = getattr(req, "gateway", None) or settings.OLT_HUAWEI_DEFAULT_INBAND_GW
         ip_addr = ip_net.split("/")[0]
         prefix = int(ip_net.split("/")[1]) if "/" in ip_net else 24
         mask_int = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF if prefix > 0 else 0
@@ -2091,7 +2101,7 @@ class HuaweiVRPDriver(BaseOLTDriver):
         if inband_cfg:
             mgmt_vlan = int(inband_cfg.vlan_id)
             fs, p = self.parse_uplink_slot_port(inband_cfg.uplink_port or "0/4/3")
-            ip_cidr = inband_cfg.ip_cidr or "10.200.250.10/30"  # NOSONAR: Fallback IP de gerência in-band
+            ip_cidr = inband_cfg.ip_cidr or settings.OLT_HUAWEI_DEFAULT_INBAND_CIDR
             ip_addr = ip_cidr.split("/")[0]
             prefix = int(ip_cidr.split("/")[1]) if "/" in ip_cidr else 24
             mask_int = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF if prefix > 0 else 0

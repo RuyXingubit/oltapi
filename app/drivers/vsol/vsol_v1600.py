@@ -4,6 +4,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 import paramiko
 
+from app.core.config import settings
 from app.core.security import (
     sanitize_description,
     sanitize_interface_port,
@@ -341,7 +342,7 @@ class VSOLV1600Driver(BaseOLTDriver):
         total_onus = len(re.findall(r"onu\s+add\s+\d+", running_config, re.IGNORECASE))
 
         # Detecção determinística do cenário de acesso
-        is_aux_access = (access_host == aux_ip) or (access_host == "192.168.8.200")  # NOSONAR: IP AUX padrão de fábrica V-SOL
+        is_aux_access = (access_host == aux_ip) or (access_host == settings.OLT_DEFAULT_AUX_IP)
         has_inband = len(existing_svis) > 0 and gateway is not None
 
         if is_aux_access:

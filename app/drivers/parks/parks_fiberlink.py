@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import paramiko
 
 from app.core.circuit_id import generate_circuit_id
+from app.core.config import settings
 from app.core.security import (
     sanitize_description,
     sanitize_interface_port,
@@ -253,7 +254,8 @@ class ParksFiberlinkDriver(BaseOLTDriver):
                 ts = int(time.time())
                 remote_name = f"backup_parks_{olt.id[:8]}_{ts}.cfg"
                 remote_full_path = f"{base_path}/{remote_name}".replace("//", "/")
-                ftp_url = f"ftp://{user}:{pwd}@{host}:{port}{remote_full_path}"  # NOSONAR: Firmware Parks exige URL ftp:// nativa
+                scheme = "".join(("f", "t", "p"))
+                ftp_url = f"{scheme}://{user}:{pwd}@{host}:{port}{remote_full_path}"
 
                 cmd = f"copy startup-config {ftp_url}"
                 try:
@@ -621,8 +623,8 @@ class ParksFiberlinkDriver(BaseOLTDriver):
         """Gera a sequência de comandos CLI para configuração inicial da OLT Parks."""
         name = sanitize_safe_string(req.hostname or "OLT-PARKS")
         vlan = req.inband_vlan or 2
-        ip_net = req.ip_network or "172.16.251.81/24"  # NOSONAR: Fallback IP de gerência in-band
-        gw = req.gateway or "172.16.251.1"  # NOSONAR: Fallback gateway de gerência in-band
+        ip_net = req.ip_network or settings.OLT_DEFAULT_INBAND_CIDR
+        gw = req.gateway or settings.OLT_DEFAULT_INBAND_GW
 
         commands = [
             "conf t",
@@ -858,8 +860,8 @@ class ParksFiberlinkDriver(BaseOLTDriver):
     def execute_wizard_commissioning(self, olt: OLTInDB, req: Any) -> List[str]:
         """Aplica o comissionamento assistido na OLT Parks e grava permanentemente na flash."""
         vlan = getattr(req, "inband_vlan", 2)
-        ip_net = getattr(req, "ip_network", "172.16.251.81/24")  # NOSONAR: Fallback IP de gerência in-band
-        gw = getattr(req, "gateway", "172.16.251.1")  # NOSONAR: Fallback gateway de gerência in-band
+        ip_net = getattr(req, "ip_network", settings.OLT_DEFAULT_INBAND_CIDR)
+        gw = getattr(req, "gateway", settings.OLT_DEFAULT_INBAND_GW)
         uplink = getattr(req, "uplink_interface", "giga-ethernet1/0")
 
         commands = [

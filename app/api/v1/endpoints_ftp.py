@@ -20,6 +20,7 @@ from app.models.ftp import (
     OLTFTPDestinationResponse,
 )
 from app.models.hateoas import Link
+from app.services.ftp_service import FTPService
 from app.storage.sql.ftp_repository import SQLFTPRepository
 from app.storage.sql.olt_repository import SQLOLTRepository
 
@@ -82,7 +83,7 @@ def get_ftp_overview(
     if configured and host and username:
         start_time = time.time()
         try:
-            ftp = ftplib.FTP(timeout=2)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
+            ftp = FTPService.create_client(timeout=2)
             ftp.connect(host, port)
             banner = ftp.getwelcome()
             if password:
@@ -248,7 +249,7 @@ def test_ftp_server_connection(
 
     start_time = time.time()
     try:
-        ftp = ftplib.FTP(timeout=8)  # NOSONAR: Hardware OLT exige FTP RFC 959 nativo para backup flash
+        ftp = FTPService.create_client(timeout=8)
         ftp.connect(raw.host, raw.port)
         banner = ftp.getwelcome()
         ftp.login(raw.username, raw.password)

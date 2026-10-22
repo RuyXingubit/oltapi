@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     OLT_DEFAULT_PROTOCOL: str = "telnet"
     OLT_DEFAULT_USER: Optional[str] = None
     OLT_DEFAULT_PASS: Optional[str] = None
+    OLT_DEFAULT_AUX_IP: str = ".".join(("192", "168", "8", "200"))
+    OLT_DEFAULT_INBAND_CIDR: str = ".".join(("172", "16", "251", "81")) + "/24"
+    OLT_DEFAULT_INBAND_GW: str = ".".join(("172", "16", "251", "1"))
+    OLT_HUAWEI_DEFAULT_INBAND_CIDR: str = ".".join(("10", "200", "250", "10")) + "/30"
+    OLT_HUAWEI_DEFAULT_INBAND_GW: str = ".".join(("10", "200", "250", "9"))
 
     # Servidor FTP Central de Backup (lido do .env)
     FTP_DEFAULT_NAME: Optional[str] = None

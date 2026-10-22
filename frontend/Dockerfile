@@ -7,7 +7,10 @@ COPY lib ./lib
 COPY web ./web
 RUN flutter build web --release
 
-# Stage 2: Serve with Caddy
-FROM caddy:2-alpine  # NOSONAR: Caddy web server container
-COPY --from=build /app/build/web /usr/share/caddy
-COPY Caddyfile /etc/caddy/Caddyfile
+# Stage 2: Serve with Caddy (usuário não-privilegiado com cap_net_bind_service nas portas 80/443)
+FROM caddy:2-alpine
+RUN adduser -D -u 1000 caddy && \
+    chown -R caddy:caddy /config /data /usr/share/caddy
+COPY --from=build --chown=caddy:caddy /app/build/web /usr/share/caddy
+COPY --chown=caddy:caddy Caddyfile /etc/caddy/Caddyfile
+USER caddy
