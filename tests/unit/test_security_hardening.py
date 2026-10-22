@@ -279,3 +279,13 @@ def test_driver_regex_and_config_hardening_coverage(tmp_path):
         repo._save_inventory()
         repo._save_history()
 
+    # 6. Huawei profile resolution helpers
+    assert hw._resolve_router_profiles({"OLTAPI_ROUTER_LINE": 5}, {"OLTAPI_ROUTER_SRV": 6}) == (5, 6, [])
+    assert hw._resolve_router_profiles({"SMARTOLT_FLEXIBLE_GPON": 7}, {"EG8145X6-10": 8}) == (7, 8, [])
+    lp_id, sp_id, r_cmds = hw._resolve_router_profiles({"OTHER": 1}, {"OTHER": 2})
+    assert lp_id == 2 and sp_id == 3 and len(r_cmds) > 0
+    assert hw._resolve_bridge_profiles({"OLTAPI_BRIDGE_LINE_V100": 9}, {"OLTAPI_BRIDGE_SRV_V100": 10}, 100) == (9, 10, [])
+    b_lp, b_sp, b_cmds = hw._resolve_bridge_profiles({"OTHER": 1}, {"OTHER": 2}, 100)
+    assert b_lp == 6 and b_sp == 3 and len(b_cmds) > 0
+
+

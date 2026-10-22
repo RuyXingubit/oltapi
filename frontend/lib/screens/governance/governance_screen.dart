@@ -304,85 +304,26 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
     }
   }
 
-  Future<void> _showReconcileFieldModal() async {
-    final olts = context.read<AppState>().olts;
-    String? selectedOltId = olts.isNotEmpty ? olts.first.id : null;
-    final serialCtrl = TextEditingController();
-    final portCtrl = TextEditingController(text: '0/1/1');
-    final onuIdCtrl = TextEditingController();
-    final reasonCtrl = TextEditingController(text: 'field_maintenance');
-
+  Future<bool> _showConfirmFormDialog({
+    required String title,
+    required String confirmLabel,
+    required Widget Function(BuildContext ctx, StateSetter setModalState)
+        builder,
+    double width = 440,
+  }) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => AlertDialog(
           backgroundColor: AppColors.surface,
-          title: const Text(
-            'Reconciliar Evento de Campo (TR-101)',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          title: Text(
+            title,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
           ),
           content: SizedBox(
-            width: 440,
+            width: width,
             child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: serialCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Serial da ONU *',
-                      hintText: 'Ex: ZTEGC1234567',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedOltId,
-                    dropdownColor: AppColors.surface,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'OLT de Destino Detectada *',
-                    ),
-                    items: olts
-                        .map(
-                          (o) => DropdownMenuItem(
-                            value: o.id,
-                            child: Text('${o.name} (${o.host})'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setModalState(() => selectedOltId = v),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: portCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Porta PON Detectada *',
-                      hintText: 'Ex: 0/1/1 ou 1/1/1',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: onuIdCtrl,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'ONU ID (Opcional)',
-                      hintText: 'Ex: 10',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: reasonCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Motivo Operacional',
-                      hintText: 'field_maintenance / splitter_swap',
-                    ),
-                  ),
-                ],
-              ),
+              child: builder(ctx, setModalState),
             ),
           ),
           actions: [
@@ -392,14 +333,132 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Executar Reconciliação'),
+              child: Text(confirmLabel),
             ),
           ],
         ),
       ),
     );
+    return confirmed == true && mounted;
+  }
 
-    if (confirmed != true || !mounted) return;
+  Widget _buildMultiSelectChipGroup({
+    required String label,
+    required List<String> options,
+    required Set<String> selected,
+    required StateSetter setModalState,
+    int minSelected = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((opt) {
+            final isSel = selected.contains(opt);
+            return FilterChip(
+              label: Text(opt, style: const TextStyle(fontSize: 12)),
+              selected: isSel,
+              onSelected: (val) {
+                setModalState(() {
+                  if (val) {
+                    selected.add(opt);
+                  } else if (selected.length > minSelected) {
+                    selected.remove(opt);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showReconcileFieldModal() async {
+    final olts = context.read<AppState>().olts;
+    String? selectedOltId = olts.isNotEmpty ? olts.first.id : null;
+    final serialCtrl = TextEditingController();
+    final portCtrl = TextEditingController(text: '0/1/1');
+    final onuIdCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController(text: 'field_maintenance');
+
+    final confirmed = await _showConfirmFormDialog(
+      title: 'Reconciliar Evento de Campo (TR-101)',
+      confirmLabel: 'Executar Reconciliação',
+      builder: (ctx, setModalState) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: serialCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Serial da ONU *',
+              hintText: 'Ex: ZTEGC1234567',
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: selectedOltId,
+            dropdownColor: AppColors.surface,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'OLT de Destino Detectada *',
+            ),
+            items: olts
+                .map(
+                  (o) => DropdownMenuItem(
+                    value: o.id,
+                    child: Text('${o.name} (${o.host})'),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) => setModalState(() => selectedOltId = v),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: portCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Porta PON Detectada *',
+              hintText: 'Ex: 0/1/1 ou 1/1/1',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: onuIdCtrl,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'ONU ID (Opcional)',
+              hintText: 'Ex: 10',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: reasonCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Motivo Operacional',
+              hintText: 'field_maintenance / splitter_swap',
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!confirmed || !mounted) return;
     if (serialCtrl.text.trim().isEmpty ||
         selectedOltId == null ||
         portCtrl.text.trim().isEmpty) {
@@ -444,98 +503,53 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
     ];
     final selectedEvents = <String>{'*'};
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text(
-            'Cadastrar Webhook ERP (HMAC-SHA256)',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
-          ),
-          content: SizedBox(
-            width: 480,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: urlCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'URL de Destino (HTTPS/HTTP) *',
-                      hintText: 'https://erp.provedor.com.br/webhooks/oltapi',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: secretCtrl,
-                    obscureText: true,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Segredo HMAC-SHA256 (X-OLTAPI-Signature)',
-                      hintText: 'Chave secreta para validação no ERP',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Descrição (Opcional)',
-                      hintText: 'Ex: Integração IXC / SGP / Voalle',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Eventos Assinados:',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: availableEvents.map((ev) {
-                      final isSel = selectedEvents.contains(ev);
-                      return FilterChip(
-                        label: Text(ev, style: const TextStyle(fontSize: 12)),
-                        selected: isSel,
-                        onSelected: (val) {
-                          setModalState(() {
-                            if (val) {
-                              selectedEvents.add(ev);
-                            } else if (selectedEvents.length > 1) {
-                              selectedEvents.remove(ev);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
+    final confirmed = await _showConfirmFormDialog(
+      title: 'Cadastrar Webhook ERP (HMAC-SHA256)',
+      confirmLabel: 'Criar Webhook',
+      width: 480,
+      builder: (ctx, setModalState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: urlCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'URL de Destino (HTTPS/HTTP) *',
+              hintText: 'https://erp.provedor.com.br/webhooks/oltapi',
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: secretCtrl,
+            obscureText: true,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Segredo HMAC-SHA256 (X-OLTAPI-Signature)',
+              hintText: 'Chave secreta para validação no ERP',
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Criar Webhook'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: descCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Descrição (Opcional)',
+              hintText: 'Ex: Integração IXC / SGP / Voalle',
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          _buildMultiSelectChipGroup(
+            label: 'Eventos Assinados:',
+            options: availableEvents,
+            selected: selectedEvents,
+            setModalState: setModalState,
+          ),
+        ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     if (urlCtrl.text.trim().isEmpty) {
       _showSnack('Informe a URL do Webhook.', isError: true);
       return;
@@ -590,68 +604,48 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
     final nameCtrl = TextEditingController();
     String tenantType = 'NEUTRAL_OPERATOR';
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text(
-            'Novo Inquilino (Rede Neutra / Operador)',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
-          ),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    labelText: 'Nome do Inquilino (ISP) *',
-                    hintText: 'Ex: FibraSul Telecom',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: tenantType,
-                  dropdownColor: AppColors.surface,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    labelText: 'Classificação do Inquilino',
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'NEUTRAL_OPERATOR',
-                      child: Text('NEUTRAL_OPERATOR (Locatário Rede Neutra)'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'PROVIDER_OWNER',
-                      child: Text('PROVIDER_OWNER (Detentor da Infraestrutura)'),
-                    ),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) setModalState(() => tenantType = v);
-                  },
-                ),
-              ],
+    final confirmed = await _showConfirmFormDialog(
+      title: 'Novo Inquilino (Rede Neutra / Operador)',
+      confirmLabel: 'Criar Inquilino',
+      width: 420,
+      builder: (ctx, setModalState) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nameCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Nome do Inquilino (ISP) *',
+              hintText: 'Ex: FibraSul Telecom',
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: tenantType,
+            dropdownColor: AppColors.surface,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Classificação do Inquilino',
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Criar Inquilino'),
-            ),
-          ],
-        ),
+            items: const [
+              DropdownMenuItem(
+                value: 'NEUTRAL_OPERATOR',
+                child: Text('NEUTRAL_OPERATOR (Locatário Rede Neutra)'),
+              ),
+              DropdownMenuItem(
+                value: 'PROVIDER_OWNER',
+                child: Text('PROVIDER_OWNER (Detentor da Infraestrutura)'),
+              ),
+            ],
+            onChanged: (v) {
+              if (v != null) setModalState(() => tenantType = v);
+            },
+          ),
+        ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     if (nameCtrl.text.trim().isEmpty) {
       _showSnack('Informe o nome do inquilino.', isError: true);
       return;
@@ -677,72 +671,52 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
     final vlanCtrl = TextEditingController();
     final descCtrl = TextEditingController();
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: Text(
-            'Alocar VLAN • ${tenant.name}',
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+    final confirmed = await _showConfirmFormDialog(
+      title: 'Alocar VLAN • ${tenant.name}',
+      confirmLabel: 'Alocar VLAN',
+      width: 420,
+      builder: (ctx, setModalState) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: selectedOltId,
+            dropdownColor: AppColors.surface,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(labelText: 'OLT *'),
+            items: olts
+                .map(
+                  (o) => DropdownMenuItem(
+                    value: o.id,
+                    child: Text('${o.name} (${o.host})'),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) => setModalState(() => selectedOltId = v),
           ),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: selectedOltId,
-                  dropdownColor: AppColors.surface,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(labelText: 'OLT *'),
-                  items: olts
-                      .map(
-                        (o) => DropdownMenuItem(
-                          value: o.id,
-                          child: Text('${o.name} (${o.host})'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) => setModalState(() => selectedOltId = v),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: vlanCtrl,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    labelText: 'VLAN ID (1-4094) *',
-                    hintText: 'Ex: 210',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    labelText: 'Descrição da Alocação',
-                    hintText: 'Ex: Tráfego PPPoE Inquilino',
-                  ),
-                ),
-              ],
+          const SizedBox(height: 12),
+          TextField(
+            controller: vlanCtrl,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'VLAN ID (1-4094) *',
+              hintText: 'Ex: 210',
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: descCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Descrição da Alocação',
+              hintText: 'Ex: Tráfego PPPoE Inquilino',
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Alocar VLAN'),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     final vlanId = int.tryParse(vlanCtrl.text.trim());
     if (selectedOltId == null || vlanId == null || vlanId < 1 || vlanId > 4094) {
       _showSnack('Selecione uma OLT e informe uma VLAN válida (1-4094).', isError: true);
@@ -799,126 +773,104 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
       'TENANT_TECH',
     ];
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text(
-            'Novo Usuário RBAC',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+    final confirmed = await _showConfirmFormDialog(
+      title: 'Novo Usuário RBAC',
+      confirmLabel: 'Criar Usuário',
+      width: 460,
+      builder: (ctx, setModalState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nameCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(labelText: 'Nome Completo *'),
           ),
-          content: SizedBox(
-            width: 460,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(labelText: 'Nome Completo *'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: emailCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(labelText: 'E-mail *'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: passCtrl,
-                    obscureText: true,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Senha Inicial (mín. 8 caracteres) *',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedRole,
-                    dropdownColor: AppColors.surface,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(labelText: 'Papel (Role) *'),
-                    items: roles
-                        .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setModalState(() => selectedRole = v);
-                    },
-                  ),
-                  if (selectedRole.startsWith('TENANT_') && _tenants.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedTenantId,
-                      dropdownColor: AppColors.surface,
-                      style: const TextStyle(color: AppColors.textPrimary),
-                      decoration: const InputDecoration(
-                        labelText: 'Inquilino Vinculado (Tenant)',
-                      ),
-                      items: _tenants
-                          .map(
-                            (t) => DropdownMenuItem(
-                              value: t.id,
-                              child: Text(t.name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setModalState(() => selectedTenantId = v),
-                    ),
-                  ],
-                  if (olts.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Escopo de OLTs Permitidas (vazio = todas):',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: olts.map((o) {
-                        final isSel = selectedOltIds.contains(o.id);
-                        return FilterChip(
-                          label: Text(o.name, style: const TextStyle(fontSize: 12)),
-                          selected: isSel,
-                          onSelected: (val) {
-                            setModalState(() {
-                              if (val) {
-                                selectedOltIds.add(o.id);
-                              } else {
-                                selectedOltIds.remove(o.id);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ],
+          const SizedBox(height: 12),
+          TextField(
+            controller: emailCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(labelText: 'E-mail *'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: passCtrl,
+            obscureText: true,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Senha Inicial (mín. 8 caracteres) *',
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: selectedRole,
+            dropdownColor: AppColors.surface,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(labelText: 'Papel (Role) *'),
+            items: roles
+                .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                .toList(),
+            onChanged: (v) {
+              if (v != null) setModalState(() => selectedRole = v);
+            },
+          ),
+          if (selectedRole.startsWith('TENANT_') && _tenants.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: selectedTenantId,
+              dropdownColor: AppColors.surface,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                labelText: 'Inquilino Vinculado (Tenant)',
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Criar Usuário'),
+              items: _tenants
+                  .map(
+                    (t) => DropdownMenuItem(
+                      value: t.id,
+                      child: Text(t.name),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setModalState(() => selectedTenantId = v),
             ),
           ],
-        ),
+          if (olts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Escopo de OLTs Permitidas (vazio = todas):',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: olts.map((o) {
+                final isSel = selectedOltIds.contains(o.id);
+                return FilterChip(
+                  label: Text(o.name, style: const TextStyle(fontSize: 12)),
+                  selected: isSel,
+                  onSelected: (val) {
+                    setModalState(() {
+                      if (val) {
+                        selectedOltIds.add(o.id);
+                      } else {
+                        selectedOltIds.remove(o.id);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+          ],
+        ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     if (nameCtrl.text.trim().isEmpty ||
         emailCtrl.text.trim().isEmpty ||
         passCtrl.text.length < 8) {
@@ -993,89 +945,44 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
     ];
     final selectedScopes = <String>{'*'};
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text(
-            'Gerar Nova Chave de API (M2M / ERP)',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
-          ),
-          content: SizedBox(
-            width: 480,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Identificação da Chave *',
-                      hintText: 'Ex: Integração ERP IXC Produção',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: expiresCtrl,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Expiração em Dias (Opcional)',
-                      hintText: 'Ex: 365 (vazio = sem expiração)',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Escopos de Permissão:',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: availableScopes.map((sc) {
-                      final isSel = selectedScopes.contains(sc);
-                      return FilterChip(
-                        label: Text(sc, style: const TextStyle(fontSize: 12)),
-                        selected: isSel,
-                        onSelected: (val) {
-                          setModalState(() {
-                            if (val) {
-                              selectedScopes.add(sc);
-                            } else if (selectedScopes.length > 1) {
-                              selectedScopes.remove(sc);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
+    final confirmed = await _showConfirmFormDialog(
+      title: 'Gerar Nova Chave de API (M2M / ERP)',
+      confirmLabel: 'Gerar Chave',
+      width: 480,
+      builder: (ctx, setModalState) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nameCtrl,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Identificação da Chave *',
+              hintText: 'Ex: Integração ERP IXC Produção',
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: expiresCtrl,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Expiração em Dias (Opcional)',
+              hintText: 'Ex: 365 (vazio = sem expiração)',
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Gerar Chave'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          _buildMultiSelectChipGroup(
+            label: 'Escopos de Permissão:',
+            options: availableScopes,
+            selected: selectedScopes,
+            setModalState: setModalState,
+          ),
+        ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     if (nameCtrl.text.trim().isEmpty) {
       _showSnack('Informe o nome da chave de API.', isError: true);
       return;
@@ -1318,313 +1225,236 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
             _buildErrorBanner(_scannerError!, _loadScannerAndTimeline),
 
           // Scanner Control Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
+          _buildSectionCard(
+            icon: Icons.radar,
+            iconColor: AppColors.accentCyan,
+            title: 'Worker de Supervisão Autônoma PON (Background Scanner)',
+            headerBadge: _buildBadge(
+              isRunning ? 'RODANDO' : 'PARADO',
+              isRunning ? AppColors.statusOnline : AppColors.statusOffline,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            trailing: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.radar,
-                          color: AppColors.accentCyan,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        const Flexible(
-                          child: Text(
-                            'Worker de Supervisão Autônoma PON (Background Scanner)',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        _buildBadge(
-                          isRunning ? 'RODANDO' : 'PARADO',
-                          isRunning ? AppColors.statusOnline : AppColors.statusOffline,
-                        ),
-                      ],
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _loadingScanner
-                              ? null
-                              : () => _handleToggleScanner(!isRunning),
-                          icon: Icon(
-                            isRunning ? Icons.stop_circle_outlined : Icons.play_arrow,
-                            size: 16,
-                          ),
-                          label: Text(
-                            isRunning ? 'Parar Scanner' : 'Iniciar Scanner',
-                          ),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed:
-                              _loadingScanner ? null : _showUpdateIntervalDialog,
-                          icon: const Icon(Icons.timer_outlined, size: 16),
-                          label: Text(
-                            'Intervalo (${status?.intervalSeconds ?? 60}s)',
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: _loadingScanner ? null : _handleRunScannerNow,
-                          icon: const Icon(Icons.bolt, size: 16),
-                          label: const Text('Executar Ciclo Agora'),
-                        ),
-                        IconButton(
-                          onPressed:
-                              _loadingScanner ? null : _loadScannerAndTimeline,
-                          icon: const Icon(Icons.refresh, size: 18),
-                          tooltip: 'Atualizar Scanner e Timeline',
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _buildMetricTile(
-                      'Ciclos Executados',
-                      '${status?.totalCycles ?? 0}',
-                      Icons.repeat,
-                    ),
-                    _buildMetricTile(
-                      'ONUs Detectadas',
-                      '${status?.totalOnusDetected ?? 0}',
-                      Icons.sensors,
-                    ),
-                    _buildMetricTile(
-                      'Reconciliadas (TR-101)',
-                      '${status?.totalOnusReconciled ?? 0}',
-                      Icons.swap_horiz,
-                    ),
-                    _buildMetricTile(
-                      'ONUs Virgens',
-                      '${status?.totalVirginOnus ?? 0}',
-                      Icons.fiber_new_outlined,
-                    ),
-                    _buildMetricTile(
-                      'Falhas de Varredura',
-                      '${status?.totalErrors ?? 0}',
-                      Icons.warning_amber_outlined,
-                    ),
-                    _buildMetricTile(
-                      'Último Ciclo',
-                      status?.lastRunDurationMs != null
-                          ? '${status!.lastRunDurationMs} ms'
-                          : 'N/A',
-                      Icons.speed,
-                    ),
-                  ],
-                ),
-                if (_lastScannerRun != null &&
-                    _lastScannerRun!.oltResults.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const Divider(color: AppColors.surfaceBorder),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Resultado do Último Ciclo Manual (#${_lastScannerRun!.cycleId} • ${_lastScannerRun!.durationMs}ms):',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                    ),
+                OutlinedButton.icon(
+                  onPressed: _loadingScanner
+                      ? null
+                      : () => _handleToggleScanner(!isRunning),
+                  icon: Icon(
+                    isRunning ? Icons.stop_circle_outlined : Icons.play_arrow,
+                    size: 16,
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: _lastScannerRun!.oltResults.map((r) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.inputBackground,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.surfaceBorder),
-                        ),
-                        child: Text(
-                          '${r.oltName}: ${r.detectedOnusCount} detectadas (${r.reconciledSerials.length} migradas, ${r.virginSerials.length} virgens)${r.errorMessage != null ? " • ERRO: ${r.errorMessage}" : ""}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  label: Text(
+                    isRunning ? 'Parar Scanner' : 'Iniciar Scanner',
                   ),
-                ],
+                ),
+                OutlinedButton.icon(
+                  onPressed:
+                      _loadingScanner ? null : _showUpdateIntervalDialog,
+                  icon: const Icon(Icons.timer_outlined, size: 16),
+                  label: Text(
+                    'Intervalo (${status?.intervalSeconds ?? 60}s)',
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _loadingScanner ? null : _handleRunScannerNow,
+                  icon: const Icon(Icons.bolt, size: 16),
+                  label: const Text('Executar Ciclo Agora'),
+                ),
+                IconButton(
+                  onPressed:
+                      _loadingScanner ? null : _loadScannerAndTimeline,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  tooltip: 'Atualizar Scanner e Timeline',
+                ),
               ],
             ),
+            children: [
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _buildMetricTile(
+                    'Ciclos Executados',
+                    '${status?.totalCycles ?? 0}',
+                    Icons.repeat,
+                  ),
+                  _buildMetricTile(
+                    'ONUs Detectadas',
+                    '${status?.totalOnusDetected ?? 0}',
+                    Icons.sensors,
+                  ),
+                  _buildMetricTile(
+                    'Reconciliadas (TR-101)',
+                    '${status?.totalOnusReconciled ?? 0}',
+                    Icons.swap_horiz,
+                  ),
+                  _buildMetricTile(
+                    'ONUs Virgens',
+                    '${status?.totalVirginOnus ?? 0}',
+                    Icons.fiber_new_outlined,
+                  ),
+                  _buildMetricTile(
+                    'Falhas de Varredura',
+                    '${status?.totalErrors ?? 0}',
+                    Icons.warning_amber_outlined,
+                  ),
+                  _buildMetricTile(
+                    'Último Ciclo',
+                    status?.lastRunDurationMs != null
+                        ? '${status!.lastRunDurationMs} ms'
+                        : 'N/A',
+                    Icons.speed,
+                  ),
+                ],
+              ),
+              if (_lastScannerRun != null &&
+                  _lastScannerRun!.oltResults.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Divider(color: AppColors.surfaceBorder),
+                const SizedBox(height: 8),
+                Text(
+                  'Resultado do Último Ciclo Manual (#${_lastScannerRun!.cycleId} • ${_lastScannerRun!.durationMs}ms):',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: _lastScannerRun!.oltResults.map((r) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.inputBackground,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      child: Text(
+                        '${r.oltName}: ${r.detectedOnusCount} detectadas (${r.reconciledSerials.length} migradas, ${r.virginSerials.length} virgens)${r.errorMessage != null ? " • ERRO: ${r.errorMessage}" : ""}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
           ),
 
           const SizedBox(height: 20),
 
           // Timeline TR-101 Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          _buildSectionCard(
+            icon: Icons.timeline,
+            iconColor: AppColors.primaryLight,
+            title: 'Timeline de Migrações & Eventos Ópticos (TR-101)',
+            trailing: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.timeline,
-                          color: AppColors.primaryLight,
-                          size: 20,
-                        ),
-                        SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            'Timeline de Migrações & Eventos Ópticos (TR-101)',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                SizedBox(
+                  width: 220,
+                  child: TextField(
+                    controller: _historySerialCtrl,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
                     ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 220,
-                          child: TextField(
-                            controller: _historySerialCtrl,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textPrimary,
-                            ),
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              hintText: 'Filtrar por Serial ONU...',
-                              prefixIcon: Icon(Icons.search, size: 16),
-                            ),
-                            onSubmitted: (_) => _loadScannerAndTimeline(),
-                          ),
-                        ),
-                        OutlinedButton(
-                          onPressed: _loadScannerAndTimeline,
-                          child: const Text('Filtrar'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: _showReconcileFieldModal,
-                          icon: const Icon(Icons.build_circle_outlined, size: 16),
-                          label: const Text('Reconciliar Evento de Campo'),
-                        ),
-                      ],
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      hintText: 'Filtrar por Serial ONU...',
+                      prefixIcon: Icon(Icons.search, size: 16),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (_loadingScanner && _migrationEvents.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_migrationEvents.isEmpty)
-                  _buildEmptyBox(
-                    'Nenhum evento de migração ou reconciliação TR-101 registrado até o momento.',
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _migrationEvents.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(color: AppColors.surfaceBorder),
-                    itemBuilder: (ctx, idx) {
-                      final ev = _migrationEvents[idx];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildBadge(
-                                  ev.reason,
-                                  AppColors.accentCyan,
-                                ),
-                                const SizedBox(width: 10),
-                                SelectableText(
-                                  ev.serial,
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              'Origem: ${ev.fromPort ?? "N/A"} (${ev.fromCircuitId ?? "-"})  →  Destino: ${ev.toPort} (${ev.toCircuitId})',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            Text(
-                              ev.timestamp?.toIso8601String() ?? '',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                    onSubmitted: (_) => _loadScannerAndTimeline(),
                   ),
+                ),
+                OutlinedButton(
+                  onPressed: _loadScannerAndTimeline,
+                  child: const Text('Filtrar'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showReconcileFieldModal,
+                  icon: const Icon(Icons.build_circle_outlined, size: 16),
+                  label: const Text('Reconciliar Evento de Campo'),
+                ),
               ],
             ),
+            children: [
+              if (_loadingScanner && _migrationEvents.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_migrationEvents.isEmpty)
+                _buildEmptyBox(
+                  'Nenhum evento de migração ou reconciliação TR-101 registrado até o momento.',
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _migrationEvents.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(color: AppColors.surfaceBorder),
+                  itemBuilder: (ctx, idx) {
+                    final ev = _migrationEvents[idx];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildBadge(
+                                ev.reason,
+                                AppColors.accentCyan,
+                              ),
+                              const SizedBox(width: 10),
+                              SelectableText(
+                                ev.serial,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            'Origem: ${ev.fromPort ?? "N/A"} (${ev.fromCircuitId ?? "-"})  →  Destino: ${ev.toPort} (${ev.toCircuitId})',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          Text(
+                            ev.timestamp?.toIso8601String() ?? '',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
           ),
         ],
       ),
@@ -1642,154 +1472,116 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
             _buildErrorBanner(_webhooksError!, _loadWebhooksData),
 
           // Subscriptions Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          _buildSectionCard(
+            icon: Icons.webhook,
+            iconColor: AppColors.accentCyan,
+            title: 'Assinaturas de Webhooks Ativas (HMAC-SHA256)',
+            trailing: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.webhook,
-                          color: AppColors.accentCyan,
-                          size: 20,
-                        ),
-                        SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            'Assinaturas de Webhooks Ativas (HMAC-SHA256)',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _showCreateWebhookModal,
-                          icon: const Icon(Icons.add, size: 16),
-                          label: const Text('Novo Webhook'),
-                        ),
-                        IconButton(
-                          onPressed: _loadingWebhooks ? null : _loadWebhooksData,
-                          icon: const Icon(Icons.refresh, size: 18),
-                          tooltip: 'Atualizar Webhooks',
-                        ),
-                      ],
-                    ),
-                  ],
+                ElevatedButton.icon(
+                  onPressed: _showCreateWebhookModal,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Novo Webhook'),
                 ),
-                const SizedBox(height: 16),
-                if (_loadingWebhooks && _webhooks.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_webhooks.isEmpty)
-                  _buildEmptyBox(
-                    'Nenhum Webhook configurado. Cadastre uma URL para notificar o ERP em tempo real.',
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _webhooks.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(color: AppColors.surfaceBorder),
-                    itemBuilder: (ctx, idx) {
-                      final sub = _webhooks[idx];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 4,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    _buildBadge(
-                                      sub.isActive ? 'ATIVO' : 'INATIVO',
-                                      sub.isActive
-                                          ? AppColors.statusOnline
-                                          : AppColors.statusOffline,
-                                    ),
-                                    if (sub.secret.isNotEmpty)
-                                      _buildBadge(
-                                        'HMAC-SHA256',
-                                        AppColors.primaryLight,
-                                      ),
-                                    SelectableText(
-                                      sub.url,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Eventos: ${sub.events.join(", ")}${sub.description != null ? " • ${sub.description}" : ""}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Wrap(
-                              spacing: 8,
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () => _handlePingWebhook(sub),
-                                  icon: const Icon(Icons.send_outlined, size: 14),
-                                  label: const Text('Testar Ping'),
-                                ),
-                                IconButton(
-                                  onPressed: () => _handleDeleteWebhook(sub),
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    color: AppColors.statusDanger,
-                                    size: 18,
-                                  ),
-                                  tooltip: 'Remover Webhook',
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                IconButton(
+                  onPressed: _loadingWebhooks ? null : _loadWebhooksData,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  tooltip: 'Atualizar Webhooks',
+                ),
               ],
             ),
+            children: [
+              if (_loadingWebhooks && _webhooks.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_webhooks.isEmpty)
+                _buildEmptyBox(
+                  'Nenhum Webhook configurado. Cadastre uma URL para notificar o ERP em tempo real.',
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _webhooks.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(color: AppColors.surfaceBorder),
+                  itemBuilder: (ctx, idx) {
+                    final sub = _webhooks[idx];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  _buildBadge(
+                                    sub.isActive ? 'ATIVO' : 'INATIVO',
+                                    sub.isActive
+                                        ? AppColors.statusOnline
+                                        : AppColors.statusOffline,
+                                  ),
+                                  if (sub.secret.isNotEmpty)
+                                    _buildBadge(
+                                      'HMAC-SHA256',
+                                      AppColors.primaryLight,
+                                    ),
+                                  SelectableText(
+                                    sub.url,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Eventos: ${sub.events.join(", ")}${sub.description != null ? " • ${sub.description}" : ""}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () => _handlePingWebhook(sub),
+                                icon: const Icon(Icons.send_outlined, size: 14),
+                                label: const Text('Testar Ping'),
+                              ),
+                              IconButton(
+                                onPressed: () => _handleDeleteWebhook(sub),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: AppColors.statusDanger,
+                                  size: 18,
+                                ),
+                                tooltip: 'Remover Webhook',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
           ),
 
           const SizedBox(height: 20),
@@ -1896,167 +1688,129 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
           if (_tenantsError != null)
             _buildErrorBanner(_tenantsError!, _loadTenantsData),
 
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          _buildSectionCard(
+            icon: Icons.domain,
+            iconColor: AppColors.accentCyan,
+            title: 'Inquilinos (Tenants) & Alocação de VLANs em Rede Neutra',
+            trailing: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.domain,
-                          color: AppColors.accentCyan,
-                          size: 20,
-                        ),
-                        SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            'Inquilinos (Tenants) & Alocação de VLANs em Rede Neutra',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _showCreateTenantModal,
-                          icon: const Icon(Icons.add_business_outlined, size: 16),
-                          label: const Text('Novo Inquilino'),
-                        ),
-                        IconButton(
-                          onPressed: _loadingTenants ? null : _loadTenantsData,
-                          icon: const Icon(Icons.refresh, size: 18),
-                          tooltip: 'Atualizar Inquilinos',
-                        ),
-                      ],
-                    ),
-                  ],
+                ElevatedButton.icon(
+                  onPressed: _showCreateTenantModal,
+                  icon: const Icon(Icons.add_business_outlined, size: 16),
+                  label: const Text('Novo Inquilino'),
                 ),
-                const SizedBox(height: 16),
-                if (_loadingTenants && _tenants.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_tenants.isEmpty)
-                  _buildEmptyBox(
-                    'Nenhum inquilino cadastrado. Crie operadores de Rede Neutra e aloque suas respectivas VLANs por OLT.',
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _tenants.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(color: AppColors.surfaceBorder),
-                    itemBuilder: (ctx, idx) {
-                      final t = _tenants[idx];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 8,
-                              alignment: WrapAlignment.spaceBetween,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Wrap(
-                                  spacing: 8,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Text(
-                                      t.name,
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    _buildBadge(
-                                      t.type,
-                                      t.type == 'PROVIDER_OWNER'
-                                          ? AppColors.primaryLight
-                                          : AppColors.accentCyan,
-                                    ),
-                                    _buildBadge(
-                                      t.isActive ? 'ATIVO' : 'INATIVO',
-                                      t.isActive
-                                          ? AppColors.statusOnline
-                                          : AppColors.statusOffline,
-                                    ),
-                                  ],
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () => _showAllocateVlanModal(t),
-                                  icon: const Icon(Icons.lan_outlined, size: 15),
-                                  label: const Text('Alocar VLAN na OLT'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            if (t.vlans.isEmpty)
-                              const Text(
-                                'Nenhuma VLAN exclusiva alocada a este inquilino.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textMuted,
-                                ),
-                              )
-                            else
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: t.vlans.map((alloc) {
-                                  final oltName =
-                                      oltMap[alloc.oltId]?.name ?? alloc.oltId;
-                                  return Chip(
-                                    backgroundColor: AppColors.inputBackground,
-                                    label: Text(
-                                      'VLAN ${alloc.vlanId} • $oltName${alloc.description != null ? " (${alloc.description})" : ""}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    deleteIcon: const Icon(
-                                      Icons.close,
-                                      size: 15,
-                                      color: AppColors.statusDanger,
-                                    ),
-                                    onDeleted: () => _handleRevokeVlan(t, alloc),
-                                  );
-                                }).toList(),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                IconButton(
+                  onPressed: _loadingTenants ? null : _loadTenantsData,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  tooltip: 'Atualizar Inquilinos',
+                ),
               ],
             ),
+            children: [
+              if (_loadingTenants && _tenants.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_tenants.isEmpty)
+                _buildEmptyBox(
+                  'Nenhum inquilino cadastrado. Crie operadores de Rede Neutra e aloque suas respectivas VLANs por OLT.',
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _tenants.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(color: AppColors.surfaceBorder),
+                  itemBuilder: (ctx, idx) {
+                    final t = _tenants[idx];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(
+                                    t.name,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  _buildBadge(
+                                    t.type,
+                                    t.type == 'PROVIDER_OWNER'
+                                        ? AppColors.primaryLight
+                                        : AppColors.accentCyan,
+                                  ),
+                                  _buildBadge(
+                                    t.isActive ? 'ATIVO' : 'INATIVO',
+                                    t.isActive
+                                        ? AppColors.statusOnline
+                                        : AppColors.statusOffline,
+                                  ),
+                                ],
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () => _showAllocateVlanModal(t),
+                                icon: const Icon(Icons.lan_outlined, size: 15),
+                                label: const Text('Alocar VLAN na OLT'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          if (t.vlans.isEmpty)
+                            const Text(
+                              'Nenhuma VLAN exclusiva alocada a este inquilino.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            )
+                          else
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: t.vlans.map((alloc) {
+                                final oltName =
+                                    oltMap[alloc.oltId]?.name ?? alloc.oltId;
+                                return Chip(
+                                  backgroundColor: AppColors.inputBackground,
+                                  label: Text(
+                                    'VLAN ${alloc.vlanId} • $oltName${alloc.description != null ? " (${alloc.description})" : ""}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  deleteIcon: const Icon(
+                                    Icons.close,
+                                    size: 15,
+                                    color: AppColors.statusDanger,
+                                  ),
+                                  onDeleted: () => _handleRevokeVlan(t, alloc),
+                                );
+                              }).toList(),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
           ),
         ],
       ),
@@ -2073,274 +1827,198 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
           if (_rbacError != null) _buildErrorBanner(_rbacError!, _loadRbacData),
 
           // Users RBAC Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          _buildSectionCard(
+            icon: Icons.people_outline,
+            iconColor: AppColors.accentCyan,
+            title: 'Contas de Operadores & Controle RBAC',
+            trailing: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.people_outline,
-                          color: AppColors.accentCyan,
-                          size: 20,
-                        ),
-                        SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            'Contas de Operadores & Controle RBAC',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _showCreateUserModal,
-                          icon: const Icon(Icons.person_add_outlined, size: 16),
-                          label: const Text('Novo Usuário'),
-                        ),
-                        IconButton(
-                          onPressed: _loadingRbac ? null : _loadRbacData,
-                          icon: const Icon(Icons.refresh, size: 18),
-                          tooltip: 'Atualizar Usuários e Chaves',
-                        ),
-                      ],
-                    ),
-                  ],
+                ElevatedButton.icon(
+                  onPressed: _showCreateUserModal,
+                  icon: const Icon(Icons.person_add_outlined, size: 16),
+                  label: const Text('Novo Usuário'),
                 ),
-                const SizedBox(height: 16),
-                if (_loadingRbac && _users.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_users.isEmpty)
-                  _buildEmptyBox('Nenhum usuário RBAC retornado pela API.')
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _users.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(color: AppColors.surfaceBorder),
-                    itemBuilder: (ctx, idx) {
-                      final u = _users[idx];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 6,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                _buildBadge(u.role, AppColors.primaryLight),
-                                _buildBadge(
-                                  u.isActive ? 'ATIVO' : 'INATIVO',
-                                  u.isActive
-                                      ? AppColors.statusOnline
-                                      : AppColors.statusDanger,
-                                ),
-                                Text(
-                                  u.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                Text(
-                                  u.email,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                Text(
-                                  u.allowedOltIds.isEmpty
-                                      ? '• Escopo: Todas as OLTs'
-                                      : '• Escopo: ${u.allowedOltIds.length} OLT(s)',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Wrap(
-                              spacing: 8,
-                              children: [
-                                OutlinedButton(
-                                  onPressed: () => _handleToggleUserActive(u),
-                                  child: Text(
-                                    u.isActive ? 'Desativar' : 'Ativar',
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () => _handleDeleteUser(u),
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    color: AppColors.statusDanger,
-                                    size: 18,
-                                  ),
-                                  tooltip: 'Excluir Usuário',
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                IconButton(
+                  onPressed: _loadingRbac ? null : _loadRbacData,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  tooltip: 'Atualizar Usuários e Chaves',
+                ),
               ],
             ),
+            children: [
+              if (_loadingRbac && _users.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_users.isEmpty)
+                _buildEmptyBox('Nenhum usuário RBAC retornado pela API.')
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _users.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(color: AppColors.surfaceBorder),
+                  itemBuilder: (ctx, idx) {
+                    final u = _users[idx];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              _buildBadge(u.role, AppColors.primaryLight),
+                              _buildBadge(
+                                u.isActive ? 'ATIVO' : 'INATIVO',
+                                u.isActive
+                                    ? AppColors.statusOnline
+                                    : AppColors.statusDanger,
+                              ),
+                              Text(
+                                u.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                u.email,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              Text(
+                                u.allowedOltIds.isEmpty
+                                    ? '• Escopo: Todas as OLTs'
+                                    : '• Escopo: ${u.allowedOltIds.length} OLT(s)',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => _handleToggleUserActive(u),
+                                child: Text(
+                                  u.isActive ? 'Desativar' : 'Ativar',
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => _handleDeleteUser(u),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: AppColors.statusDanger,
+                                  size: 18,
+                                ),
+                                tooltip: 'Excluir Usuário',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
           ),
 
           const SizedBox(height: 20),
 
           // API Keys Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
+          _buildSectionCard(
+            icon: Icons.vpn_key_outlined,
+            iconColor: AppColors.statusWarning,
+            title: 'Chaves de API M2M (X-API-Key / SHA-256)',
+            trailing: ElevatedButton.icon(
+              onPressed: _showCreateApiKeyModal,
+              icon: const Icon(Icons.add_moderator_outlined, size: 16),
+              label: const Text('Nova API Key'),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.vpn_key_outlined,
-                          color: AppColors.statusWarning,
-                          size: 20,
-                        ),
-                        SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            'Chaves de API M2M (X-API-Key / SHA-256)',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _showCreateApiKeyModal,
-                      icon: const Icon(Icons.add_moderator_outlined, size: 16),
-                      label: const Text('Nova API Key'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (_apiKeys.isEmpty)
-                  _buildEmptyBox(
-                    'Nenhuma chave de API ativa. Gere chaves com escopos granulares para integrações de ERP.',
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _apiKeys.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(color: AppColors.surfaceBorder),
-                    itemBuilder: (ctx, idx) {
-                      final k = _apiKeys[idx];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Wrap(
-                                  spacing: 8,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Text(
-                                      k.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                      ),
+            children: [
+              if (_apiKeys.isEmpty)
+                _buildEmptyBox(
+                  'Nenhuma chave de API ativa. Gere chaves com escopos granulares para integrações de ERP.',
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _apiKeys.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(color: AppColors.surfaceBorder),
+                  itemBuilder: (ctx, idx) {
+                    final k = _apiKeys[idx];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(
+                                    k.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
                                     ),
-                                    _buildBadge(
-                                      '${k.keyPrefix}***',
-                                      AppColors.accentCyan,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Escopos: ${k.scopes.join(", ")}${k.expiresAt != null ? " • Expira: ${k.expiresAt}" : ""}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
                                   ),
+                                  _buildBadge(
+                                    '${k.keyPrefix}***',
+                                    AppColors.accentCyan,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Escopos: ${k.scopes.join(", ")}${k.expiresAt != null ? " • Expira: ${k.expiresAt}" : ""}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
                                 ),
-                              ],
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _handleRevokeApiKey(k),
-                              icon: const Icon(
-                                Icons.block,
-                                size: 15,
-                                color: AppColors.statusDanger,
                               ),
-                              label: const Text(
-                                'Revogar',
-                                style: TextStyle(color: AppColors.statusDanger),
-                              ),
+                            ],
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _handleRevokeApiKey(k),
+                            icon: const Icon(
+                              Icons.block,
+                              size: 15,
+                              color: AppColors.statusDanger,
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
+                            label: const Text(
+                              'Revogar',
+                              style: TextStyle(color: AppColors.statusDanger),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
           ),
         ],
       ),
@@ -2348,6 +2026,63 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
   }
 
   // -------------------- SHARED WIDGET HELPERS --------------------
+
+  Widget _buildSectionCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    Widget? headerBadge,
+    Widget? trailing,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.surfaceBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: iconColor, size: 20),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (headerBadge != null) ...[
+                    const SizedBox(width: 10),
+                    headerBadge,
+                  ],
+                ],
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
 
   Widget _buildMetricTile(String label, String value, IconData icon) {
     return Container(
@@ -2702,215 +2437,183 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
         children: [
           if (_topologyError != null)
             _buildErrorBanner(_topologyError!, _loadTopologyData),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          _buildSectionCard(
+            icon: Icons.account_tree_outlined,
+            iconColor: AppColors.accentCyan,
+            title: 'Mapa de Saúde FTTH por CTO / ODB (Correlação de Quedas)',
+            trailing: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.account_tree_outlined,
-                            color: AppColors.accentCyan, size: 20),
-                        SizedBox(width: 10),
-                        Text(
-                          'Mapa de Saúde FTTH por CTO / ODB (Correlação de Quedas)',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _showCreateZoneModal,
-                          icon: const Icon(Icons.location_city, size: 16),
-                          label: const Text('Nova Zona'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: _showCreateOdbModal,
-                          icon: const Icon(Icons.add_box_outlined, size: 16),
-                          label: const Text('Nova CTO / ODB'),
-                        ),
-                        IconButton(
-                          onPressed: _loadingTopology ? null : _loadTopologyData,
-                          icon: const Icon(Icons.refresh, size: 18),
-                        ),
-                      ],
-                    ),
-                  ],
+                OutlinedButton.icon(
+                  onPressed: _showCreateZoneModal,
+                  icon: const Icon(Icons.location_city, size: 16),
+                  label: const Text('Nova Zona'),
                 ),
-                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _showCreateOdbModal,
+                  icon: const Icon(Icons.add_box_outlined, size: 16),
+                  label: const Text('Nova CTO / ODB'),
+                ),
+                IconButton(
+                  onPressed: _loadingTopology ? null : _loadTopologyData,
+                  icon: const Icon(Icons.refresh, size: 18),
+                ),
+              ],
+            ),
+            children: [
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _buildMetricTile(
+                    'Zonas FTTH',
+                    '${hm?.totalZones ?? _zones.length}',
+                    Icons.map_outlined,
+                  ),
+                  _buildMetricTile(
+                    'Total CTOs',
+                    '${hm?.totalOdbs ?? _odbs.length}',
+                    Icons.inventory_2_outlined,
+                  ),
+                  _buildMetricTile(
+                    'CTOs Saudáveis',
+                    '${hm?.healthyOdbs ?? 0}',
+                    Icons.check_circle_outline,
+                  ),
+                  _buildMetricTile(
+                    'Queda Elétrica (Dying Gasp)',
+                    '${hm?.powerOutageOdbs ?? 0}',
+                    Icons.flash_off_outlined,
+                  ),
+                  _buildMetricTile(
+                    'Rompimento Fibra (LoS)',
+                    '${hm?.fiberCutOdbs ?? 0}',
+                    Icons.content_cut_outlined,
+                  ),
+                ],
+              ),
+              if (_zones.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _zones
+                      .map(
+                        (z) => Chip(
+                          backgroundColor: AppColors.surfaceHover,
+                          label: Text(
+                            'Zona: ${z.name}${z.city != null ? " (${z.city})" : ""}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          onDeleted: () => _handleDeleteZone(z),
+                          deleteIconColor: AppColors.statusDanger,
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+              const SizedBox(height: 18),
+              if (hm == null || hm.nodes.isEmpty)
+                _buildEmptyBox(
+                  'Nenhuma CTO/ODB cadastrada. Crie zonas e CTOs acima para correlacionar quedas elétricas vs rompimentos de fibra.',
+                )
+              else
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
-                  children: [
-                    _buildMetricTile(
-                      'Zonas FTTH',
-                      '${hm?.totalZones ?? _zones.length}',
-                      Icons.map_outlined,
-                    ),
-                    _buildMetricTile(
-                      'Total CTOs',
-                      '${hm?.totalOdbs ?? _odbs.length}',
-                      Icons.inventory_2_outlined,
-                    ),
-                    _buildMetricTile(
-                      'CTOs Saudáveis',
-                      '${hm?.healthyOdbs ?? 0}',
-                      Icons.check_circle_outline,
-                    ),
-                    _buildMetricTile(
-                      'Queda Elétrica (Dying Gasp)',
-                      '${hm?.powerOutageOdbs ?? 0}',
-                      Icons.flash_off_outlined,
-                    ),
-                    _buildMetricTile(
-                      'Rompimento Fibra (LoS)',
-                      '${hm?.fiberCutOdbs ?? 0}',
-                      Icons.content_cut_outlined,
-                    ),
-                  ],
-                ),
-                if (_zones.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _zones
-                        .map(
-                          (z) => Chip(
-                            backgroundColor: AppColors.surfaceHover,
-                            label: Text(
-                              'Zona: ${z.name}${z.city != null ? " (${z.city})" : ""}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            onDeleted: () => _handleDeleteZone(z),
-                            deleteIconColor: AppColors.statusDanger,
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                if (hm == null || hm.nodes.isEmpty)
-                  _buildEmptyBox(
-                    'Nenhuma CTO/ODB cadastrada. Crie zonas e CTOs acima para correlacionar quedas elétricas vs rompimentos de fibra.',
-                  )
-                else
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: hm.nodes.map((node) {
-                      Color statusColor = AppColors.statusOnline;
-                      String statusLabel = 'OPERACIONAL';
-                      if (node.healthStatus == 'fiber_cut') {
-                        statusColor = AppColors.statusDanger;
-                        statusLabel = '✂️ ROMPIMENTO FIBRA (LoS)';
-                      } else if (node.healthStatus == 'power_outage') {
-                        statusColor = AppColors.statusWarning;
-                        statusLabel = '⚡ QUEDA ELÉTRICA';
-                      } else if (node.healthStatus == 'degraded') {
-                        statusColor = AppColors.statusWarning;
-                        statusLabel = '⚠️ SINAL DEGRADADO';
-                      }
-                      return Container(
-                        width: 290,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceHover,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: statusColor.withValues(alpha: 0.6),
-                          ),
+                  children: hm.nodes.map((node) {
+                    Color statusColor = AppColors.statusOnline;
+                    String statusLabel = 'OPERACIONAL';
+                    if (node.healthStatus == 'fiber_cut') {
+                      statusColor = AppColors.statusDanger;
+                      statusLabel = '✂️ ROMPIMENTO FIBRA (LoS)';
+                    } else if (node.healthStatus == 'power_outage') {
+                      statusColor = AppColors.statusWarning;
+                      statusLabel = '⚡ QUEDA ELÉTRICA';
+                    } else if (node.healthStatus == 'degraded') {
+                      statusColor = AppColors.statusWarning;
+                      statusLabel = '⚠️ SINAL DEGRADADO';
+                    }
+                    return Container(
+                      width: 290,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceHover,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: 0.6),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    '${node.code} • ${node.name}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  '${node.code} • ${node.name}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      node.splitterRatio,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.accentCyan,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    InkWell(
-                                      onTap: () => _handleDeleteOdb(
-                                          node.odbId, node.code),
-                                      child: const Icon(
-                                        Icons.delete_outline,
-                                        size: 16,
-                                        color: AppColors.statusDanger,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            _buildBadge(statusLabel, statusColor),
-                            const SizedBox(height: 8),
-                            Text(
-                              'ONUs: ${node.onlineOnus}/${node.totalOnus} online • LoS: ${node.losOnus} • DyingGasp: ${node.dyingGaspOnus}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
                               ),
-                            ),
-                            if (node.diagnosisSummary.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                node.diagnosisSummary,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textMuted,
-                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    node.splitterRatio,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.accentCyan,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  InkWell(
+                                    onTap: () => _handleDeleteOdb(
+                                        node.odbId, node.code),
+                                    child: const Icon(
+                                      Icons.delete_outline,
+                                      size: 16,
+                                      color: AppColors.statusDanger,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 6),
+                          _buildBadge(statusLabel, statusColor),
+                          const SizedBox(height: 8),
+                          Text(
+                            'ONUs: ${node.onlineOnus}/${node.totalOnus} online • LoS: ${node.losOnus} • DyingGasp: ${node.dyingGaspOnus}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          if (node.diagnosisSummary.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              node.diagnosisSummary,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
                           ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-              ],
-            ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+            ],
           ),
         ],
       ),
@@ -2949,78 +2652,61 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
     final patternCtrl = TextEditingController(text: '*');
     bool isDefault = false;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text('Novo Preset Universal de Provisionamento'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nome do Preset *',
-                    hintText: 'Ex: Plano Residencial 500M',
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: vlanCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'VLAN Padrão *'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: profileCtrl,
-                        decoration:
-                            const InputDecoration(labelText: 'Perfil DBA *'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: patternCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Filtro de Modelo ONU (* para todos)',
-                  ),
-                ),
-                CheckboxListTile(
-                  value: isDefault,
-                  onChanged: (v) =>
-                      setModalState(() => isDefault = v ?? false),
-                  title: const Text(
-                    'Definir como Preset Padrão (1-Clique)',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ),
-              ],
+    final confirmed = await _showConfirmFormDialog(
+      title: 'Novo Preset Universal de Provisionamento',
+      confirmLabel: 'Salvar Preset',
+      builder: (context, setModalState) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nameCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Nome do Preset *',
+              hintText: 'Ex: Plano Residencial 500M',
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: vlanCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration:
+                      const InputDecoration(labelText: 'VLAN Padrão *'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: profileCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Perfil DBA *'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: patternCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Filtro de Modelo ONU (* para todos)',
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Salvar Preset'),
+          ),
+          CheckboxListTile(
+            value: isDefault,
+            onChanged: (v) =>
+                setModalState(() => isDefault = v ?? false),
+            title: const Text(
+              'Definir como Preset Padrão (1-Clique)',
+              style: TextStyle(fontSize: 13),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     if (nameCtrl.text.trim().length < 2) return;
     try {
       final parsedVlan = int.tryParse(vlanCtrl.text.trim()) ?? 100;
@@ -3061,74 +2747,59 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
     final userCtrl = TextEditingController();
     final passCtrl = TextEditingController();
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Cadastrar Servidor ACS TR-069 (GenieACS NBI)'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    final confirmed = await _showConfirmFormDialog(
+      title: 'Cadastrar Servidor ACS TR-069 (GenieACS NBI)',
+      confirmLabel: 'Salvar ACS',
+      builder: (ctx, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nameCtrl,
+            decoration:
+                const InputDecoration(labelText: 'Nome do Servidor ACS *'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: nbiCtrl,
+            decoration: const InputDecoration(
+              labelText: 'URL da API NBI (GenieACS) *',
+              hintText: 'http://10.0.0.50:7557',
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: cwmpCtrl,
+            decoration: const InputDecoration(
+              labelText: 'URL CWMP Inform para CPEs *',
+              hintText: 'http://10.0.0.50:7547',
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
             children: [
-              TextField(
-                controller: nameCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Nome do Servidor ACS *'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: nbiCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'URL da API NBI (GenieACS) *',
-                  hintText: 'http://10.0.0.50:7557',
+              Expanded(
+                child: TextField(
+                  controller: userCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Usuário HTTP'),
                 ),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: cwmpCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'URL CWMP Inform para CPEs *',
-                  hintText: 'http://10.0.0.50:7547',
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: passCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Senha (Fernet AES)'),
                 ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: userCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'Usuário HTTP'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: passCtrl,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                          labelText: 'Senha (Fernet AES)'),
-                    ),
-                  ),
-                ],
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Salvar ACS'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     try {
       await context.read<AppState>().apiClient.createAcsServer({
         'name': nameCtrl.text.trim(),
@@ -3182,248 +2853,184 @@ class _GovernanceScreenState extends State<GovernanceScreen> {
             _buildErrorBanner(_acsPresetsError!, _loadAcsAndPresetsData),
 
           // Seção Presets Universais (Fase 3)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
+          _buildSectionCard(
+            icon: Icons.auto_awesome_outlined,
+            iconColor: AppColors.accentCyan,
+            title: 'Presets Universais de Provisionamento (Fase 3)',
+            trailing: ElevatedButton.icon(
+              onPressed:
+                  _loadingAcsPresets ? null : _showCreatePresetModal,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Novo Preset Universal'),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            children: [
+              if (_presets.isEmpty)
+                _buildEmptyBox(
+                  'Nenhum Preset Universal cadastrado. Crie templates reutilizáveis para autorização em 1 clique.',
+                )
+              else
                 Wrap(
                   spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.auto_awesome_outlined,
-                            color: AppColors.accentCyan, size: 20),
-                        SizedBox(width: 10),
-                        Text(
-                          'Presets Universais de Provisionamento (Fase 3)',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
+                  runSpacing: 12,
+                  children: _presets.map((p) {
+                    return Container(
+                      width: 270,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceHover,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: p.isDefault
+                              ? AppColors.accentCyan
+                              : AppColors.surfaceBorder,
                         ),
-                      ],
-                    ),
-                    ElevatedButton.icon(
-                      onPressed:
-                          _loadingAcsPresets ? null : _showCreatePresetModal,
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Novo Preset Universal'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                if (_presets.isEmpty)
-                  _buildEmptyBox(
-                    'Nenhum Preset Universal cadastrado. Crie templates reutilizáveis para autorização em 1 clique.',
-                  )
-                else
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: _presets.map((p) {
-                      return Container(
-                        width: 270,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceHover,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: p.isDefault
-                                ? AppColors.accentCyan
-                                : AppColors.surfaceBorder,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    p.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  p.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (p.isDefault) ...[
-                                      _buildBadge(
-                                          'PADRÃO', AppColors.accentCyan),
-                                      const SizedBox(width: 6),
-                                    ],
-                                    InkWell(
-                                      onTap: () => _handleDeletePreset(p),
-                                      child: const Icon(
-                                        Icons.delete_outline,
-                                        size: 16,
-                                        color: AppColors.statusDanger,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'VLAN ${p.defaultVlan} • Perfil: ${p.defaultProfile} • Modo: ${p.defaultMode}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
                               ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (p.isDefault) ...[
+                                    _buildBadge(
+                                        'PADRÃO', AppColors.accentCyan),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  InkWell(
+                                    onTap: () => _handleDeletePreset(p),
+                                    child: const Icon(
+                                      Icons.delete_outline,
+                                      size: 16,
+                                      color: AppColors.statusDanger,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'VLAN ${p.defaultVlan} • Perfil: ${p.defaultProfile} • Modo: ${p.defaultMode}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
                             ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-              ],
-            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+            ],
           ),
 
           const SizedBox(height: 20),
 
           // Seção Servidores ACS TR-069 / CWMP (Fase 5)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
+          _buildSectionCard(
+            icon: Icons.wifi_tethering,
+            iconColor: AppColors.primaryLight,
+            title: 'Servidores ACS TR-069 / CWMP (GenieACS NBI)',
+            trailing: ElevatedButton.icon(
+              onPressed: _showCreateAcsModal,
+              icon: const Icon(Icons.add_link, size: 16),
+              label: const Text('Conectar Servidor ACS'),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            children: [
+              if (_acsServers.isEmpty)
+                _buildEmptyBox(
+                  'Nenhum servidor ACS TR-069 cadastrado. Conecte seu GenieACS para gerência remota de Wi-Fi 2.4G/5G, PPPoE e OTA.',
+                )
+              else
                 Wrap(
                   spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.wifi_tethering,
-                            color: AppColors.primaryLight, size: 20),
-                        SizedBox(width: 10),
-                        Text(
-                          'Servidores ACS TR-069 / CWMP (GenieACS NBI)',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _showCreateAcsModal,
-                      icon: const Icon(Icons.add_link, size: 16),
-                      label: const Text('Conectar Servidor ACS'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                if (_acsServers.isEmpty)
-                  _buildEmptyBox(
-                    'Nenhum servidor ACS TR-069 cadastrado. Conecte seu GenieACS para gerência remota de Wi-Fi 2.4G/5G, PPPoE e OTA.',
-                  )
-                else
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: _acsServers.map((s) {
-                      return Container(
-                        width: 320,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceHover,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.surfaceBorder),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    s.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                  runSpacing: 12,
+                  children: _acsServers.map((s) {
+                    return Container(
+                      width: 320,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceHover,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  s.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                _buildBadge(
-                                  s.isActive ? 'ATIVO' : 'INATIVO',
-                                  s.isActive
-                                      ? AppColors.statusOnline
-                                      : AppColors.textMuted,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'NBI: ${s.baseUrl}\nCWMP: ${s.cwmpUrl}',
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
                               ),
+                              _buildBadge(
+                                s.isActive ? 'ATIVO' : 'INATIVO',
+                                s.isActive
+                                    ? AppColors.statusOnline
+                                    : AppColors.textMuted,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'NBI: ${s.baseUrl}\nCWMP: ${s.cwmpUrl}',
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
                             ),
-                            const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () => _handleTestAcsServer(s),
-                                  icon: const Icon(Icons.network_check,
-                                      size: 14),
-                                  label: const Text(
-                                    'Testar NBI',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () => _handleTestAcsServer(s),
+                                icon: const Icon(Icons.network_check,
+                                    size: 14),
+                                label: const Text(
+                                  'Testar NBI',
+                                  style: TextStyle(fontSize: 12),
                                 ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  onPressed: () => _handleDeleteAcsServer(s),
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                    color: AppColors.statusDanger,
-                                  ),
-                                  tooltip: 'Excluir Servidor ACS',
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                onPressed: () => _handleDeleteAcsServer(s),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                  color: AppColors.statusDanger,
                                 ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-              ],
-            ),
+                                tooltip: 'Excluir Servidor ACS',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+            ],
           ),
         ],
       ),

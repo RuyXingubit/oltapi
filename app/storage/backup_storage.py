@@ -78,6 +78,16 @@ class BackupStorage:
         items.sort(key=lambda x: x.created_at, reverse=True)
         return items
 
+    def _resolve_safe_file(self, olt_id: str, filename: str) -> Optional[Path]:
+        expected_dir = (self.base_dir / olt_id).resolve()
+        target_file = (expected_dir / filename).resolve()
+        if not str(target_file).startswith(str(expected_dir)):
+            logger.warning(f"Tentativa de Path Traversal bloqueada: {target_file}")
+            return None
+        if not target_file.exists():
+            return None
+        return target_file
+
     def get_backup_path(self, olt_id: str, backup_id: str) -> Optional[Path]:
         """Retorna o caminho seguro do arquivo de backup com proteção rigorosa contra Path Traversal."""
         if not is_valid_uuid7(backup_id) or not is_valid_uuid7(olt_id):
@@ -87,18 +97,7 @@ class BackupStorage:
         if not metadata or metadata.olt_id != olt_id:
             return None
 
-        expected_dir = (self.base_dir / olt_id).resolve()
-        target_file = (expected_dir / metadata.filename).resolve()
-
-        # Verifica se o arquivo está estritamente contido dentro do diretório autorizado da OLT
-        if not str(target_file).startswith(str(expected_dir)):
-            logger.warning(f"Tentativa de Path Traversal bloqueada: {target_file}")
-            return None
-
-        if not target_file.exists():
-            return None
-
-        return target_file
+        return self._resolve_safe_file(olt_id, metadata.filename)
 
     def get_backup_content(self, olt_id: str, backup_id: str) -> Optional[str]:
         """Retorna o conteúdo textual do backup especificado com leitura segura."""
@@ -142,11 +141,10 @@ class BackupStorage:
             target = all_backups[0]
             base = all_backups[1]
         else:
-            base = self._backups.get(base_backup_id or "")
-            target = self._backups.get(target_backup_id or "")
+            backups_map = {b.backup_id: b for b in all_backups}
+            base = backups_map.get(base_backup_id or "")
+            target = backups_map.get(target_backup_id or "")
             if not base or not target:
-                return None
-            if base.olt_id != olt_id or target.olt_id != olt_id:
                 return None
 
         identical = base.sha256_hash == target.sha256_hash
@@ -213,8 +211,7 @@ class BackupStorage:
             last_backup_at=latest.created_at if latest else None,
         )
 
-    def delete_backup(self, olt_id: str, backup_id: str) -> bool:
-        """Exclui com segurança um arquivo de backup em disco e remove do índice."""
+    def _unlink_backup_file(self, olt_id: str, backup_id: str) -> None:
         file_path = self.get_backup_path(olt_id=olt_id, backup_id=backup_id)
         if file_path and file_path.exists():
             try:
@@ -222,21 +219,21 @@ class BackupStorage:
             except Exception as e:
                 logger.error(f"Erro ao excluir arquivo físico de backup {file_path}: {e}")
 
+    def delete_backup(self, olt_id: str, backup_id: str) -> bool:
+        """Exclui com segurança um arquivo de backup em disco e remove do índice."""
+        self._unlink_backup_file(olt_id, backup_id)
         if backup_id in self._backups and self._backups[backup_id].olt_id == olt_id:
             del self._backups[backup_id]
             self._save()
             return True
         return False
 
-    def purge_backups(
+    def _purge_olt_list(
         self,
-        olt_id: Optional[str] = None,
-        max_backups_per_olt: int = 30,
-        max_age_days: Optional[int] = None,
-    ) -> PurgeResult:
-        """Aplica política de retenção e expurgo de backups obsoletos por quantidade ou idade."""
-
-        target_olt_ids = [olt_id] if olt_id else list({b.olt_id for b in self._backups.values()})
+        target_olt_ids: List[str],
+        max_backups_per_olt: int,
+        max_age_days: Optional[int],
+    ) -> tuple[int, int]:
         deleted_count = 0
         freed_bytes = 0
         now = datetime.now(timezone.utc)
@@ -245,15 +242,12 @@ class BackupStorage:
             backups = self.list_by_olt(current_olt)
             to_delete: List[BackupMetadata] = []
 
-            # 1. Filtro por quantidade excedente
             if len(backups) > max_backups_per_olt:
                 to_delete.extend(backups[max_backups_per_olt:])
 
-            # 2. Filtro por idade máxima (preservando sempre pelo menos o backup mais recente)
             if max_age_days is not None:
                 for b in backups[:max_backups_per_olt]:
                     if b == backups[0]:
-                        # Preserva sempre o mais recente para garantir recuperação em caso de desastre
                         continue
                     age = (now - b.created_at).total_seconds() / 86400.0
                     if age > max_age_days and b not in to_delete:
@@ -264,6 +258,18 @@ class BackupStorage:
                     deleted_count += 1
                     freed_bytes += b.size_bytes
 
+        return deleted_count, freed_bytes
+
+    def purge_backups(
+        self,
+        olt_id: Optional[str] = None,
+        max_backups_per_olt: int = 30,
+        max_age_days: Optional[int] = None,
+    ) -> PurgeResult:
+        """Aplica política de retenção e expurgo de backups obsoletos por quantidade ou idade."""
+
+        target_olt_ids = [olt_id] if olt_id else list({b.olt_id for b in self._backups.values()})
+        deleted_count, freed_bytes = self._purge_olt_list(target_olt_ids, max_backups_per_olt, max_age_days)
         remaining = len([b for b in self._backups.values() if not olt_id or b.olt_id == olt_id])
         return PurgeResult(
             olt_id=olt_id,

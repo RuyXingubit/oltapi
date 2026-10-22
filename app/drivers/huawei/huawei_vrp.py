@@ -1367,122 +1367,8 @@ class HuaweiVRPDriver(BaseOLTDriver):
             while ont_id in used_ids and ont_id < 128:
                 ont_id += 1
 
-        # 2. Resolve Line Profile ID e Service Profile ID (reutilizando SmartOLT se existir!)
-        line_profiles: Dict[str, int] = {}
-        srv_profiles: Dict[str, int] = {}
-
-        sec_lp = re.search(r"display\s+ont-lineprofile\s+gpon\s+all(.*?)(?=display\s+|\Z)", pre_out, re.DOTALL | re.IGNORECASE)
-        if sec_lp:
-            for row in re.findall(r"^\s*(\d+)\s+([A-Za-z0-9_\-\.]+)\s+\d+", sec_lp.group(1), re.MULTILINE):
-                line_profiles[row[1]] = int(row[0])
-
-        sec_sp = re.search(r"display\s+ont-srvprofile\s+gpon\s+all(.*?)(?=display\s+|\Z)", pre_out, re.DOTALL | re.IGNORECASE)
-        if sec_sp:
-            for row in re.findall(r"^\s*(\d+)\s+([A-Za-z0-9_\-\.]+)\s+\d+", sec_sp.group(1), re.MULTILINE):
-                srv_profiles[row[1]] = int(row[0])
-
-        # Verifica se já existe perfil específico (Greenfield OLTAPI ou Brownfield SmartOLT)
-        lp_id: Optional[int] = None
-        sp_id: Optional[int] = None
-        create_new_vlan_profiles = False
-        create_new_router_profiles = False
-
-        if mode_val == "router":
-            if "OLTAPI_ROUTER_LINE" in line_profiles and "OLTAPI_ROUTER_SRV" in srv_profiles:
-                lp_id = line_profiles["OLTAPI_ROUTER_LINE"]
-                sp_id = srv_profiles["OLTAPI_ROUTER_SRV"]
-            elif "SMARTOLT_FLEXIBLE_GPON" in line_profiles and "EG8145X6-10" in srv_profiles:
-                lp_id = line_profiles["SMARTOLT_FLEXIBLE_GPON"]
-                sp_id = srv_profiles["EG8145X6-10"]
-            elif line_profiles or srv_profiles:
-                used_lp_ids = set(line_profiles.values())
-                lp_id = 1
-                while lp_id in used_lp_ids:
-                    lp_id += 1
-                used_sp_ids = set(srv_profiles.values())
-                sp_id = 2
-                while sp_id in used_sp_ids:
-                    sp_id += 1
-                create_new_router_profiles = True
-            else:
-                lp_id = 1
-                sp_id = 2
-        else:
-            for cand_lp in (f"OLTAPI_BRIDGE_LINE_V{vlan}", f"OLTAPI_LINE_V{vlan}", f"Generic_1_V{vlan}"):
-                if cand_lp in line_profiles:
-                    lp_id = line_profiles[cand_lp]
-                    break
-
-            for cand_sp in (f"OLTAPI_BRIDGE_SRV_V{vlan}", f"OLTAPI_SRV_V{vlan}", f"Generic_1_V{vlan}"):
-                if cand_sp in srv_profiles:
-                    sp_id = srv_profiles[cand_sp]
-                    break
-
-            if lp_id is None or sp_id is None:
-                # Se for uma VLAN nova sem perfil Bridge prévio, cria automaticamente na caixa
-                if line_profiles or srv_profiles:
-                    used_lp_ids = set(line_profiles.values())
-                    lp_id = 6
-                    while lp_id in used_lp_ids:
-                        lp_id += 1
-                    used_sp_ids = set(srv_profiles.values())
-                    sp_id = 3
-                    while sp_id in used_sp_ids:
-                        sp_id += 1
-                    create_new_vlan_profiles = True
-                else:
-                    # Ambiente de teste / mock sem tabela prévia
-                    lp_id = 6
-                    sp_id = 1
-
-        # 3. Resolve Traffic Tables IP (reutiliza index 12/8 e 9 se presentes, senão 6)
-        has_tt_9 = bool(re.search(r"^\s*9\s+\d+", pre_out, re.MULTILINE))
-        has_tt_12 = bool(re.search(r"^\s*12\s+\d+", pre_out, re.MULTILINE))
-        has_tt_8 = bool(re.search(r"^\s*8\s+\d+", pre_out, re.MULTILINE))
-        up_tt = 12 if has_tt_12 else (8 if has_tt_8 else 6)
-        down_tt = 9 if has_tt_9 else 6
-
-        commands = ["config"]
-
-        if create_new_router_profiles:
-            commands.extend([
-                f'ont-srvprofile gpon profile-id {sp_id} profile-name "OLTAPI_ROUTER_SRV"',
-                "ont-port pots adaptive 32 eth adaptive 8 catv adaptive 8",
-                "ring check enable",
-                "commit",
-                "quit",
-                f'ont-lineprofile gpon profile-id {lp_id} profile-name "OLTAPI_ROUTER_LINE"',
-                "fec-upstream enable",
-                "omcc encrypt on",
-                "mapping-mode priority",
-                "tcont 0 dba-profile-id 2",
-                "tcont 1 dba-profile-id 10",
-                "gem add 1 eth tcont 1 encrypt on",
-                "gem mapping 1 1 priority 0",
-                "gem mapping 1 2 priority 7",
-                "commit",
-                "quit",
-            ])
-
-        if create_new_vlan_profiles:
-            commands.extend([
-                f'ont-srvprofile gpon profile-id {sp_id} profile-name "OLTAPI_BRIDGE_SRV_V{vlan}"',
-                "ont-port pots adaptive 32 eth adaptive 8 catv adaptive 8",
-                f"port vlan eth 1 translation {vlan} user-vlan {vlan}",
-                f"port vlan eth 2 translation {vlan} user-vlan {vlan}",
-                f"port vlan eth 3 translation {vlan} user-vlan {vlan}",
-                f"port vlan eth 4 translation {vlan} user-vlan {vlan}",
-                "commit",
-                "quit",
-                f'ont-lineprofile gpon profile-id {lp_id} profile-name "OLTAPI_BRIDGE_LINE_V{vlan}"',
-                "omcc encrypt on",
-                "tcont 0 dba-profile-id 2",
-                "tcont 1 dba-profile-id 10",
-                "gem add 1 eth tcont 1 encrypt on",
-                f"gem mapping 1 1 vlan {vlan}",
-                "commit",
-                "quit",
-            ])
+        lp_id, sp_id, up_tt, down_tt, profile_cmds = self._resolve_profiles_and_traffic_tables(pre_out, mode_val, vlan)
+        commands = ["config"] + profile_cmds
 
         commands.extend([
             f"interface gpon {f}/{s}",
@@ -1715,120 +1601,11 @@ class HuaweiVRPDriver(BaseOLTDriver):
             ],
         )
 
-        line_profiles: Dict[str, int] = {}
-        srv_profiles: Dict[str, int] = {}
-
-        sec_lp = re.search(r"display\s+ont-lineprofile\s+gpon\s+all(.*?)(?=display\s+|\Z)", pre_out, re.DOTALL | re.IGNORECASE)
-        if sec_lp:
-            for row in re.findall(r"^\s*(\d+)\s+([A-Za-z0-9_\-\.]+)\s+\d+", sec_lp.group(1), re.MULTILINE):
-                line_profiles[row[1]] = int(row[0])
-
-        sec_sp = re.search(r"display\s+ont-srvprofile\s+gpon\s+all(.*?)(?=display\s+|\Z)", pre_out, re.DOTALL | re.IGNORECASE)
-        if sec_sp:
-            for row in re.findall(r"^\s*(\d+)\s+([A-Za-z0-9_\-\.]+)\s+\d+", sec_sp.group(1), re.MULTILINE):
-                srv_profiles[row[1]] = int(row[0])
-
-        lp_id: Optional[int] = None
-        sp_id: Optional[int] = None
-        create_new_vlan_profiles = False
-        create_new_router_profiles = False
-
-        if mode_val == "router":
-            if "OLTAPI_ROUTER_LINE" in line_profiles and "OLTAPI_ROUTER_SRV" in srv_profiles:
-                lp_id = line_profiles["OLTAPI_ROUTER_LINE"]
-                sp_id = srv_profiles["OLTAPI_ROUTER_SRV"]
-            elif "SMARTOLT_FLEXIBLE_GPON" in line_profiles and "EG8145X6-10" in srv_profiles:
-                lp_id = line_profiles["SMARTOLT_FLEXIBLE_GPON"]
-                sp_id = srv_profiles["EG8145X6-10"]
-            elif line_profiles or srv_profiles:
-                used_lp_ids = set(line_profiles.values())
-                lp_id = 1
-                while lp_id in used_lp_ids:
-                    lp_id += 1
-                used_sp_ids = set(srv_profiles.values())
-                sp_id = 2
-                while sp_id in used_sp_ids:
-                    sp_id += 1
-                create_new_router_profiles = True
-            else:
-                lp_id = 1
-                sp_id = 2
-        else:
-            for cand_lp in (f"OLTAPI_BRIDGE_LINE_V{target_vlan}", f"OLTAPI_LINE_V{target_vlan}", f"Generic_1_V{target_vlan}"):
-                if cand_lp in line_profiles:
-                    lp_id = line_profiles[cand_lp]
-                    break
-
-            for cand_sp in (f"OLTAPI_BRIDGE_SRV_V{target_vlan}", f"OLTAPI_SRV_V{target_vlan}", f"Generic_1_V{target_vlan}"):
-                if cand_sp in srv_profiles:
-                    sp_id = srv_profiles[cand_sp]
-                    break
-
-            if lp_id is None or sp_id is None:
-                if line_profiles or srv_profiles:
-                    used_lp_ids = set(line_profiles.values())
-                    lp_id = 6
-                    while lp_id in used_lp_ids:
-                        lp_id += 1
-                    used_sp_ids = set(srv_profiles.values())
-                    sp_id = 3
-                    while sp_id in used_sp_ids:
-                        sp_id += 1
-                    create_new_vlan_profiles = True
-                else:
-                    lp_id = 6
-                    sp_id = 1
-
-        has_tt_9 = bool(re.search(r"^\s*9\s+\d+", pre_out, re.MULTILINE))
-        has_tt_12 = bool(re.search(r"^\s*12\s+\d+", pre_out, re.MULTILINE))
-        has_tt_8 = bool(re.search(r"^\s*8\s+\d+", pre_out, re.MULTILINE))
-        up_tt = 12 if has_tt_12 else (8 if has_tt_8 else 6)
-        down_tt = 9 if has_tt_9 else 6
-
+        lp_id, sp_id, up_tt, down_tt, profile_cmds = self._resolve_profiles_and_traffic_tables(pre_out, mode_val, target_vlan)
         commands = [
             "config",
             f"undo service-port port {f}/{s}/{p} ont {resolved_id}",
-        ]
-
-        if create_new_router_profiles:
-            commands.extend([
-                f'ont-srvprofile gpon profile-id {sp_id} profile-name "OLTAPI_ROUTER_SRV"',
-                "ont-port pots adaptive 32 eth adaptive 8 catv adaptive 8",
-                "ring check enable",
-                "commit",
-                "quit",
-                f'ont-lineprofile gpon profile-id {lp_id} profile-name "OLTAPI_ROUTER_LINE"',
-                "fec-upstream enable",
-                "omcc encrypt on",
-                "mapping-mode priority",
-                "tcont 0 dba-profile-id 2",
-                "tcont 1 dba-profile-id 10",
-                "gem add 1 eth tcont 1 encrypt on",
-                "gem mapping 1 1 priority 0",
-                "gem mapping 1 2 priority 7",
-                "commit",
-                "quit",
-            ])
-
-        if create_new_vlan_profiles:
-            commands.extend([
-                f'ont-srvprofile gpon profile-id {sp_id} profile-name "OLTAPI_BRIDGE_SRV_V{target_vlan}"',
-                "ont-port pots adaptive 32 eth adaptive 8 catv adaptive 8",
-                f"port vlan eth 1 translation {target_vlan} user-vlan {target_vlan}",
-                f"port vlan eth 2 translation {target_vlan} user-vlan {target_vlan}",
-                f"port vlan eth 3 translation {target_vlan} user-vlan {target_vlan}",
-                f"port vlan eth 4 translation {target_vlan} user-vlan {target_vlan}",
-                "commit",
-                "quit",
-                f'ont-lineprofile gpon profile-id {lp_id} profile-name "OLTAPI_BRIDGE_LINE_V{target_vlan}"',
-                "omcc encrypt on",
-                "tcont 0 dba-profile-id 2",
-                "tcont 1 dba-profile-id 10",
-                "gem add 1 eth tcont 1 encrypt on",
-                f"gem mapping 1 1 vlan {target_vlan}",
-                "commit",
-                "quit",
-            ])
+        ] + profile_cmds
 
         commands.extend([
             f"interface gpon {f}/{s}",
@@ -1858,6 +1635,121 @@ class HuaweiVRPDriver(BaseOLTDriver):
                 f"de {old_vlan or 'anterior'} para {target_vlan} com sucesso."
             ),
         )
+
+    @staticmethod
+    def _parse_profile_map(pre_out: str, section_cmd: str) -> Dict[str, int]:
+        result: Dict[str, int] = {}
+        sec = re.search(rf"{section_cmd}(.*?)(?=display\s+|\Z)", pre_out, re.DOTALL | re.IGNORECASE)
+        if sec:
+            for row in re.findall(r"^\s*(\d+)\s+([A-Za-z0-9_\-\.]+)\s+\d+", sec.group(1), re.MULTILINE):
+                result[row[1]] = int(row[0])
+        return result
+
+    @staticmethod
+    def _next_free_id(used_ids: set, start_id: int) -> int:
+        candidate = start_id
+        while candidate in used_ids:
+            candidate += 1
+        return candidate
+
+    @staticmethod
+    def _build_router_profile_cmds(lp_id: int, sp_id: int) -> List[str]:
+        return [
+            f'ont-srvprofile gpon profile-id {sp_id} profile-name "OLTAPI_ROUTER_SRV"',
+            "ont-port pots adaptive 32 eth adaptive 8 catv adaptive 8",
+            "ring check enable",
+            "commit",
+            "quit",
+            f'ont-lineprofile gpon profile-id {lp_id} profile-name "OLTAPI_ROUTER_LINE"',
+            "fec-upstream enable",
+            "omcc encrypt on",
+            "mapping-mode priority",
+            "tcont 0 dba-profile-id 2",
+            "tcont 1 dba-profile-id 10",
+            "gem add 1 eth tcont 1 encrypt on",
+            "gem mapping 1 1 priority 0",
+            "gem mapping 1 2 priority 7",
+            "commit",
+            "quit",
+        ]
+
+    @staticmethod
+    def _build_bridge_profile_cmds(lp_id: int, sp_id: int, vlan: int) -> List[str]:
+        return [
+            f'ont-srvprofile gpon profile-id {sp_id} profile-name "OLTAPI_BRIDGE_SRV_V{vlan}"',
+            "ont-port pots adaptive 32 eth adaptive 8 catv adaptive 8",
+            f"port vlan eth 1 translation {vlan} user-vlan {vlan}",
+            f"port vlan eth 2 translation {vlan} user-vlan {vlan}",
+            f"port vlan eth 3 translation {vlan} user-vlan {vlan}",
+            f"port vlan eth 4 translation {vlan} user-vlan {vlan}",
+            "commit",
+            "quit",
+            f'ont-lineprofile gpon profile-id {lp_id} profile-name "OLTAPI_BRIDGE_LINE_V{vlan}"',
+            "omcc encrypt on",
+            "tcont 0 dba-profile-id 2",
+            "tcont 1 dba-profile-id 10",
+            "gem add 1 eth tcont 1 encrypt on",
+            f"gem mapping 1 1 vlan {vlan}",
+            "commit",
+            "quit",
+        ]
+
+    def _resolve_router_profiles(
+        self,
+        line_profiles: Dict[str, int],
+        srv_profiles: Dict[str, int],
+    ) -> Tuple[int, int, List[str]]:
+        if "OLTAPI_ROUTER_LINE" in line_profiles and "OLTAPI_ROUTER_SRV" in srv_profiles:
+            return line_profiles["OLTAPI_ROUTER_LINE"], srv_profiles["OLTAPI_ROUTER_SRV"], []
+        if "SMARTOLT_FLEXIBLE_GPON" in line_profiles and "EG8145X6-10" in srv_profiles:
+            return line_profiles["SMARTOLT_FLEXIBLE_GPON"], srv_profiles["EG8145X6-10"], []
+        if line_profiles or srv_profiles:
+            lp_id = self._next_free_id(set(line_profiles.values()), 1)
+            sp_id = self._next_free_id(set(srv_profiles.values()), 2)
+            return lp_id, sp_id, self._build_router_profile_cmds(lp_id, sp_id)
+        return 1, 2, []
+
+    def _resolve_bridge_profiles(
+        self,
+        line_profiles: Dict[str, int],
+        srv_profiles: Dict[str, int],
+        vlan: int,
+    ) -> Tuple[int, int, List[str]]:
+        lp_id = next(
+            (line_profiles[c] for c in (f"OLTAPI_BRIDGE_LINE_V{vlan}", f"OLTAPI_LINE_V{vlan}", f"Generic_1_V{vlan}") if c in line_profiles),
+            None,
+        )
+        sp_id = next(
+            (srv_profiles[c] for c in (f"OLTAPI_BRIDGE_SRV_V{vlan}", f"OLTAPI_SRV_V{vlan}", f"Generic_1_V{vlan}") if c in srv_profiles),
+            None,
+        )
+        if lp_id is not None and sp_id is not None:
+            return lp_id, sp_id, []
+        if line_profiles or srv_profiles:
+            new_lp = self._next_free_id(set(line_profiles.values()), 6)
+            new_sp = self._next_free_id(set(srv_profiles.values()), 3)
+            return new_lp, new_sp, self._build_bridge_profile_cmds(new_lp, new_sp, vlan)
+        return 6, 1, []
+
+    def _resolve_profiles_and_traffic_tables(
+        self,
+        pre_out: str,
+        mode_val: str,
+        vlan: int,
+    ) -> Tuple[int, int, int, int, List[str]]:
+        line_profiles = self._parse_profile_map(pre_out, r"display\s+ont-lineprofile\s+gpon\s+all")
+        srv_profiles = self._parse_profile_map(pre_out, r"display\s+ont-srvprofile\s+gpon\s+all")
+        if mode_val == "router":
+            lp_id, sp_id, profile_cmds = self._resolve_router_profiles(line_profiles, srv_profiles)
+        else:
+            lp_id, sp_id, profile_cmds = self._resolve_bridge_profiles(line_profiles, srv_profiles, vlan)
+
+        has_tt_9 = bool(re.search(r"^\s*9\s+\d+", pre_out, re.MULTILINE))
+        has_tt_12 = bool(re.search(r"^\s*12\s+\d+", pre_out, re.MULTILINE))
+        has_tt_8 = bool(re.search(r"^\s*8\s+\d+", pre_out, re.MULTILINE))
+        up_tt = 12 if has_tt_12 else (8 if has_tt_8 else 6)
+        down_tt = 9 if has_tt_9 else 6
+        return lp_id, sp_id, up_tt, down_tt, profile_cmds
 
     def move_onu_port(
         self,

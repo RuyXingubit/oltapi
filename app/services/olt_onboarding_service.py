@@ -232,20 +232,14 @@ class OLTOnboardingService:
             links=links,
         )
 
-    def execute_onboarding(
+    def _connect_fingerprint_and_create_olt(
         self,
-        request: OLTOnboardRequest,
-        tenant_name: Optional[str] = None,
-    ) -> OLTOnboardResponse:
-        """
-        Executa o pipeline contínuo de onboarding Zero-Touch.
-        """
-        steps: List[OnboardingStepItem] = []
+        request,
+        tenant_name: Optional[str],
+        backup_notes: str,
+        steps: List[OnboardingStepItem],
+    ) -> Tuple[OLTInDB, str]:
         company_slug = slugify_community(tenant_name or "provedor")
-
-        # ---------------------------------------------------------------------
-        # Etapa 1: Negociação de Conectividade (SSH -> Telnet)
-        # ---------------------------------------------------------------------
         try:
             protocol, port, banner_prompt = self.probe_connectivity(
                 host=request.host,
@@ -272,9 +266,6 @@ class OLTOnboardingService:
             )
             raise ConnectionError(str(e))
 
-        # ---------------------------------------------------------------------
-        # Etapa 2: Reconhecimento do Fabricante e Modelo
-        # ---------------------------------------------------------------------
         vendor, model = self.fingerprint_vendor_and_model(banner_prompt)
         steps.append(
             OnboardingStepItem(
@@ -285,13 +276,9 @@ class OLTOnboardingService:
             )
         )
 
-        # ---------------------------------------------------------------------
-        # Etapa 3: Cadastro Atômico da OLT
-        # ---------------------------------------------------------------------
         default_community = f"olt_{company_slug}"
-        olt_id = generate_uuid7()
         olt_entity = OLTInDB(
-            id=olt_id,
+            id=generate_uuid7(),
             name=request.name.strip(),
             vendor=vendor,
             model=model,
@@ -306,13 +293,10 @@ class OLTOnboardingService:
         )
         created_olt = self.olt_repo.create(olt_entity)
 
-        # ---------------------------------------------------------------------
-        # Etapa 4: Snapshot de Segurança Obrigatório (Baseline v0)
-        # ---------------------------------------------------------------------
         try:
             baseline_backup = self.backup_service.create_backup(
                 olt_id=created_olt.id,
-                notes="Baseline v0 - Onboarding Zero-Touch Full Discovery",
+                notes=backup_notes,
             )
             baseline_backup_id = baseline_backup.backup_id
             steps.append(
@@ -324,6 +308,8 @@ class OLTOnboardingService:
                 )
             )
         except Exception as e:
+            logger.warning(f"Aviso ao gerar baseline v0: {e}")
+            baseline_backup_id = "baseline_v0_pendente"
             steps.append(
                 OnboardingStepItem(
                     step_key="baseline_backup",
@@ -332,20 +318,67 @@ class OLTOnboardingService:
                     details=f"Aviso ao extrair backup completo da OLT: {e}",
                 )
             )
-            baseline_backup_id = "baseline_v0_pendente"
 
-        # ---------------------------------------------------------------------
-        # Etapa 5: Diagnóstico e Provisionamento SNMP Dinâmico (Zero Hardcode)
-        # ---------------------------------------------------------------------
+        return created_olt, baseline_backup_id
+
+    @staticmethod
+    def _build_onboard_response(
+        created_olt: OLTInDB,
+        baseline_backup_id: str,
+        final_community: str,
+        snmp_active: bool,
+        ports_count: int,
+        active_ports_count: int,
+        total_onus: int,
+        new_onus: int,
+        firmware_ver: Optional[str],
+        uptime_str: Optional[str],
+        steps: List[OnboardingStepItem],
+        msg_prefix: str = "Onboarding da OLT",
+    ) -> OLTOnboardResponse:
+        links = {
+            "self": Link(href=f"/api/v1/olts/{created_olt.id}", rel="self", method="GET"),
+            "telemetry": Link(href=f"/api/v1/olts/{created_olt.id}/telemetry", rel="telemetry", method="GET"),
+            "ports": Link(href=f"/api/v1/olts/{created_olt.id}/ports", rel="ports", method="GET"),
+            "vlans": Link(href=f"/api/v1/olts/{created_olt.id}/vlans", rel="vlans", method="GET"),
+            "onus": Link(href=f"/api/v1/onus?olt_id={created_olt.id}", rel="onus", method="GET"),
+        }
+        return OLTOnboardResponse(
+            olt_id=created_olt.id,
+            name=created_olt.name,
+            vendor=created_olt.vendor,
+            model=created_olt.model,
+            host=created_olt.host,
+            port=created_olt.port,
+            protocol=created_olt.protocol,
+            baseline_backup_id=baseline_backup_id,
+            snmp_community=final_community,
+            snmp_active=snmp_active,
+            total_ports=ports_count,
+            active_ports=active_ports_count,
+            total_onus_detected=total_onus,
+            new_onus_registered=new_onus,
+            firmware_version=firmware_ver,
+            uptime_human=uptime_str,
+            steps=steps,
+            message=f"{msg_prefix} '{created_olt.name}' concluído com sucesso! {total_onus} ONUs e {ports_count} portas mapeadas.",
+            links=links,
+        )
+
+    def _finalize_onboarding_pipeline(
+        self,
+        created_olt: OLTInDB,
+        baseline_backup_id: str,
+        tenant_name: Optional[str],
+        steps: List[OnboardingStepItem],
+        msg_prefix: str = "Onboarding da OLT",
+    ) -> OLTOnboardResponse:
         snmp_active, final_community, step_snmp = self._discover_and_configure_snmp(
             created_olt=created_olt,
             tenant_name=tenant_name,
         )
         steps.append(step_snmp)
 
-        # ---------------------------------------------------------------------
-        # Etapa 6: Ingestão de Portas, VLANs e ONUs no Inventário
-        # ---------------------------------------------------------------------
         try:
             sync_res = self.sync_service.sync_olt(created_olt.id)
             total_onus = sync_res.total_onus_discovered
@@ -371,43 +404,47 @@ class OLTOnboardingService:
                 )
             )
 
-        # ---------------------------------------------------------------------
-        # Etapa 7: Telemetria Consolidada e Mapeamento de Portas Físicas
-        # ---------------------------------------------------------------------
         ports_count, active_ports_count, firmware_ver, uptime_str = self._derive_ports_and_telemetry(
             created_olt=created_olt,
             snmp_active=snmp_active,
             final_community=final_community,
         )
-
-        links = {
-            "self": Link(href=f"/api/v1/olts/{created_olt.id}", rel="self", method="GET"),
-            "telemetry": Link(href=f"/api/v1/olts/{created_olt.id}/telemetry", rel="telemetry", method="GET"),
-            "ports": Link(href=f"/api/v1/olts/{created_olt.id}/ports", rel="ports", method="GET"),
-            "vlans": Link(href=f"/api/v1/olts/{created_olt.id}/vlans", rel="vlans", method="GET"),
-            "onus": Link(href=f"/api/v1/onus?olt_id={created_olt.id}", rel="onus", method="GET"),
-        }
-
-        return OLTOnboardResponse(
-            olt_id=created_olt.id,
-            name=created_olt.name,
-            vendor=created_olt.vendor,
-            model=created_olt.model,
-            host=created_olt.host,
-            port=created_olt.port,
-            protocol=created_olt.protocol,
+        return self._build_onboard_response(
+            created_olt=created_olt,
             baseline_backup_id=baseline_backup_id,
-            snmp_community=final_community,
+            final_community=final_community,
             snmp_active=snmp_active,
-            total_ports=ports_count,
-            active_ports=active_ports_count,
-            total_onus_detected=total_onus,
-            new_onus_registered=new_onus,
-            firmware_version=firmware_ver,
-            uptime_human=uptime_str,
+            ports_count=ports_count,
+            active_ports_count=active_ports_count,
+            total_onus=total_onus,
+            new_onus=new_onus,
+            firmware_ver=firmware_ver,
+            uptime_str=uptime_str,
             steps=steps,
-            message=f"Onboarding da OLT '{created_olt.name}' concluído com sucesso! {total_onus} ONUs e {ports_count} portas mapeadas.",
-            links=links,
+            msg_prefix=msg_prefix,
+        )
+
+    def execute_onboarding(
+        self,
+        request: OLTOnboardRequest,
+        tenant_name: Optional[str] = None,
+    ) -> OLTOnboardResponse:
+        """
+        Executa o pipeline contínuo de onboarding Zero-Touch.
+        """
+        steps: List[OnboardingStepItem] = []
+        created_olt, baseline_backup_id = self._connect_fingerprint_and_create_olt(
+            request=request,
+            tenant_name=tenant_name,
+            backup_notes="Baseline v0 - Onboarding Zero-Touch Full Discovery",
+            steps=steps,
+        )
+        return self._finalize_onboarding_pipeline(
+            created_olt=created_olt,
+            baseline_backup_id=baseline_backup_id,
+            tenant_name=tenant_name,
+            steps=steps,
+            msg_prefix="Onboarding da OLT",
         )
 
     def execute_wizard_onboarding(
@@ -417,103 +454,15 @@ class OLTOnboardingService:
     ) -> OLTOnboardResponse:
         """
         Executa o comissionamento assistido e onboarding em lote da OLT via Wizard.
-        1. Negociação e Conexão SSH/Telnet
-        2. Reconhecimento de Fabricante e Modelo
-        3. Cadastro no Banco de Dados
-        4. Snapshot Preventivo Baseline v0 com SHA-256
-        5. Aplicação das Regras de Comissionamento Wizard (In-Band, VLANs, Perfis, P2P)
-        6. Provisionamento/Validação de SNMP
-        7. Ingestão de Inventário e Circuit ID TR-101
-        8. Telemetria e Consolidação
         """
         steps: List[OnboardingStepItem] = []
-        company_slug = slugify_community(tenant_name or "provedor")
-
-        # 1. Conectividade
-        try:
-            protocol, port, banner_prompt = self.probe_connectivity(
-                host=request.host,
-                username=request.username,
-                password=request.password,
-                custom_port=request.custom_port,
-            )
-            steps.append(
-                OnboardingStepItem(
-                    step_key="connectivity",
-                    title="Negociação de Conexão",
-                    status="success",
-                    details=f"Conectado com sucesso via {protocol.value.upper()} na porta {port}.",
-                )
-            )
-        except Exception as e:
-            steps.append(
-                OnboardingStepItem(
-                    step_key="connectivity",
-                    title="Negociação de Conexão",
-                    status="error",
-                    details=str(e),
-                )
-            )
-            raise ConnectionError(str(e))
-
-        # 2. Fingerprint
-        vendor, model = self.fingerprint_vendor_and_model(banner_prompt)
-        steps.append(
-            OnboardingStepItem(
-                step_key="fingerprint",
-                title="Reconhecimento do Fabricante",
-                status="success",
-                details=f"Fabricante identificado: {vendor.value.upper()} (Modelo: {model.upper()}).",
-            )
+        created_olt, baseline_backup_id = self._connect_fingerprint_and_create_olt(
+            request=request,
+            tenant_name=tenant_name,
+            backup_notes="Baseline v0 - Pre-Wizard Commissioning Snapshot",
+            steps=steps,
         )
 
-        # 3. Cadastro Atômico da OLT
-        default_community = f"olt_{company_slug}"
-        olt_id = generate_uuid7()
-        olt_entity = OLTInDB(
-            id=olt_id,
-            name=request.name.strip(),
-            vendor=vendor,
-            model=model,
-            host=request.host.strip(),
-            port=port,
-            protocol=protocol,
-            username=request.username.strip(),
-            password=request.password.strip(),
-            snmp_community=default_community,
-            snmp_port=161,
-            snmp_version="v2c",
-        )
-        created_olt = self.olt_repo.create(olt_entity)
-
-        # 4. Snapshot Baseline v0 Preventivo
-        try:
-            baseline_backup = self.backup_service.create_backup(
-                olt_id=created_olt.id,
-                notes="Baseline v0 - Pre-Wizard Commissioning Snapshot",
-            )
-            baseline_backup_id = baseline_backup.backup_id
-            steps.append(
-                OnboardingStepItem(
-                    step_key="baseline_backup",
-                    title="Backup Preventivo Baseline v0",
-                    status="success",
-                    details=f"Backup de segurança gravado em disco com SHA-256 (ID: {baseline_backup_id}).",
-                )
-            )
-        except Exception as e:
-            logger.warning(f"Aviso ao gerar baseline v0: {e}")
-            baseline_backup_id = "baseline_v0_pendente"
-            steps.append(
-                OnboardingStepItem(
-                    step_key="baseline_backup",
-                    title="Backup Preventivo Baseline v0",
-                    status="warning",
-                    details=f"Aviso ao extrair backup: {e}",
-                )
-            )
-
-        # 5. Execução do Comissionamento Wizard via Driver
         driver = DriverFactory.get_driver(created_olt)
         try:
             cmd_list = driver.execute_wizard_commissioning(created_olt, request)
@@ -537,74 +486,12 @@ class OLTOnboardingService:
                 )
             )
 
-        # 6. SNMP Telemetry Discovery
-        snmp_active, final_community, step_snmp = self._discover_and_configure_snmp(
+        return self._finalize_onboarding_pipeline(
             created_olt=created_olt,
-            tenant_name=tenant_name,
-        )
-        steps.append(step_snmp)
-
-        # 7. Ingestão de Inventário & TR-101
-        try:
-            sync_res = self.sync_service.sync_olt(created_olt.id)
-            total_onus = sync_res.total_onus_discovered
-            new_onus = sync_res.new_onus_registered
-            steps.append(
-                OnboardingStepItem(
-                    step_key="inventory_sync",
-                    title="Ingestão de Inventário & TR-101",
-                    status="success",
-                    details=f"{total_onus} ONUs sincronizadas com cálculo de Circuit ID TR-101.",
-                )
-            )
-        except Exception as e:
-            logger.warning(f"Erro ao sincronizar inventário: {e}")
-            total_onus = 0
-            new_onus = 0
-            steps.append(
-                OnboardingStepItem(
-                    step_key="inventory_sync",
-                    title="Ingestão de Inventário",
-                    status="warning",
-                    details=f"Aviso ao sincronizar inventário: {e}",
-                )
-            )
-
-        # 8. Telemetria Consolidada
-        ports_count, active_ports_count, firmware_ver, uptime_str = self._derive_ports_and_telemetry(
-            created_olt=created_olt,
-            snmp_active=snmp_active,
-            final_community=final_community,
-        )
-
-        links = {
-            "self": Link(href=f"/api/v1/olts/{created_olt.id}", rel="self", method="GET"),
-            "telemetry": Link(href=f"/api/v1/olts/{created_olt.id}/telemetry", rel="telemetry", method="GET"),
-            "ports": Link(href=f"/api/v1/olts/{created_olt.id}/ports", rel="ports", method="GET"),
-            "vlans": Link(href=f"/api/v1/olts/{created_olt.id}/vlans", rel="vlans", method="GET"),
-            "onus": Link(href=f"/api/v1/onus?olt_id={created_olt.id}", rel="onus", method="GET"),
-        }
-
-        return OLTOnboardResponse(
-            olt_id=created_olt.id,
-            name=created_olt.name,
-            vendor=created_olt.vendor,
-            model=created_olt.model,
-            host=created_olt.host,
-            port=created_olt.port,
-            protocol=created_olt.protocol,
             baseline_backup_id=baseline_backup_id,
-            snmp_community=final_community,
-            snmp_active=snmp_active,
-            total_ports=ports_count,
-            active_ports=active_ports_count,
-            total_onus_detected=total_onus,
-            new_onus_registered=new_onus,
-            firmware_version=firmware_ver,
-            uptime_human=uptime_str,
+            tenant_name=tenant_name,
             steps=steps,
-            message=f"Comissionamento Wizard da OLT '{created_olt.name}' concluído com sucesso! {total_onus} ONUs e {ports_count} portas mapeadas.",
-            links=links,
+            msg_prefix="Comissionamento Wizard da OLT",
         )
 
     def _discover_and_configure_snmp(
@@ -1028,34 +915,19 @@ class OLTOnboardingService:
             final_community=final_community,
         )
 
-        links = {
-            "self": Link(href=f"/api/v1/olts/{created_olt.id}", rel="self", method="GET"),
-            "telemetry": Link(href=f"/api/v1/olts/{created_olt.id}/telemetry", rel="telemetry", method="GET"),
-            "ports": Link(href=f"/api/v1/olts/{created_olt.id}/ports", rel="ports", method="GET"),
-            "vlans": Link(href=f"/api/v1/olts/{created_olt.id}/vlans", rel="vlans", method="GET"),
-            "onus": Link(href=f"/api/v1/onus?olt_id={created_olt.id}", rel="onus", method="GET"),
-        }
-
-        response = OLTOnboardResponse(
-            olt_id=created_olt.id,
-            name=created_olt.name,
-            vendor=created_olt.vendor,
-            model=created_olt.model,
-            host=created_olt.host,
-            port=created_olt.port,
-            protocol=created_olt.protocol,
+        response = self._build_onboard_response(
+            created_olt=created_olt,
             baseline_backup_id=baseline_backup_id,
-            snmp_community=final_community,
+            final_community=final_community,
             snmp_active=snmp_active,
-            total_ports=ports_count,
-            active_ports=active_ports_count,
-            total_onus_detected=total_onus,
-            new_onus_registered=new_onus,
-            firmware_version=firmware_ver,
-            uptime_human=uptime_str,
+            ports_count=ports_count,
+            active_ports_count=active_ports_count,
+            total_onus=total_onus,
+            new_onus=new_onus,
+            firmware_ver=firmware_ver,
+            uptime_str=uptime_str,
             steps=steps,
-            message=f"Onboarding da OLT '{created_olt.name}' concluído com sucesso! {total_onus} ONUs e {ports_count} portas mapeadas.",
-            links=links,
+            msg_prefix="Onboarding da OLT",
         )
 
         yield format_sse({

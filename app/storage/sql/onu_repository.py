@@ -312,37 +312,9 @@ class SQLONUInventoryRepository:
 
             # Ordena em ordem cronológica (mais antiga -> mais recente) para gráficos
             samples = [self._to_optical_sample(r) for r in reversed(rows)]
-            rx_values = [s.rx_power_dbm for s in samples if s.rx_power_dbm is not None]
+            from app.storage.onu_repository import ONUInventoryRepository
 
-            current_rx = rx_values[-1] if rx_values else (inv.last_rx_power_dbm if inv else None)
-            baseline_rx = None
-            drift_db = None
-            if rx_values:
-                baseline_slice = rx_values[: min(5, max(1, len(rx_values) // 2 or 1))]
-                baseline_rx = round(sum(baseline_slice) / len(baseline_slice), 2)
-                if current_rx is not None:
-                    drift_db = round(current_rx - baseline_rx, 2)
-
-            reasons: List[str] = []
-            if current_rx is not None:
-                if current_rx <= -27.0:
-                    reasons.append(f"Sinal óptico crítico ({current_rx:.2f} dBm <= -27.0 dBm)")
-                elif current_rx <= -25.5:
-                    reasons.append(f"Sinal óptico em atenção ({current_rx:.2f} dBm <= -25.5 dBm)")
-            if drift_db is not None and drift_db <= -2.5:
-                reasons.append(f"Deriva óptica acentuada ({drift_db:+.2f} dB em relação à linha de base {baseline_rx:.2f} dBm)")
-
-            return OpticalTelemetryHistoryResponse(
-                serial=serial,
-                olt_id=inv.current_olt_id if inv else (samples[-1].olt_id if samples else None),
-                port=inv.current_port if inv else (samples[-1].port if samples else None),
-                current_rx_power_dbm=current_rx,
-                baseline_rx_power_dbm=baseline_rx,
-                drift_db=drift_db,
-                is_degraded=len(reasons) > 0,
-                degradation_reasons=reasons,
-                samples=samples,
-            )
+            return ONUInventoryRepository.build_optical_history_response(serial, samples, inv)
 
     def list_degraded_onus(
         self,
@@ -355,50 +327,12 @@ class SQLONUInventoryRepository:
             if olt_id:
                 q = q.filter(ONUInventoryModel.current_olt_id == olt_id)
             invs = q.all()
+            from app.storage.onu_repository import ONUInventoryRepository
 
-            degraded_list: List[DegradedONUReportItem] = []
-            for inv in invs:
-                hist = self.get_optical_history(inv.serial, limit=50)
-                rx = hist.current_rx_power_dbm if hist.current_rx_power_dbm is not None else inv.last_rx_power_dbm
-                drift = hist.drift_db
-                reasons = list(hist.degradation_reasons)
-
-                # Verifica custom thresholds passados na query
-                if rx is not None and rx <= threshold_dbm and not any("Sinal óptico" in r for r in reasons):
-                    reasons.append(f"Sinal óptico abaixo do limiar ({rx:.2f} dBm <= {threshold_dbm:.2f} dBm)")
-                if drift is not None and drift <= drift_threshold_db and not any("Deriva óptica" in r for r in reasons):
-                    reasons.append(f"Deriva óptica ({drift:+.2f} dB <= {drift_threshold_db:+.2f} dB)")
-                if inv.last_down_cause in ("los", "lofi"):
-                    reasons.append(f"Alarme físico ativo: {inv.last_down_cause.upper()}")
-
-                if not reasons:
-                    continue
-
-                severity = "warning"
-                if (
-                    (rx is not None and rx <= -27.0)
-                    or (drift is not None and drift <= -4.0)
-                    or inv.last_down_cause in ("los", "lofi")
-                ):
-                    severity = "critical"
-
-                degraded_list.append(
-                    DegradedONUReportItem(
-                        serial=inv.serial,
-                        subscriber_name=inv.subscriber_name,
-                        olt_id=inv.current_olt_id,
-                        port=inv.current_port,
-                        onu_id=inv.current_onu_id,
-                        rx_power_dbm=rx,
-                        baseline_rx_power_dbm=hist.baseline_rx_power_dbm,
-                        drift_db=drift,
-                        last_down_cause=inv.last_down_cause,
-                        severity=severity,
-                        reasons=reasons,
-                        last_telemetry_at=inv.last_telemetry_at,
-                    )
-                )
-
-            degraded_list.sort(key=lambda x: (x.rx_power_dbm if x.rx_power_dbm is not None else -99.0))
-            return degraded_list
+            return ONUInventoryRepository.build_degraded_onus_report(
+                invs,
+                lambda serial, limit: self.get_optical_history(serial, limit=limit),
+                threshold_dbm=threshold_dbm,
+                drift_threshold_db=drift_threshold_db,
+            )
 

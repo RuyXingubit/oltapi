@@ -1067,16 +1067,25 @@ class FiberhomeTL1Driver(BaseOLTDriver):
             message=f"ONU provisionada com sucesso na OLT Fiberhome TL1 (Slot {slot}, PON {pon}, VLAN {safe_vlan}).",
         )
 
-    def deprovision_onu(
+    def _execute_onu_lifecycle_action(
         self,
         olt: OLTInDB,
+        action: str,
         serial_or_id: str,
-        port: Optional[str] = None,
-        onu_id: Optional[int] = None,
+        port: Optional[str],
+        onu_id: Optional[int],
+        telnet_cmd_builder,
+        tl1_cmd_template: str,
+        telnet_verb: str,
+        tl1_msg_template: str,
     ) -> ONUActionResponse:
         safe_port = sanitize_port(port or "1/1")
         slot, pon = self.parse_port_components(safe_port)
-        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
+        safe_serial = (
+            sanitize_serial(serial_or_id)
+            if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id)
+            else sanitize_safe_string(serial_or_id, "identificador da onu")
+        )
         onu_idx = onu_id if onu_id is not None else 1
 
         if self.is_telnet_cli(olt):
@@ -1086,8 +1095,7 @@ class FiberhomeTL1Driver(BaseOLTDriver):
                     loc = self._resolve_onu_location(client, safe_serial)
                     if loc:
                         slot, pon, onu_idx = loc
-                cmds = self.build_telnet_deprovision_commands(slot, pon, onu_idx)
-                for c in cmds:
+                for c in telnet_cmd_builder(slot, pon, onu_idx):
                     self._exec_telnet_cmd(client, c)
             finally:
                 client.write("exit\r\n")
@@ -1095,28 +1103,45 @@ class FiberhomeTL1Driver(BaseOLTDriver):
 
             return ONUActionResponse(
                 success=True,
-                action="deprovision",
+                action=action,
                 olt_id=str(olt.id),
                 serial=safe_serial,
                 port=f"{slot}/{pon}",
                 onu_id=onu_idx,
-                message=f"ONU {safe_serial} removida via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
+                message=f"ONU {safe_serial} {telnet_verb} via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
             )
 
-        commands = [
-            f"DEL-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::;",
-        ]
-        self._execute_tl1_commands(olt, commands)
-        logger.info(f"ONU {safe_serial} (slot {slot}, pon {pon}, id {onu_idx}) desprovisionada via TL1 na OLT {olt.name}.")
-
+        self._execute_tl1_commands(
+            olt,
+            [tl1_cmd_template.format(slot=slot, pon=pon, onu_idx=onu_idx)],
+        )
         return ONUActionResponse(
             success=True,
-            action="deprovision",
+            action=action,
             olt_id=str(olt.id),
             serial=safe_serial,
             port=f"{slot}/{pon}",
             onu_id=onu_idx,
-            message=f"ONU {safe_serial} removida com sucesso via TL1 (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
+            message=tl1_msg_template.format(safe_serial=safe_serial, slot=slot, pon=pon, onu_idx=onu_idx),
+        )
+
+    def deprovision_onu(
+        self,
+        olt: OLTInDB,
+        serial_or_id: str,
+        port: Optional[str] = None,
+        onu_id: Optional[int] = None,
+    ) -> ONUActionResponse:
+        return self._execute_onu_lifecycle_action(
+            olt=olt,
+            action="deprovision",
+            serial_or_id=serial_or_id,
+            port=port,
+            onu_id=onu_id,
+            telnet_cmd_builder=self.build_telnet_deprovision_commands,
+            tl1_cmd_template="DEL-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::;",
+            telnet_verb="removida",
+            tl1_msg_template="ONU {safe_serial} removida com sucesso via TL1 (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
         )
 
     def reboot_onu(
@@ -1126,49 +1151,16 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         port: Optional[str] = None,
         onu_id: Optional[int] = None,
     ) -> ONUActionResponse:
-        safe_port = sanitize_port(port or "1/1")
-        slot, pon = self.parse_port_components(safe_port)
-        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
-        onu_idx = onu_id if onu_id is not None else 1
-
-        if self.is_telnet_cli(olt):
-            client = self._open_telnet_session(olt)
-            try:
-                if port is None or onu_id is None:
-                    loc = self._resolve_onu_location(client, safe_serial)
-                    if loc:
-                        slot, pon, onu_idx = loc
-                cmds = self.build_telnet_reboot_commands(slot, pon, onu_idx)
-                for c in cmds:
-                    self._exec_telnet_cmd(client, c)
-            finally:
-                client.write("exit\r\n")
-                client.close()
-
-            return ONUActionResponse(
-                success=True,
-                action="reboot",
-                olt_id=str(olt.id),
-                serial=safe_serial,
-                port=f"{slot}/{pon}",
-                onu_id=onu_idx,
-                message=f"ONU {safe_serial} reiniciada via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
-            )
-
-        commands = [
-            f"RESET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::;",
-        ]
-        self._execute_tl1_commands(olt, commands)
-        logger.info(f"Comando reboot enviado via TL1 para ONU {safe_serial} ({slot}/{pon}:{onu_idx}) na OLT {olt.name}.")
-
-        return ONUActionResponse(
-            success=True,
+        return self._execute_onu_lifecycle_action(
+            olt=olt,
             action="reboot",
-            olt_id=str(olt.id),
-            serial=safe_serial,
-            port=f"{slot}/{pon}",
-            onu_id=onu_idx,
-            message=f"Comando de reinicialização remota enviado via TL1 para a ONU {safe_serial}.",
+            serial_or_id=serial_or_id,
+            port=port,
+            onu_id=onu_id,
+            telnet_cmd_builder=self.build_telnet_reboot_commands,
+            tl1_cmd_template="RESET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::;",
+            telnet_verb="reiniciada",
+            tl1_msg_template="Comando de reinicialização remota enviado via TL1 para a ONU {safe_serial}.",
         )
 
     def suspend_onu(
@@ -1178,49 +1170,16 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         port: Optional[str] = None,
         onu_id: Optional[int] = None,
     ) -> ONUActionResponse:
-        safe_port = sanitize_port(port or "1/1")
-        slot, pon = self.parse_port_components(safe_port)
-        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
-        onu_idx = onu_id if onu_id is not None else 1
-
-        if self.is_telnet_cli(olt):
-            client = self._open_telnet_session(olt)
-            try:
-                if port is None or onu_id is None:
-                    loc = self._resolve_onu_location(client, safe_serial)
-                    if loc:
-                        slot, pon, onu_idx = loc
-                cmds = self.build_telnet_suspend_commands(slot, pon, onu_idx)
-                for c in cmds:
-                    self._exec_telnet_cmd(client, c)
-            finally:
-                client.write("exit\r\n")
-                client.close()
-
-            return ONUActionResponse(
-                success=True,
-                action="suspend",
-                olt_id=str(olt.id),
-                serial=safe_serial,
-                port=f"{slot}/{pon}",
-                onu_id=onu_idx,
-                message=f"ONU {safe_serial} suspensa administrativamente via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
-            )
-
-        commands = [
-            f"SET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::ADMINSTATUS=DOWN;",
-        ]
-        self._execute_tl1_commands(olt, commands)
-        logger.info(f"ONU {safe_serial} ({slot}/{pon}:{onu_idx}) suspensa via TL1 na OLT {olt.name}.")
-
-        return ONUActionResponse(
-            success=True,
+        return self._execute_onu_lifecycle_action(
+            olt=olt,
             action="suspend",
-            olt_id=str(olt.id),
-            serial=safe_serial,
-            port=f"{slot}/{pon}",
-            onu_id=onu_idx,
-            message=f"ONU {safe_serial} suspensa administrativamente via TL1.",
+            serial_or_id=serial_or_id,
+            port=port,
+            onu_id=onu_id,
+            telnet_cmd_builder=self.build_telnet_suspend_commands,
+            tl1_cmd_template="SET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::ADMINSTATUS=DOWN;",
+            telnet_verb="suspensa administrativamente",
+            tl1_msg_template="ONU {safe_serial} suspensa administrativamente via TL1.",
         )
 
     def resume_onu(
@@ -1230,49 +1189,16 @@ class FiberhomeTL1Driver(BaseOLTDriver):
         port: Optional[str] = None,
         onu_id: Optional[int] = None,
     ) -> ONUActionResponse:
-        safe_port = sanitize_port(port or "1/1")
-        slot, pon = self.parse_port_components(safe_port)
-        safe_serial = sanitize_serial(serial_or_id) if re.match(r"^[A-Za-z0-9]{4,20}$", serial_or_id) else sanitize_safe_string(serial_or_id, "identificador da onu")
-        onu_idx = onu_id if onu_id is not None else 1
-
-        if self.is_telnet_cli(olt):
-            client = self._open_telnet_session(olt)
-            try:
-                if port is None or onu_id is None:
-                    loc = self._resolve_onu_location(client, safe_serial)
-                    if loc:
-                        slot, pon, onu_idx = loc
-                cmds = self.build_telnet_resume_commands(slot, pon, onu_idx)
-                for c in cmds:
-                    self._exec_telnet_cmd(client, c)
-            finally:
-                client.write("exit\r\n")
-                client.close()
-
-            return ONUActionResponse(
-                success=True,
-                action="resume",
-                olt_id=str(olt.id),
-                serial=safe_serial,
-                port=f"{slot}/{pon}",
-                onu_id=onu_idx,
-                message=f"ONU {safe_serial} reativada via Telnet CLI (Slot {slot}, PON {pon}, ONUID {onu_idx}).",
-            )
-
-        commands = [
-            f"SET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::ADMINSTATUS=UP;",
-        ]
-        self._execute_tl1_commands(olt, commands)
-        logger.info(f"ONU {safe_serial} ({slot}/{pon}:{onu_idx}) reativada via TL1 na OLT {olt.name}.")
-
-        return ONUActionResponse(
-            success=True,
+        return self._execute_onu_lifecycle_action(
+            olt=olt,
             action="resume",
-            olt_id=str(olt.id),
-            serial=safe_serial,
-            port=f"{slot}/{pon}",
-            onu_id=onu_idx,
-            message=f"ONU {safe_serial} reativada com sucesso via TL1.",
+            serial_or_id=serial_or_id,
+            port=port,
+            onu_id=onu_id,
+            telnet_cmd_builder=self.build_telnet_resume_commands,
+            tl1_cmd_template="SET-ONU::OLTID={slot},PONID={pon},ONUID={onu_idx}:1::ADMINSTATUS=UP;",
+            telnet_verb="reativada",
+            tl1_msg_template="ONU {safe_serial} reativada com sucesso via TL1.",
         )
 
     def generate_bootstrap_commands(self, req: BootstrapRequest) -> List[str]:
