@@ -2,7 +2,7 @@
 FROM ghcr.io/cirruslabs/flutter:stable AS build
 WORKDIR /app
 COPY pubspec.yaml pubspec.lock analysis_options.yaml ./
-RUN flutter pub get --enforce-lockfile
+RUN flutter pub get
 COPY lib ./lib
 COPY web ./web
 RUN flutter build web --release
