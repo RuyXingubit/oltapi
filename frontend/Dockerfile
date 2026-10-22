@@ -2,7 +2,9 @@
 FROM ghcr.io/cirruslabs/flutter:stable AS build
 WORKDIR /app
 COPY pubspec.yaml pubspec.lock analysis_options.yaml ./
-RUN flutter channel stable && flutter upgrade --force && flutter pub get --enforce-lockfile
+RUN git -C /sdks/flutter fetch --depth 1 origin 3.47.4 && \
+    git -C /sdks/flutter checkout -f FETCH_HEAD && \
+    flutter pub get --enforce-lockfile
 COPY lib ./lib
 COPY web ./web
 RUN flutter build web --release
