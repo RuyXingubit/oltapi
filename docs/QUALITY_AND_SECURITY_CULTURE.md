@@ -73,7 +73,18 @@ Mesmo sem dependência de licença externa de análise estática, **estas diretr
   - Extrair sub-tarefas coesas em métodos privados auxiliares (`_parse_row`, `_resolve_router_profiles`, `_validate_vlan_scope`).
   - Substituir cascatas longas de `if/elif` por dicionários de despacho ou pequenos helpers especializados.
 
-### 3.2 Higienização Estática Contínua (Zero Warnings)
+### 3.2 Confiabilidade Assíncrona, Exceções e Resiliência de Rede (`S7483`, `B006`, `S5754`)
+- **Zero Bloqueio do Event Loop (`S7483`):** É proibido chamar funções síncronas bloqueantes (`time.sleep()`, `requests.get()`) dentro de funções `async def`. Utilizar sempre `await asyncio.sleep()`, `httpx.AsyncClient` ou delegar I/O bloqueante legado via `await asyncio.to_thread(...)`.
+- **Zero Argumentos Default Mutáveis (`B006`):** Nunca declarar `def metodo(itens=[])` ou `def metodo(mapa={})`. Utilizar `Optional[List[...]] = None` e inicializar dentro do corpo da função.
+- **Tratamento Estrito de Exceções (`S5754`):** Proibido usar `except:` sem tipo ou capturar `BaseException` sem relançar (`raise`), pois isso impede o encerramento gracioso do processo (`SystemExit` / `KeyboardInterrupt`).
+- **Timeouts Obrigatórios em Equipamentos:** Toda conexão SSH, Telnet, TL1, SNMP, FTP ou HTTP (ex: GenieACS NBI) deve configurar `timeout` explícito para evitar exaustão de workers quando uma OLT perde gerência.
+
+### 3.3 Segurança de Banco de Dados e OWASP API Top 10 (`S3649`)
+- **Zero SQL Interpolado (`S3649`):** Toda consulta SQL em `app/storage/sql/` deve utilizar SQLAlchemy ORM ou *bind parameters* parametrizados; é terminantemente proibido passar f-strings (`f"SELECT ... {var}"`) para `.execute()`.
+- **Prevenção de BOLA / IDOR Multi-Tenant (OWASP API1):** Endpoints que operam sobre OLTs, ONUs, VLANs ou backups por ID devem sempre validar o escopo do `SecurityContext` (`verify_olt_access`, `allowed_olt_ids`, `allowed_vlans`) antes de ler ou alterar dados.
+- **Prevenção de Mass Assignment e Exposição Excessiva (OWASP API3):** Todo endpoint FastAPI deve declarar `response_model` explícito (nunca retornar models internos do banco com hashes/segredos) e restringir tamanhos de entrada com `Field(min_length=..., max_length=...)`.
+
+### 3.4 Higienização Estática Contínua (Zero Warnings)
 - **Backend (Python):**
   - Proibido deixar variáveis locais não utilizadas (`S1481`), parâmetros mortos (`S1172`), blocos `except` genéricos sem tratamento ou re-raise, ou literais de string repetidos 3+ vezes (`S1192` — extrair para constante).
 - **Frontend (Flutter/Dart):**
@@ -89,7 +100,7 @@ Mesmo sem dependência de licença externa de análise estática, **estas diretr
 
 ## 4. Cultura de Zero Duplicidade (`< 2.0%` Duplicated Lines)
 
-A duplicação de código é o principal vetor de regressão silenciosa (quando um bug é corrigido em um lugar e esquecido na cópia). Nossa meta permanente é manter a duplicação global **abaixo de `2.0%`** (atualmente em **`1.0%`**).
+A duplicação de código é o principal vetor de regressão silenciosa (quando um bug é corrigido em um lugar e esquecido na cópia). Nossa meta permanente é manter a duplicação global **abaixo de `2.0%`** (atualmente em **`0.85%` no scanner nativo / `1.0%` no SonarQube**).
 
 ### 4.1 Padrão para Repositórios Dual-Storage (JSON + SQL)
 - Quando existir uma implementação em memória/JSON (`app/storage/<modulo>.py`) e uma implementação SQL (`app/storage/sql/<modulo>.py`):
@@ -112,27 +123,29 @@ A duplicação de código é o principal vetor de regressão silenciosa (quando 
 
 ---
 
-## 5. Checklist Local Pré-Commit (Substituto Completo do SonarQube)
+## 5. Portão Automático Nativo e Gratuito (`scripts/quality_gate.py` & `pyproject.toml`)
 
-Antes de cada `git commit` e `git push`, execute e valide:
+Para garantir que o projeto **nunca dependa de licença paga do SonarQube** após o período de avaliação, o repositório conta com um **Portão Automático Nativo** ([`scripts/quality_gate.py`](file:///Volumes/240/Code/oltapi/scripts/quality_gate.py)) integrado ao hook de `git push` e ao GitHub Actions ([`.github/workflows/ci.yml`](file:///Volumes/240/Code/oltapi/.github/workflows/ci.yml)), além da configuração padronizada em [`pyproject.toml`](file:///Volumes/240/Code/oltapi/pyproject.toml):
 
-1. **Sincronização do Contrato OpenAPI:**
+1. **Portão de Qualidade, SAST, SCA, Complexidade e Duplicidade (< 1s, zero dependências externas):**
+   ```bash
+   .venv/bin/python -m scripts.quality_gate
+   ```
+   O script bloqueia automaticamente qualquer push ou PR se detectar:
+   - Densidade de duplicação `>= 2.0%` entre `app/` e `frontend/lib/` (`CPD`);
+   - Funções novas ou modificadas com Complexidade Cognitiva `> 15` (`S3776`);
+   - Argumentos default mutáveis (`B006`), `time.sleep`/`requests` síncronos em `async def` (`S7483`), `except:` sem tipo ou `BaseException` sem re-raise (`S5754`);
+   - Interpolação de f-string SQL em `.execute()` (`S3649`) ou IPs operacionais hardcoded (`S1313`);
+   - Regressão no hardening dos `Dockerfile`s (`S6470` / `S6596`) ou conflitos no `pip check` (`SCA-PIP`).
+2. **Sincronização do Contrato OpenAPI:**
    ```bash
    .venv/bin/python -m scripts.export_openapi
    ```
-2. **Suíte de Testes e Cobertura do Backend (`>= 80%` nas linhas novas/modificadas):**
+3. **Suíte de Testes e Cobertura Mínima Obrigatória do Backend (`--cov-fail-under=60`, `>= 80%` em código novo):**
    ```bash
-   .venv/bin/pytest --cov=app --cov-report=term-missing -q
-   ```
-3. **Integridade de Dependências Python:**
-   ```bash
-   .venv/bin/pip check
+   .venv/bin/pytest --cov=app --cov-report=term-missing --cov-fail-under=60 -q
    ```
 4. **Análise Estática Estrita e Testes de Widget do Frontend Flutter:**
    ```bash
    cd frontend && flutter analyze --no-fatal-infos && flutter test --coverage
    ```
-5. **Revisão Rápida do `git diff`:**
-   - Algum bloco de `>= 15` linhas foi copiado entre dois lugares? Se sim, extraia para função/método compartilhado.
-   - Alguma função nova ficou com mais de 3 níveis de indentação (`if/for/try` aninhados)? Se sim, aplique *early return* ou extraia um helper.
-   - Algum `logger.*` recebe input externo sem `sanitize_for_log()`? Se sim, sanitize.

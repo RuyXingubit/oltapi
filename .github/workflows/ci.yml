@@ -47,9 +47,13 @@ jobs:
           python -m scripts.export_openapi
           git diff --exit-code docs/api_contracts/
 
+      - name: Run Built-in SAST, SCA, Complexity & Duplication Quality Gate
+        run: |
+          python -m scripts.quality_gate
+
       - name: Run Unit Tests with Coverage
         run: |
-          pytest tests/ -v --cov=app --cov-report=xml
+          pytest tests/ -v --cov=app --cov-report=xml --cov-fail-under=60
           sed -i "s|<source>${GITHUB_WORKSPACE}/app</source>|<source>app</source>|g" coverage.xml
 
       - name: Upload Backend Coverage Report

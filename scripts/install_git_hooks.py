@@ -4,7 +4,6 @@ Garante que os hooks de pre-commit e pre-push estejam devidamente instalados na 
 """
 
 from pathlib import Path
-import os
 import stat
 
 PRE_COMMIT_CONTENT = """#!/bin/sh
@@ -46,6 +45,8 @@ if ! git diff --exit-code docs/api_contracts/ > /dev/null 2>&1; then
 fi
 
 echo "==> [Pre-push] Contratos validados e sincronizados com sucesso."
+echo "==> [Pre-push] Executando Portão de Qualidade, Segurança (SAST/SCA) e Zero Duplicidade..."
+$PYTHON_EXEC -m scripts.quality_gate
 """
 
 

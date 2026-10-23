@@ -1,0 +1,37 @@
+[project]
+name = "oltapi"
+version = "0.1.0"
+description = "Orquestrador FTTH Multi-Vendor (Huawei, FiberHome, ZTE, VSOL, Parks, Datacom)"
+requires-python = ">=3.13"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+src = ["app", "scripts", "tests"]
+
+[tool.ruff.lint]
+# E/F: Pyflakes & Pycodestyle
+# B: flake8-bugbear (argumentos default mutáveis, armadilhas de exceção)
+# S: flake8-bandit (SAST: SQL injection, senhas hardcoded, subprocess inseguro, try/except/pass)
+# C90: McCabe Complexity (limite máximo <= 15)
+# ASYNC: flake8-async (bloqueio de event loop em async def)
+select = ["E", "F", "B", "S", "C90", "ASYNC"]
+ignore = [
+    "E501",  # Comprimento de linha gerenciado pelo formatador
+    "B008",  # Depends(...) / Security(...) padrão do FastAPI em assinaturas de endpoint
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]  # Permite assert e senhas fictícias em testes unitários
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/__pycache__/*", "tests/*"]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
+skip_covered = true

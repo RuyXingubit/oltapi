@@ -27,18 +27,21 @@ Somente planos de implementação aprovados explicitamente pelo usuário (e seus
 O backend é 100% REST JSON. O client e os serviços nunca presumem portas, perfis ou formatos hardcoded; todo dado operacional deve ser derivado diretamente do hardware ou da API. É proibido manter arquivos estáticos ou páginas web servidas pelo backend (`app/static/`).
 
 ## 7. Cultura Permanente de Segurança, Qualidade & Zero Duplicidade (Padrão SonarQube)
-Mesmo sem o scanner ativo do SonarQube Cloud, todo código novo ou refatorado DEVE obedecer rigorosamente ao guia completo em [`docs/QUALITY_AND_SECURITY_CULTURE.md`](docs/QUALITY_AND_SECURITY_CULTURE.md):
-- **SAST (Segurança de Código):**
+Mesmo sem o scanner ativo do SonarQube Cloud, todo código novo ou refatorado DEVE obedecer rigorosamente ao guia completo em [`docs/QUALITY_AND_SECURITY_CULTURE.md`](docs/QUALITY_AND_SECURITY_CULTURE.md) e passar no portão nativo `python -m scripts.quality_gate`:
+- **SAST & OWASP API Top 10 (Segurança de Código):**
   - **Prevenção de Log Injection (S5145):** Sempre envolver dados externos/de usuário em `sanitize_for_log(...)` (`app/core/security.py`) antes de registrar em `logger.*`.
   - **Prevenção de Path Traversal (S2083):** Validar nomes de arquivos com `SAFE_ID_RE` e confirmar confinamento com `os.path.commonpath([base_dir, target_path]) == base_dir` antes de qualquer I/O em disco.
   - **Prevenção de ReDoS (S5852):** Nunca usar quantificadores aninhados ambíguos em regex (`.*` múltiplos na mesma linha); preferir classes negadas (`[^\r\n:]+`), `str.partition()` ou `str.split()`.
+  - **Prevenção de SQL Injection (S3649) & BOLA/IDOR:** Jamais interpolar f-strings SQL em `.execute(...)`; validar sempre o escopo multi-tenant (`SecurityContext`) e declarar `response_model` explícito nos endpoints.
   - **Zero Hardcoded Secrets/IPs (S1313 / S2068):** Nenhum IP, credencial ou token fixo no código de produção; usar variáveis de ambiente ou IPs da RFC 5737 (`192.0.2.x`, `198.51.100.x`, `203.0.113.x`) apenas em testes/exemplos.
-  - **Docker Hardening:** Imagens base sempre pinadas com `@sha256:...`, execução com usuário não-root (`USER appuser`), `COPY --chown=...` explícito e instalação com lockfile (`--locked`).
+  - **Docker Hardening (S6470 / S6596):** Execução obrigatória com usuário não-root (`USER appuser`/`USER caddy`), `COPY --chown=...`/`--chmod=...` explícito e instalação determinística com lockfile (`--require-hashes`, `--enforce-lockfile`).
+- **Confiabilidade Assíncrona & Exceções (S7483 / B006 / S5754):**
+  - Proibido usar I/O bloqueante (`time.sleep`, `requests.*`) dentro de `async def`; proibido usar argumentos default mutáveis (`=[]`, `={}`); proibido `except:` sem tipo ou captura de `BaseException` sem `raise`; definir `timeout` explícito em toda conexão de rede/OLT.
 - **SCA (Dependências Seguras):** Ao atualizar pacotes em `requirements.txt`, manter dependências transitivas críticas pinadas em versões livres de CVEs e rodar `pip check` para garantir zero conflitos de resolução.
 - **Complexidade Cognitiva (S3776):** Nenhum método/função pode ultrapassar Complexidade Cognitiva **15**. Usar *early returns* (guard clauses) e extrair sub-rotinas privadas coesas (`_parse_*`, `_build_*`, `_validate_*`).
 - **Zero Duplicidade (`< 2.0%`):**
   - Proibido copiar e colar blocos lógicos entre implementações JSON e SQL (`app/storage/` vs `app/storage/sql/`) ou entre drivers (`FiberHome`, `Huawei`, `ZTE`); extrair helpers compartilhados na camada base.
   - No Flutter (`frontend/`), extrair componentes parametrizados ou builders quando 2+ telas/modais compartilharem a mesma estrutura visual, validar `if (!mounted) return;` após `await`, usar `isExpanded: true` em `DropdownButtonFormField` e manter `flutter analyze` com **0 issues**.
-- **Cobertura em Código Novo (`>= 80%`):** Toda nova classe, método, helper ou widget deve vir acompanhado de testes unitários/widget (`pytest` no backend e `flutter test` no frontend) cobrindo ao menos 80% das linhas novas.
+- **Cobertura em Código Novo (`>= 80%`) & Portão Automático:** Toda nova classe, método, helper ou widget deve vir acompanhado de testes unitários/widget (`pytest` no backend e `flutter test` no frontend) cobrindo ao menos 80% das linhas novas e passar em `python -m scripts.quality_gate`.
 
 
